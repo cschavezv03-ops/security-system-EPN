@@ -42,6 +42,18 @@ const GUARDIA_PERSONA_ID = '00000000-0000-0000-0000-000000000003';
 const ZONA_ID = '00000000-0000-0000-0000-000000000005';
 const PUNTO_ID = '00000000-0000-0000-0000-000000000006';
 
+// Responsables operativos: un usuario por modulo, para poder ingresar al
+// sistema y operar/probar cada modulo. Todos INTERNA, categoria ADMINISTRATIVO.
+// ⚠️ Las cedulas son PLACEHOLDER (persona.cedula es NOT NULL): ADM debe
+// reemplazarlas por las reales. UUIDs fijos para que el seed sea idempotente.
+const RESPONSABLES = [
+  { persona: '00000000-0000-0000-0000-0000000000a1', email: 'gary.defas@epn.edu.ec',     usuario: 'gary.defas',     nombres: 'Gary',      apellidos: 'Defas',      cedula: '9999999990', rol: 'DIRECTOR_ADMINISTRATIVO' },
+  { persona: '00000000-0000-0000-0000-0000000000a2', email: 'lenin.amangandi@epn.edu.ec', usuario: 'lenin.amangandi', nombres: 'Lenin',   apellidos: 'Amangandi',  cedula: '9999999991', rol: 'RESPONSABLE_PERSONAL_INTERNO' },
+  { persona: '00000000-0000-0000-0000-0000000000a3', email: 'joel.velastegui@epn.edu.ec', usuario: 'joel.velastegui', nombres: 'Joel',    apellidos: 'Velastegui', cedula: '9999999992', rol: 'RESPONSABLE_PERSONAL_EXTERNO' },
+  { persona: '00000000-0000-0000-0000-0000000000a4', email: 'heidy.tenelema@epn.edu.ec',  usuario: 'heidy.tenelema',  nombres: 'Heidy',   apellidos: 'Tenelema',   cedula: '9999999993', rol: 'RESPONSABLE_PUNTOS_CONTROL' },
+  { persona: '00000000-0000-0000-0000-0000000000a5', email: 'carlos.chavez03@epn.edu.ec', usuario: 'carlos.chavez03', nombres: 'Sebastián', apellidos: 'Chávez',   cedula: '9999999994', rol: 'RESPONSABLE_CONTROL_ACCESOS' },
+];
+
 const restHeaders = {
   apikey: KEY,
   Authorization: `Bearer ${KEY}`,
@@ -162,6 +174,19 @@ async function main() {
   await ensureUsuarioRol(adminUserId, await rolId('ADMINISTRADOR_SISTEMA'));
   await ensureUsuarioRol(guardiaUserId, await rolId('GUARDIA_SEGURIDAD'));
 
+  console.log('4b. Responsables de modulo (persona + cuenta + rol)...');
+  for (const r of RESPONSABLES) {
+    await upsertPersona({
+      id_persona: r.persona, tipo_persona: 'INTERNA', id_categoria: idCatAdministrativo,
+      cedula: r.cedula, nombres: r.nombres, apellidos: r.apellidos, correo: r.email, estado: 'ACTIVO',
+    });
+    const uid = await ensureUser(r.email, r.persona, r.usuario);
+    await rest(`usuario_sistema?id_usuario=eq.${uid}`, {
+      method: 'PATCH', prefer: 'return=minimal', body: { requiere_cambio_password: true },
+    });
+    await ensureUsuarioRol(uid, await rolId(r.rol));
+  }
+
   console.log('5. Infraestructura demo (zona + punto_control, upsert)...');
   await rest('zona?on_conflict=id_zona', {
     method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal',
@@ -186,9 +211,13 @@ async function main() {
     });
   }
 
-  console.log('\nOK. Cuentas de arranque listas:');
+  console.log('\nOK. Cuentas listas (contrasena comun, requiere_cambio_password=true):');
   console.log(`  admin@epn.edu.ec / ${PASSWORD_ARRANQUE}  (ADMINISTRADOR_SISTEMA)`);
-  console.log(`  guardia.demo@epn.edu.ec / ${PASSWORD_ARRANQUE}  (GUARDIA_SEGURIDAD, asignado a la garita demo)`);
+  console.log(`  guardia.demo@epn.edu.ec / ${PASSWORD_ARRANQUE}  (GUARDIA_SEGURIDAD, garita demo)`);
+  for (const r of RESPONSABLES) {
+    console.log(`  ${r.email} / ${PASSWORD_ARRANQUE}  (${r.rol})`);
+  }
+  console.log('\n⚠️  Las cedulas de los responsables son PLACEHOLDER (9999999990-4); reemplazar por las reales desde ADM.');
 }
 
 main().catch((e) => { console.error('\nFALLO:', e.message); process.exit(1); });
