@@ -40,17 +40,26 @@ declare
   v_alerta_count integer;
   v_via_vigencia text;
   v_horas_dentro numeric;
-  v_admin_user_id uuid := '00000000-0000-0000-0000-000000000002'; -- sembrado en seed.sql (§D13)
+  v_admin_user_id uuid;
 begin
   raise notice '=== Smoke test: Sistema de Seguridad EPN ===';
 
   select id_categoria into v_id_categoria_docente from public.categoria_persona where codigo_categoria = 'DOCENTE';
   select id_categoria into v_id_categoria_visitante from public.categoria_persona where codigo_categoria = 'VISITANTE';
   if v_id_categoria_docente is null or v_id_categoria_visitante is null then
-    raise exception 'Categorias base no encontradas: ejecutar seed.sql primero';
+    raise exception 'Categorias base no encontradas: aplicar la migracion de datos de seguridad primero';
   end if;
-  if not exists (select 1 from public.usuario_sistema where id_usuario = v_admin_user_id) then
-    raise exception 'Usuario administrador sembrado (§D13) no encontrado: ejecutar seed.sql primero';
+
+  -- Admin dinamico: el UUID de la cuenta de arranque difiere entre local
+  -- (seed.sql, UUID fijo) y remoto (Auth Admin API, UUID generado por GoTrue).
+  -- Se resuelve por rol para que el smoke test corra igual en ambos entornos.
+  select us.id_usuario into v_admin_user_id
+    from public.usuario_sistema us
+    join public.usuario_rol ur on ur.id_usuario = us.id_usuario and ur.estado_asignacion = 'ACTIVO'
+    join public.rol r on r.id_rol = ur.id_rol and r.nombre_rol = 'ADMINISTRADOR_SISTEMA'
+   limit 1;
+  if v_admin_user_id is null then
+    raise exception 'No hay ningun ADMINISTRADOR_SISTEMA sembrado: correr el bootstrap (seed.sql local o scripts/seed_remoto.mjs)';
   end if;
 
   -- 1. Zona / punto de control / regla de prueba (independientes del seed
@@ -143,17 +152,26 @@ begin
   raise notice 'OK: evento AUTORIZADO no genero alerta.';
 
   -- 7. evento_acceso DENEGADO -> SI debe generar alerta automatica (trigger).
+  -- El motivo lleva el codigo canonico (E9): el clasificador determinista debe
+  -- producir tipo_alerta = MEMORANDO_VENCIDO.
   insert into public.evento_acceso (
     id_persona, id_punto_control, tipo_movimiento, resultado, motivo_resultado, origen_registro
   ) values (
-    v_id_persona_externa, v_id_punto_control, 'INGRESO', 'DENEGADO', 'Memorando vencido para esta prueba', 'MANUAL'
+    v_id_persona_externa, v_id_punto_control, 'INGRESO', 'DENEGADO',
+    'MEMORANDO_VENCIDO: memorando vencido para esta prueba', 'MANUAL'
   ) returning id_evento into v_id_evento_denegado;
 
   select count(*) into v_alerta_count from public.alerta_seguridad where id_evento = v_id_evento_denegado;
   if v_alerta_count <> 1 then
     raise exception 'FALLO: un evento DENEGADO genero % alerta(s), deberia generar exactamente 1', v_alerta_count;
   end if;
-  raise notice 'OK: evento DENEGADO genero % alerta(s) automaticamente.', v_alerta_count;
+  if not exists (
+    select 1 from public.alerta_seguridad
+     where id_evento = v_id_evento_denegado and tipo_alerta = 'MEMORANDO_VENCIDO'
+  ) then
+    raise exception 'FALLO: la alerta del evento DENEGADO no se clasifico como MEMORANDO_VENCIDO (E9)';
+  end if;
+  raise notice 'OK: evento DENEGADO genero 1 alerta clasificada como MEMORANDO_VENCIDO.';
 
   -- 8. Escenario vehicular (D21/D22/D25): conductor interno ingresa con
   -- vehiculo -> debe aparecer en vista_vehiculos_dentro hasta que salga.
