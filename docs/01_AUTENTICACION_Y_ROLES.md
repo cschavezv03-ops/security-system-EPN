@@ -214,14 +214,20 @@ el que el guardia busca.
   que tendría un proveedor real** (AWS Rekognition `SearchFacesByImage`, Azure
   Face `Identify`, etc.).
 - La búsqueda 1:N es la función SQL `identificar_por_descriptor` (pgvector,
-  distancia coseno): devuelve la persona **INTERNA** enrolada más cercana y su
-  `confidence = 1 − distancia_coseno`. **No** filtra por `estado`: identificar es
-  distinto de autorizar; el estado ACTIVO, la regla y el horario los decide
-  después `registrar-evento-acceso`.
+  **distancia euclidiana / L2**): devuelve la persona **INTERNA** enrolada más
+  cercana y su `confidence = 1 − distancia_L2`. **No** filtra por `estado`:
+  identificar es distinto de autorizar; el estado ACTIVO, la regla y el horario
+  los decide después `registrar-evento-acceso`.
+  > ⚠️ **Métrica: euclidiana, NO coseno.** Los descriptores de face-api.js están
+  > diseñados para compararse por distancia euclidiana. Con coseno, dos personas
+  > distintas dan ~0.88 de similitud (falsos positivos medidos con rostros
+  > reales el 2026-07-14). Con L2 hay separación real: genuino ≈ 0.44 de
+  > confidence, impostor ≈ 0.29–0.31.
 - **Un solo umbral para todo el pipeline:** el match se decide con el parámetro
-  `UMBRAL_BIOMETRIA` (0.85, ajustable en `parametro_sistema` sin tocar código),
-  el mismo que ya compara `registrar-evento-acceso`. Por eso el resto del flujo
-  CAC (evento → identidad → regla → resultado → alerta) **no cambia**.
+  `UMBRAL_BIOMETRIA` (**0.38** = 1 − distancia L2 máxima 0.62; estricto con
+  margen, ajustable en `parametro_sistema` sin tocar código), el mismo que ya
+  compara `registrar-evento-acceso`. Por eso el resto del flujo CAC
+  (evento → identidad → regla → resultado → alerta) **no cambia**.
 - El enrolamiento usa la RPC `enrolar_biometria` (SECURITY INVOKER: respeta la
   RLS de GPI y el trigger que prohíbe biometría de externos). `forzar_fallo`
   sigue disponible para probar el camino de denegación/alertas.

@@ -302,6 +302,29 @@ Estas alertas van a **destapar problemas de calidad de dato**: cada salida que e
 registrar, o que un dispositivo no capturó, aparecerá como un "vehículo que nunca salió". Eso es
 información valiosa, no ruido.
 
+### D26 — Biometría facial: reconocimiento real 1:N con pgvector (ya no mock)
+**Decidido (2026-07-14).** Se implementa el reconocimiento facial **real**, reemplazando el mock.
+Detalle en `01_AUTENTICACION_Y_ROLES.md` §6.
+
+- **Sin hardware dedicado.** El descriptor facial de 128 dimensiones lo calcula el navegador con
+  `face-api.js` (cámara de laptop/celular); la **comparación ocurre en el backend** con
+  **pgvector** (`registro_biometrico.descriptor_facial vector(128)`). La BD sigue siendo la única
+  fuente de verdad y el match no se falsifica desde el cliente.
+- **Identificación 1:N**, no verificación 1:1: `validar-biometria` recibe `{ descriptor }` y
+  devuelve `{ match, id_persona, confidence }`. La búsqueda es la función SQL
+  `identificar_por_descriptor` (solo `service_role`); el enrolamiento es la RPC
+  `enrolar_biometria` (SECURITY INVOKER, respeta la RLS de GPI y el trigger que prohíbe biometría
+  de externos, §D20).
+- **Métrica: distancia euclidiana (L2), NO coseno.** Medido con rostros reales: con coseno dos
+  personas distintas daban ~0.88 de similitud (falsos positivos: aceptaba a no enrolados). Con L2
+  hay separación real. `confidence = 1 − distancia_L2`. Punto de operación **estricto con margen**:
+  `UMBRAL_BIOMETRIA = 0.38` (= distancia L2 máxima 0.62). Verificado 1:N: genuino ≈ 0.44
+  (aceptado), impostores ≈ 0.29–0.31 (rechazados).
+- El resto del pipeline CAC no cambia: `registrar-evento-acceso` sigue comparando ese mismo
+  `confidence` contra `UMBRAL_BIOMETRIA`. Reemplazar face-api.js/pgvector por un proveedor real
+  (AWS Rekognition / Azure Face) solo tocaría el origen del descriptor y esta función.
+- Herramienta de prueba con cámara: `scripts/banco_biometria/`.
+
 ### D2 — Dispositivos: identidad de servicio
 **Decidido.** Los dispositivos no usan la sesión de un guardia. Llaman a una Edge Function
 autenticada con `service_role` key, que valida `codigo_mac`/`direccion_ip` contra la tabla

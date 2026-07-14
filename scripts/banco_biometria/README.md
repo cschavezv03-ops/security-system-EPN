@@ -50,9 +50,10 @@ No forma parte del backend ni del frontend definitivo: es un banco de pruebas.
 
 ## Notas
 
-- El `confidence` es la **similitud coseno** contra el enrolado más cercano. El
-  match se decide contra el parámetro `UMBRAL_BIOMETRIA` (por defecto `0.85`),
-  ajustable en `parametro_sistema` sin tocar código.
+- El `confidence` es `1 − distancia euclidiana (L2)` contra el enrolado más
+  cercano (métrica correcta para face-api.js; coseno daba falsos positivos). El
+  match se decide contra el parámetro `UMBRAL_BIOMETRIA` (por defecto `0.38`, =
+  distancia L2 máxima 0.62), ajustable en `parametro_sistema` sin tocar código.
 - El "Docente Demo" del seed trae una fila biométrica **sin descriptor** (era el
   mock): hay que **re-enrolarlo** con un rostro real desde aquí para que el 1:N
   lo reconozca.

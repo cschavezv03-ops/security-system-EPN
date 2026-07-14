@@ -102,9 +102,11 @@ rostro. `id_persona` solo viene poblado si `match` es `true`.
 { "match": true, "id_persona": "uuid", "confidence": 0.93 }
 ```
 
-El `confidence` es la similitud coseno contra el enrolado más cercano; el match
-se decide contra `UMBRAL_BIOMETRIA` (0.85). Ese mismo `confidence` es el que se
-pasa como `ocupantes[].confidence` a `registrar-evento-acceso`.
+El `confidence` es `1 − distancia_euclidiana(L2)` contra el enrolado más cercano
+(la métrica correcta para descriptores de face-api.js; coseno daba falsos
+positivos). El match se decide contra `UMBRAL_BIOMETRIA` (**0.38** = distancia L2
+máxima 0.62). Ese mismo `confidence` es el que se pasa como
+`ocupantes[].confidence` a `registrar-evento-acceso`.
 
 **Enrolamiento** (rol GPI, requiere sesión): RPC
 `enrolar_biometria(p_id_persona uuid, p_descriptor float8[128], p_path_storage text)`.
