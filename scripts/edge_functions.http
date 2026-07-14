@@ -1,0 +1,119 @@
+### Sistema de Seguridad EPN — Edge Functions (local)
+### Requiere `supabase start` corriendo (o `supabase functions serve` +
+### `supabase start` para la base). Compatible con la extension REST Client
+### de VS Code o cualquier cliente .http equivalente.
+###
+### scripts/smoke_test.sql prueba la logica de base de datos (triggers,
+### vistas) corriendo como postgres, fuera de RLS. Este archivo prueba las
+### Edge Functions del bloque 8 tal como las llamaria un dispositivo o un
+### guardia real, con autenticacion real.
+
+@baseUrl = http://127.0.0.1:54321/functions/v1
+@anonKey = REEMPLAZAR_CON_supabase_status_anon_key
+
+### 1. validar-biometria — mock, persona INTERNA con biometria vigente.
+### Reemplazar id_persona/id_dispositivo por UUIDs reales de tu base local
+### (p. ej. el docente sembrado por scripts/smoke_test.sql, si lo dejas sin
+### hacer ROLLBACK, o cualquier persona INTERNA con registro_biometrico).
+POST {{baseUrl}}/validar-biometria
+Content-Type: application/json
+apikey: {{anonKey}}
+
+{
+  "id_persona": "REEMPLAZAR_UUID_PERSONA_INTERNA",
+  "imagen_ref": "captura-demo.jpg",
+  "id_dispositivo": "REEMPLAZAR_UUID_DISPOSITIVO"
+}
+
+### 2. validar-biometria — forzar fallo (camino de denegacion / alertas).
+POST {{baseUrl}}/validar-biometria
+Content-Type: application/json
+apikey: {{anonKey}}
+
+{
+  "id_persona": "REEMPLAZAR_UUID_PERSONA_INTERNA",
+  "imagen_ref": "captura-demo.jpg",
+  "id_dispositivo": "REEMPLAZAR_UUID_DISPOSITIVO",
+  "forzar_fallo": true
+}
+
+### 3. Login del guardia demo (sembrado en seed.sql, §D13) — necesario para
+### los ejemplos MANUAL de abajo. Copia el "access_token" de la respuesta.
+POST http://127.0.0.1:54321/auth/v1/token?grant_type=password
+Content-Type: application/json
+apikey: {{anonKey}}
+
+{
+  "email": "guardia.demo@epn.edu.ec",
+  "password": "CambiarInmediatamente#2026"
+}
+
+### 4. registrar-evento-acceso — AUTOMATICA, ingreso peatonal INTERNA.
+### codigo_mac/direccion_ip deben coincidir con una fila de `dispositivo`
+### OPERATIVO asociada a id_punto_control (crear una si tu seed no tiene).
+POST {{baseUrl}}/registrar-evento-acceso
+Content-Type: application/json
+apikey: {{anonKey}}
+
+{
+  "origen_registro": "AUTOMATICA",
+  "tipo_movimiento": "INGRESO",
+  "id_punto_control": "REEMPLAZAR_UUID_PUNTO_CONTROL",
+  "codigo_mac": "AA:BB:CC:DD:EE:FF",
+  "direccion_ip": "10.0.0.10",
+  "ocupantes": [
+    { "id_persona": "REEMPLAZAR_UUID_PERSONA_INTERNA", "es_conductor": false, "confidence": 0.95 }
+  ]
+}
+
+### 5. registrar-evento-acceso — MANUAL, ingreso peatonal EXTERNA por cedula.
+### Authorization: Bearer <access_token de la peticion 3>.
+POST {{baseUrl}}/registrar-evento-acceso
+Content-Type: application/json
+apikey: {{anonKey}}
+Authorization: Bearer REEMPLAZAR_ACCESS_TOKEN_GUARDIA
+
+{
+  "origen_registro": "MANUAL",
+  "tipo_movimiento": "INGRESO",
+  "id_punto_control": "REEMPLAZAR_UUID_PUNTO_CONTROL",
+  "ocupantes": [
+    { "cedula": "1700000099" }
+  ]
+}
+
+### 6. registrar-evento-acceso — vehicular mixto (D22): conductor interno
+### (AUTOMATICA en el mismo request logico) + pasajero externo. Un evento por
+### ocupante, mismo id_vehiculo/id_punto_control.
+POST {{baseUrl}}/registrar-evento-acceso
+Content-Type: application/json
+apikey: {{anonKey}}
+Authorization: Bearer REEMPLAZAR_ACCESS_TOKEN_GUARDIA
+
+{
+  "origen_registro": "MANUAL",
+  "tipo_movimiento": "INGRESO",
+  "id_punto_control": "REEMPLAZAR_UUID_PUNTO_CONTROL",
+  "id_vehiculo": "REEMPLAZAR_UUID_VEHICULO",
+  "ocupantes": [
+    { "id_persona": "REEMPLAZAR_UUID_PERSONA_INTERNA", "es_conductor": true, "confidence": 0.95 },
+    { "cedula": "1700000099", "es_conductor": false }
+  ]
+}
+
+### 7. registrar-evento-acceso — salida forzada por el guardia (valvula 2, D23).
+POST {{baseUrl}}/registrar-evento-acceso
+Content-Type: application/json
+apikey: {{anonKey}}
+Authorization: Bearer REEMPLAZAR_ACCESS_TOKEN_GUARDIA
+
+{
+  "origen_registro": "MANUAL",
+  "tipo_movimiento": "SALIDA",
+  "id_punto_control": "REEMPLAZAR_UUID_PUNTO_CONTROL",
+  "ocupantes": [
+    { "cedula": "1700000099" }
+  ],
+  "salida_manual_forzada": true,
+  "motivo_salida_manual": "Evacuacion - override manual del guardia"
+}
