@@ -101,3 +101,14 @@ guardia, no de la DRI"). Se resolvió a favor de la matriz granular (más espec�
 esos tres códigos de la asignación wildcard de `RESPONSABLE_CONTROL_ACCESOS`. Si el equipo
 considera que el supervisor CAC sí debería poder registrar eventos/autorizaciones directamente
 (no solo el guardia), es un `INSERT` de tres filas en `rol_permiso`.
+
+### E9 — Heurística de clasificación `motivo_resultado` → `tipo_alerta`
+El trigger `generar_alerta_desde_evento_denegado` (bloque 5) debe elegir uno de los 9 valores de
+`alerta_seguridad.tipo_alerta` (§D16) a partir de un `evento_acceso` denegado. Ningún documento
+define el algoritmo de clasificación — D16 explícitamente marca el catálogo como "provisional, a
+confirmar con el equipo CAC". Se implementó una heurística conservadora por coincidencia de texto
+en `motivo_resultado` (p. ej. contiene "biometr" → `BIOMETRIA_FALLIDA`), con `PERSONA_NO_AUTORIZADA`
+como valor por defecto cuando no hay coincidencia. Esto asume que quien escribe `evento_acceso`
+(la Edge Function del bloque 8, o el guardia) redacta `motivo_resultado` de forma reconocible.
+Si el equipo prefiere una clasificación explícita (p. ej. un parámetro adicional en el INSERT en
+vez de inferirla del texto), es un cambio acotado a esta función.
