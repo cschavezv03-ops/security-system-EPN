@@ -112,3 +112,13 @@ como valor por defecto cuando no hay coincidencia. Esto asume que quien escribe 
 (la Edge Function del bloque 8, o el guardia) redacta `motivo_resultado` de forma reconocible.
 Si el equipo prefiere una clasificación explícita (p. ej. un parámetro adicional en el INSERT en
 vez de inferirla del texto), es un cambio acotado a esta función.
+
+### E10 — Bucket de Storage de biometría: solo GPI (no GPI+GPE como decía el bloque 7)
+Las instrucciones de la conversación para el bloque 7 pedían un bucket "con políticas que solo
+permitan acceso a GPI y GPE". Eso contradice directamente `docs/02_MATRIZ_PERMISOS_RLS.md`:
+*"GPE no tiene NINGÚN permiso sobre `registro_biometrico`. Los externos NUNCA tienen registro
+biométrico"* — una reversión explícita y muy señalada de una decisión anterior (D7), ratificada
+por D20 (los externos se validan por cédula, nunca por rostro). Se preguntó al usuario en vez de
+resolverlo en silencio, dado lo sensible del dato (biometría) y lo enfático del documento fuente.
+Confirmó que el bucket debe ser **solo GPI**, tratando el "y GPE" del prompt como un desliz de
+redacción, no como una instrucción deliberada que deba prevalecer sobre la matriz.
