@@ -8,6 +8,12 @@ import {
 } from './opciones'
 import { supabase } from '../lib/supabase'
 import { hoyISO } from '../lib/format'
+import {
+  formatearPlaca, formatearPlacaInput, normalizarPlaca, normalizarTelefono,
+  validarCedula, validarCodigoParametro, validarCodigoPermiso, validarCorreo,
+  validarFechaNacimiento, validarIp, validarMac, validarNoVacio, validarNombre,
+  validarPlaca, validarRuc, validarTelefono, validarValorParametro,
+} from '../lib/validacion'
 
 const d = (v: any) => (v == null || v === '' ? '—' : String(v))
 
@@ -39,9 +45,9 @@ export const cfgEmpresa: ResourceConfig = {
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'nombre', label: 'Nombre', required: true, colSpan: 2 },
-    { name: 'ruc', label: 'RUC' },
-    { name: 'tipo_servicio', label: 'Tipo de servicio' },
+    { name: 'nombre', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio },
+    { name: 'ruc', label: 'RUC', validar: validarRuc, hint: '13 dígitos, termina en el establecimiento (001).', placeholder: '1790012345001' },
+    { name: 'tipo_servicio', label: 'Tipo de servicio', validar: validarNoVacio },
     { name: 'estado', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.empresa_estado), default: 'ACTIVO', editable: true },
   ],
   campoEstado: 'estado',
@@ -71,7 +77,7 @@ export const cfgCategoria: ResourceConfig = {
   ],
   campos: [
     { name: 'codigo_categoria', label: 'Código', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_codigo), editable: false },
-    { name: 'nombre_categoria', label: 'Nombre', required: true },
+    { name: 'nombre_categoria', label: 'Nombre', required: true, validar: validarNoVacio },
     { name: 'ambito', label: 'Ámbito', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_ambito), editable: false },
     { name: 'estado', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.categoria_estado), default: 'ACTIVO' },
   ],
@@ -105,9 +111,10 @@ export const cfgParametro: ResourceConfig = {
     { label: 'Modificado', render: (r) => fmtFechaHora(r.fecha_modificacion) },
   ],
   campos: [
-    { name: 'codigo_parametro', label: 'Código', required: true, editable: false, colSpan: 2 },
-    { name: 'nombre_parametro', label: 'Nombre', required: true, colSpan: 2 },
-    { name: 'valor_parametro', label: 'Valor', required: true },
+    { name: 'codigo_parametro', label: 'Código', required: true, editable: false, colSpan: 2, validar: validarCodigoParametro, placeholder: 'TIEMPO_SESION_MIN' },
+    { name: 'nombre_parametro', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio },
+    // El valor debe castear al tipo_dato elegido en el propio formulario.
+    { name: 'valor_parametro', label: 'Valor', required: true, validar: (v, vals) => validarValorParametro(String(vals.tipo_dato ?? ''), v) },
     { name: 'tipo_dato', label: 'Tipo de dato', type: 'select', required: true, options: opcionesCatalogo(CAT.parametro_tipo_dato) },
     { name: 'modulo_aplicacion', label: 'Módulo', type: 'select', required: true, options: opcionesCatalogo(CAT.parametro_modulo) },
     { name: 'estado_parametro', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.parametro_estado), default: 'ACTIVO' },
@@ -161,7 +168,7 @@ export const cfgPermiso: ResourceConfig = {
     { label: 'Estado', render: (r) => <Badge value={r.estado_permiso} /> },
   ],
   campos: [
-    { name: 'codigo_permiso', label: 'Código', required: true, editable: false, colSpan: 2, hint: 'Formato MODULO_ENTIDAD_ACCION' },
+    { name: 'codigo_permiso', label: 'Código', required: true, editable: false, colSpan: 2, hint: 'Formato MODULO_ENTIDAD_ACCION', validar: validarCodigoPermiso, placeholder: 'GPI_PERSONA_INSERT' },
     { name: 'descripcion', label: 'Descripción', type: 'textarea', colSpan: 3 },
     { name: 'estado_permiso', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.categoria_estado), default: 'ACTIVO' },
   ],
@@ -217,13 +224,13 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
     autoUsuarioRegistro: ['id_usuario_registro'],
     buscarEn: ['placa', 'marca', 'modelo', 'color'],
     columnas: [
-      { key: 'placa', label: 'Placa', render: (r) => d(r.placa) },
+      { key: 'placa', label: 'Placa', render: (r) => (r.placa ? formatearPlaca(r.placa) : '—'), valorExport: (r) => (r.placa ? formatearPlaca(r.placa) : '') },
       { key: 'tipo_vehiculo', label: 'Tipo' },
       { key: 'marca', label: 'Marca', render: (r) => d(r.marca) },
       { key: 'modelo', label: 'Modelo', render: (r) => d(r.modelo) },
       { key: 'estado_vehiculo', label: 'Estado', badge: true },
     ],
-    campoTituloDetalle: (r) => r.placa ?? 'Vehículo',
+    campoTituloDetalle: (r) => (r.placa ? formatearPlaca(r.placa) : 'Vehículo'),
     campoSubtituloDetalle: (r) => <><Badge value={r.tipo_vehiculo} /> <Badge value={r.estado_vehiculo} /></>,
     detalle: [
       { label: 'Marca / Modelo', render: (r) => `${d(r.marca)} ${d(r.modelo)}` },
@@ -231,11 +238,17 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
       { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
     ],
     campos: [
-      { name: 'placa', label: 'Placa', colSpan: 1 },
+      // Se teclea con guion (ABC-1234) pero se guarda canónica sin guion: es la clave con la
+      // que el OCR de placas comparará contra la BD.
+      {
+        name: 'placa', label: 'Placa', colSpan: 1, validar: validarPlaca,
+        formatear: formatearPlacaInput, normalizar: normalizarPlaca,
+        hint: '3 letras y 3 o 4 dígitos.', placeholder: 'PDF-1234',
+      },
       { name: 'tipo_vehiculo', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.vehiculo_tipo) },
-      { name: 'marca', label: 'Marca' },
-      { name: 'modelo', label: 'Modelo' },
-      { name: 'color', label: 'Color' },
+      { name: 'marca', label: 'Marca', validar: validarNoVacio },
+      { name: 'modelo', label: 'Modelo', validar: validarNoVacio },
+      { name: 'color', label: 'Color', validar: validarNoVacio },
       { name: 'estado_vehiculo', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.vehiculo_estado), default: 'ACTIVO', editable: modulo === 'ADM' },
     ],
     campoEstado: 'estado_vehiculo',
@@ -259,15 +272,15 @@ export function cfgPersonaVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfi
     buscarEn: ['persona.cedula', 'persona.apellidos', 'vehiculo.placa'],
     columnas: [
       { key: 'persona', label: 'Persona', render: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : '—') },
-      { key: 'vehiculo', label: 'Vehículo', render: (r) => r.vehiculo?.placa ?? '—' },
+      { key: 'vehiculo', label: 'Vehículo', render: (r) => (r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—') },
       { key: 'tipo_relacion', label: 'Relación' },
       { key: 'estado_relacion', label: 'Estado', badge: true },
     ],
     campoTituloDetalle: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : 'Asociación'),
-    campoSubtituloDetalle: (r) => <>Vehículo {r.vehiculo?.placa ?? '—'} · <Badge value={r.tipo_relacion} /></>,
+    campoSubtituloDetalle: (r) => <>Vehículo {r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—'} · <Badge value={r.tipo_relacion} /></>,
     detalle: [
       { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
-      { label: 'Vehículo', render: (r) => `${d(r.vehiculo?.placa)} (${d(r.vehiculo?.tipo_vehiculo)})` },
+      { label: 'Vehículo', render: (r) => `${r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—'} (${d(r.vehiculo?.tipo_vehiculo)})` },
       { label: 'Responsable de trámite', render: (r) => (r.es_responsable_tramite ? 'Sí' : 'No') },
       { label: 'Vigencia', render: (r) => `${fmtFecha(r.fecha_inicio)} → ${r.fecha_fin ? fmtFecha(r.fecha_fin) : 'indefinida'}` },
     ],
@@ -279,7 +292,7 @@ export function cfgPersonaVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfi
         options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`,
           modulo === 'GPI' ? { tipo_persona: 'INTERNA' } : modulo === 'GPE' ? { tipo_persona: 'EXTERNA' } : undefined),
       },
-      { name: 'id_vehiculo', label: 'Vehículo', type: 'select', required: true, editable: false, options: opcionesTabla('vehiculo', 'id_vehiculo', (v) => `${v.placa ?? v.id_vehiculo} · ${v.tipo_vehiculo}`) },
+      { name: 'id_vehiculo', label: 'Vehículo', type: 'select', required: true, editable: false, options: opcionesTabla('vehiculo', 'id_vehiculo', (v) => `${v.placa ? formatearPlaca(v.placa) : v.id_vehiculo} · ${v.tipo_vehiculo}`) },
       { name: 'tipo_relacion', label: 'Tipo de relación', type: 'select', required: true, options: opcionesCatalogo(CAT.persona_vehiculo_tipo) },
       { name: 'es_responsable_tramite', label: '¿Responsable del trámite?', type: 'checkbox' },
       { name: 'fecha_inicio', label: 'Inicio', type: 'date', required: true },
@@ -321,7 +334,7 @@ export const cfgZona: ResourceConfig = {
   ],
   filtros: [{ campo: 'tipo_zona', label: 'Filtrar por zona', opciones: opcionesCatalogo(CAT.zona_tipo) }],
   campos: [
-    { name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2 },
+    { name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio },
     { name: 'tipo_zona', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona_padre'] },
     // Solo tiene sentido una jerarquía dentro de un parqueadero o un edificio (feedback PCO #2).
     { name: 'id_zona_padre', label: 'Zona padre', type: 'select', options: optZonas, visibleSi: (v) => v.tipo_zona === 'PARQUEADERO' || v.tipo_zona === 'EDIFICIO' },
@@ -378,7 +391,7 @@ export const cfgPuntoControl: ResourceConfig = {
     { name: '_filtro_tipo_zona', label: 'Tipo de zona', type: 'select', required: true, persistir: false, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona'] },
     { name: 'id_zona', label: 'Zona', type: 'select', required: true, opcionesDependientes: (v) => optZonasPorTipo(v._filtro_tipo_zona) },
     // Autonumerado (feedback PCO #7): "Acceso A/B/C..." según cuántos ya existen en esa zona campus.
-    { name: 'nombre_punto', label: 'Nombre', required: true, colSpan: 2, autoSugerenciaDesde: { campo: 'id_zona', calcular: sugerirNombrePuntoCampus } },
+    { name: 'nombre_punto', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio, autoSugerenciaDesde: { campo: 'id_zona', calcular: sugerirNombrePuntoCampus } },
     { name: 'estado_punto', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.punto_estado), default: 'ACTIVO' },
   ],
   campoEstado: 'estado_punto',
@@ -413,8 +426,8 @@ export const cfgDispositivo: ResourceConfig = {
   campos: [
     // Orden pedido (feedback PCO #9): tecnología primero, luego MAC/IP con autoformato.
     { name: 'tipo_tecnologia', label: 'Tecnología', type: 'select', required: true, options: opcionesCatalogo(CAT.dispositivo_tecnologia), alCambiarLimpiar: ['_filtro_zona', 'id_punto_control'] },
-    { name: 'codigo_mac', label: 'Código MAC', required: true, placeholder: 'AA:BB:CC:DD:EE:FF', formatear: formatearMac },
-    { name: 'direccion_ip', label: 'Dirección IP', required: true, placeholder: '10.0.0.10', formatear: formatearIp },
+    { name: 'codigo_mac', label: 'Código MAC', required: true, placeholder: 'AA:BB:CC:DD:EE:FF', formatear: formatearMac, validar: validarMac },
+    { name: 'direccion_ip', label: 'Dirección IP', required: true, placeholder: '10.0.0.10', formatear: formatearIp, validar: validarIp },
     // Cascada (feedback PCO #10): zona → punto de control, ya filtrada por compatibilidad
     // tecnología↔zona (LPR_PLACAS solo PARQUEADERO). El trigger validar_asignacion_dispositivo
     // en la base de datos es la garantía real; esto es solo para no ofrecer opciones inválidas.
@@ -514,17 +527,18 @@ export const cfgPersonaExterna: ResourceConfig = {
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'cedula', label: 'Cédula', required: true, editable: false },
-    { name: 'nombres', label: 'Nombres', required: true, editable: false },
-    { name: 'apellidos', label: 'Apellidos', required: true, editable: false },
+    { name: 'cedula', label: 'Cédula', required: true, editable: false, validar: validarCedula, hint: '10 dígitos; se verifica provincia y dígito verificador.', placeholder: '1712345678' },
+    { name: 'nombres', label: 'Nombres', required: true, editable: false, validar: validarNombre },
+    { name: 'apellidos', label: 'Apellidos', required: true, editable: false, validar: validarNombre },
     // Ya no obligatorio (feedback GPE: registro ágil de visitas sin memorando — basta con
     // cédula + algún contacto, no hace falta correo si ya se da teléfono, o viceversa).
-    { name: 'correo', label: 'Correo (opcional)', type: 'email' },
-    { name: 'telefono_contacto', label: 'Teléfono (opcional)' },
+    // Dominio libre: un externo no tiene correo institucional por definición.
+    { name: 'correo', label: 'Correo (opcional)', type: 'email', validar: validarCorreo },
+    { name: 'telefono_contacto', label: 'Teléfono (opcional)', validar: validarTelefono, normalizar: normalizarTelefono, hint: 'Se guarda como +593…', placeholder: '0987654321' },
     { name: 'id_categoria', label: 'Categoría (externa)', type: 'select', required: true, options: optCategorias('EXTERNA') },
     { name: 'id_empresa', label: 'Empresa (opcional)', type: 'select', options: optEmpresas },
     { name: 'sexo', label: 'Sexo', type: 'select', options: opcionesCatalogo(CAT.persona_sexo) },
-    { name: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date' },
+    { name: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', validar: validarFechaNacimiento },
     { name: 'direccion_domicilio', label: 'Dirección', colSpan: 2 },
   ],
   campoEstado: 'estado',
@@ -640,7 +654,7 @@ export const cfgReglaAcceso: ResourceConfig = {
     { label: 'Descripción', render: (r) => d(r.descripcion) },
   ],
   campos: [
-    { name: 'nombre_regla', label: 'Nombre de la regla', required: true, colSpan: 2 },
+    { name: 'nombre_regla', label: 'Nombre de la regla', required: true, colSpan: 2, validar: validarNoVacio },
     { name: 'id_categoria', label: 'Categoría', type: 'select', required: true, options: optCategorias() },
     { name: 'id_punto_control', label: 'Punto de control (opcional = todos)', type: 'select', options: optPuntosControl },
     { name: 'horario_inicio', label: 'Horario inicio', type: 'time', required: true },
@@ -682,7 +696,7 @@ export const cfgAutorizacion: ResourceConfig = {
   campos: [
     { name: 'id_persona', label: 'Visitante (persona externa)', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'EXTERNA' }), colSpan: 2 },
     { name: 'fecha_visita', label: 'Fecha de visita', type: 'date', required: true, default: hoyISO() },
-    { name: 'motivo', label: 'Motivo', type: 'textarea', required: true, colSpan: 3 },
+    { name: 'motivo', label: 'Motivo', type: 'textarea', required: true, colSpan: 3, validar: validarNoVacio },
     { name: 'estado_autorizacion', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.autorizacion_estado), default: 'VIGENTE' },
   ],
   campoEstado: 'estado_autorizacion',

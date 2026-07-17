@@ -1244,6 +1244,20 @@ export type Database = {
           id_persona: string
         }[]
       }
+      cerrar_sesion: {
+        Args: never
+        Returns: {
+          estado_sesion: string
+          fecha_cierre: string | null
+          fecha_expiracion: string
+          fecha_inicio: string
+          id_sesion: string
+          id_usuario: string
+          ip_origen: string | null
+          recordar_sesion: boolean
+          token_hash: string | null
+        }
+      }
       permisos_efectivos: { Args: never; Returns: string[] }
       puntos_control_asignados: { Args: never; Returns: string[] }
       registrar_sesion: {

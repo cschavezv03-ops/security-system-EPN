@@ -4,6 +4,10 @@ import { fmtFecha } from '../lib/format'
 import { Badge } from '../components/ui'
 import { opcionesCatalogo, optCategorias, opcionesTabla } from './opciones'
 import { supabase } from '../lib/supabase'
+import {
+  normalizarTelefono, validarCedula, validarCorreo, validarCorreoInstitucional,
+  validarFechaNacimiento, validarNoVacio, validarNombre, validarTelefono,
+} from '../lib/validacion'
 
 // Feedback GPI: solo "Masculino"/"Femenino" (sin "Otro", ver lib/catalogos.ts persona_sexo).
 const OPCIONES_SEXO = [{ value: 'M', label: 'Masculino' }, { value: 'F', label: 'Femenino' }]
@@ -61,19 +65,21 @@ export const cfgPersonaInterna: ResourceConfig = {
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'cedula', label: 'Cédula', required: true, editable: false },
+    { name: 'cedula', label: 'Cédula', required: true, editable: false, validar: validarCedula, hint: '10 dígitos; se verifica provincia y dígito verificador.', placeholder: '1712345678' },
     // No editable (feedback GPI): identifica de forma única al estudiante, no debe cambiar tras el registro.
-    { name: 'codigo_unico', label: 'Código único', editable: false },
-    { name: 'nombres', label: 'Nombres', required: true, editable: false },
-    { name: 'apellidos', label: 'Apellidos', required: true, editable: false },
-    { name: 'correo', label: 'Correo', type: 'email', required: true },
-    { name: 'correo_respaldo', label: 'Correo alternativo', type: 'email' },
-    { name: 'telefono_contacto', label: 'Teléfono' },
-    { name: 'telefono_respaldo', label: 'Teléfono alternativo' },
+    { name: 'codigo_unico', label: 'Código único', editable: false, validar: validarNoVacio },
+    { name: 'nombres', label: 'Nombres', required: true, editable: false, validar: validarNombre },
+    { name: 'apellidos', label: 'Apellidos', required: true, editable: false, validar: validarNombre },
+    // El personal interno usa correo institucional (@epn.edu.ec o @cec.edu.ec).
+    { name: 'correo', label: 'Correo', type: 'email', required: true, validar: validarCorreoInstitucional, hint: 'Correo institucional EPN.' },
+    // El de respaldo es el personal alternativo: cualquier dominio.
+    { name: 'correo_respaldo', label: 'Correo alternativo', type: 'email', validar: validarCorreo },
+    { name: 'telefono_contacto', label: 'Teléfono', validar: validarTelefono, normalizar: normalizarTelefono, hint: 'Se guarda como +593…', placeholder: '0987654321' },
+    { name: 'telefono_respaldo', label: 'Teléfono alternativo', validar: validarTelefono, normalizar: normalizarTelefono, placeholder: '0987654321' },
     { name: 'id_categoria', label: 'Categoría (interna)', type: 'select', required: true, options: optCategorias('INTERNA') },
     { name: 'sexo', label: 'Sexo', type: 'select', options: OPCIONES_SEXO },
     // No editable (feedback GPI): un dato de identidad que no debería cambiar tras el registro.
-    { name: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', editable: false },
+    { name: 'fecha_nacimiento', label: 'Fecha de nacimiento', type: 'date', editable: false, validar: validarFechaNacimiento },
     { name: 'direccion_domicilio', label: 'Dirección', colSpan: 2 },
   ],
   campoEstado: 'estado',

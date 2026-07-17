@@ -43,6 +43,16 @@ export interface FieldConfig {
   visibleSi?: (valores: Record<string, any>) => boolean
   /** Formatea el valor tecleado en un input de texto (ej. MAC con ":", IP con ".") */
   formatear?: (valorCrudo: string) => string
+  /** Valida el valor al guardar. Devuelve `null` si es correcto o el mensaje de error si no.
+   *  Espejo de los CHECK de la BD (ver web/src/lib/validacion.ts): la BD es la que manda, esto
+   *  solo adelanta el error para que el usuario no lo descubra al enviar. Recibe también el
+   *  resto de valores del formulario, para reglas que dependen de otro campo (ej. el valor de
+   *  un parámetro según su tipo_dato). */
+  validar?: (valor: string, valores: Record<string, any>) => string | null
+  /** Normaliza el valor justo antes de enviarlo (ej. teléfono a +593, placa a canónica). Se
+   *  aplica después de `validar`. La BD vuelve a normalizar por su cuenta: esto es solo para
+   *  que el usuario vea en pantalla lo mismo que se guardó. */
+  normalizar?: (valor: string) => string
   /** Selección múltiple (lista de checkboxes) en vez de un <select> simple. Al guardar, se
    *  crea un registro por cada valor seleccionado (ej. vincular varias personas a un mismo
    *  memorando de una sola vez). Solo tiene efecto en el alta, no en edición. */

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Car, DoorOpen, ShieldAlert, Timer } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { fmtFechaHora } from '../../lib/format'
+import { formatearPlaca } from '../../lib/validacion'
 import { Badge, Card, CenterSpinner, EmptyState, ErrorBanner } from '../../components/ui'
 
 interface VehiculoDentro {
@@ -92,7 +93,7 @@ export function MonitoreoView() {
                     const excede = v.horas_dentro != null && v.limite_horas_aplicable != null && v.horas_dentro > v.limite_horas_aplicable
                     return (
                       <tr key={v.id_vehiculo} className="border-b border-slate-100 last:border-0">
-                        <td className="px-4 py-2 font-medium text-navy">{v.placa ?? '—'}</td>
+                        <td className="px-4 py-2 font-medium text-navy">{v.placa ? formatearPlaca(v.placa) : '—'}</td>
                         <td className="px-4 py-2"><Badge value={v.tipo_persona_conductor ?? '—'} /></td>
                         <td className={'px-4 py-2 ' + (excede ? 'font-semibold text-red' : '')}>{v.horas_dentro?.toFixed(1) ?? '—'} h</td>
                         <td className="px-4 py-2 text-ink-soft">{v.limite_horas_aplicable ?? '—'} h</td>
@@ -143,7 +144,7 @@ export function MonitoreoView() {
             <div><dt className="text-xs text-ink-soft">Movimiento</dt><dd><Badge value={seleccionado.tipo_movimiento} /></dd></div>
             <div><dt className="text-xs text-ink-soft">Resultado</dt><dd><Badge value={seleccionado.resultado} /></dd></div>
             <div><dt className="text-xs text-ink-soft">Origen de registro</dt><dd><Badge value={seleccionado.origen_registro} /></dd></div>
-            <div><dt className="text-xs text-ink-soft">Vehículo</dt><dd className="text-navy">{seleccionado.vehiculo?.placa ?? '— (peatonal)'}</dd></div>
+            <div><dt className="text-xs text-ink-soft">Vehículo</dt><dd className="text-navy">{seleccionado.vehiculo?.placa ? formatearPlaca(seleccionado.vehiculo.placa) : '— (peatonal)'}</dd></div>
             {seleccionado.vehiculo && <div><dt className="text-xs text-ink-soft">Es conductor</dt><dd className="text-navy">{seleccionado.es_conductor ? 'Sí' : 'No'}</dd></div>}
             {seleccionado.motivo_resultado && <div className="col-span-2 sm:col-span-4"><dt className="text-xs text-ink-soft">Motivo</dt><dd className="text-navy">{seleccionado.motivo_resultado}</dd></div>}
           </dl>

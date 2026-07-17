@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
@@ -57,7 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permisos, setPermisos] = useState<Set<string>>(new Set())
   const [modulos, setModulos] = useState<ModuloCodigo[]>([])
   const [cargando, setCargando] = useState(true)
-  const sesionRegistrada = useRef<string | null>(null)
 
   /** Carga permisos efectivos, módulos permitidos, roles y el perfil del usuario. */
   const cargarContexto = useCallback(async (uid: string) => {
@@ -101,6 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session, cargarContexto])
 
   const cerrarSesion = useCallback(async () => {
+    // Cerrar la fila de auditoría ANTES de signOut(): después, auth.uid() ya es null dentro de
+    // la RPC y no habría forma de saber qué sesión cerrar. Si falla, se sale igual — quedarse
+    // dentro por un error de auditoría sería peor; el barrido de pg_cron la marcará EXPIRADA.
+    const { error } = await supabase.rpc('cerrar_sesion')
+    if (error) console.warn('cerrar_sesion:', error.message)
     await supabase.auth.signOut()
   }, [])
 
@@ -113,12 +117,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Reaccionar a SIGNED_OUT y a la expiración de sesión de Supabase (01 §5, 05 §2.4).
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess)
+
+      // La fila de auditoría se registra SOLO en un inicio de sesión real. Antes esto vivía en
+      // el efecto de abajo, que corre en cada montaje con sesión válida: cada recarga de página
+      // insertaba una fila nueva (55 filas de admin en un solo día, todas ACTIVA). Supabase
+      // emite INITIAL_SESSION al restaurar la sesión de localStorage y TOKEN_REFRESHED al
+      // renovar el JWT; ninguno de los dos es un login y ninguno debe registrar sesión.
+      if (event === 'SIGNED_IN' && sess) {
+        supabase.rpc('registrar_sesion', { p_recordar_sesion: false }).then(({ error }) => {
+          if (error) console.warn('registrar_sesion:', error.message)
+        })
+      }
+
       if (event === 'SIGNED_OUT' || !sess) {
         setPerfil(null)
         setRoles([])
         setPermisos(new Set())
         setModulos([])
-        sesionRegistrada.current = null
         setCargando(false)
       }
     })
@@ -131,13 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCargando(true)
     ;(async () => {
       await cargarContexto(session.user.id)
-      // Registrar la fila de auditoría en `sesion` una sola vez por sesión (05 §2.2). No bloquea.
-      if (sesionRegistrada.current !== session.user.id) {
-        sesionRegistrada.current = session.user.id
-        supabase.rpc('registrar_sesion', { p_recordar_sesion: false }).then(({ error }) => {
-          if (error) console.warn('registrar_sesion:', error.message)
-        })
-      }
       if (vivo) setCargando(false)
     })()
     return () => {

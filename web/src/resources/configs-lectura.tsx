@@ -1,5 +1,6 @@
 import type { ResourceConfig } from './types'
 import { fmtFecha, fmtFechaHora } from '../lib/format'
+import { formatearPlaca } from '../lib/validacion'
 import { Badge } from '../components/ui'
 import { opcionesCatalogo } from './opciones'
 
@@ -109,6 +110,17 @@ export const cfgBitacora: ResourceConfig = {
   campos: [],
 }
 
+/** Cuánto duró la sesión: hasta el cierre real, o "en curso" si sigue viva. */
+function duracionSesion(r: any): string {
+  const inicio = new Date(r.fecha_inicio).getTime()
+  const fin = r.fecha_cierre ? new Date(r.fecha_cierre).getTime() : null
+  if (fin == null) return r.estado_sesion === 'ACTIVA' ? 'En curso' : '—'
+  const minutos = Math.max(0, Math.round((fin - inicio) / 60000))
+  if (minutos < 60) return `${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  return `${horas} h ${minutos % 60} min`
+}
+
 export const cfgSesion: ResourceConfig = {
   tabla: 'sesion',
   titulo: 'Sesiones',
@@ -117,18 +129,34 @@ export const cfgSesion: ResourceConfig = {
   select: '*, usuario:usuario_sistema(correo_electronico)',
   orderBy: { columna: 'fecha_inicio', ascendente: false },
   permisos: { select: ['ADM_USUARIO_SELECT'] },
-  buscarEn: ['ip_origen'],
+  buscarEn: ['ip_origen', 'usuario.correo_electronico'],
   columnas: [
     { key: 'usuario', label: 'Usuario', render: (r) => r.usuario?.correo_electronico ?? '—' },
     { key: 'fecha_inicio', label: 'Inicio', render: (r) => fmtFechaHora(r.fecha_inicio) },
+    { key: 'fecha_cierre', label: 'Cierre', render: (r) => fmtFechaHora(r.fecha_cierre) },
+    { key: 'duracion', label: 'Duración', render: (r) => duracionSesion(r) },
     { key: 'ip_origen', label: 'IP', render: (r) => d(r.ip_origen) },
     { key: 'estado_sesion', label: 'Estado', badge: true },
   ],
+  // Separa las sesiones vivas del histórico: era imposible saber cuáles seguían abiertas.
+  filtros: [
+    {
+      campo: 'estado_sesion',
+      label: 'Estado',
+      opciones: [
+        { value: 'ACTIVA', label: 'Activas' },
+        { value: 'CERRADA', label: 'Cerradas' },
+        { value: 'EXPIRADA', label: 'Expiradas' },
+      ],
+    },
+  ],
   campoTituloDetalle: (r) => r.usuario?.correo_electronico ?? 'Sesión',
+  campoSubtituloDetalle: (r) => <Badge value={r.estado_sesion} />,
   detalle: [
     { label: 'Inicio', render: (r) => fmtFechaHora(r.fecha_inicio) },
     { label: 'Expiración', render: (r) => fmtFechaHora(r.fecha_expiracion) },
     { label: 'Cierre', render: (r) => fmtFechaHora(r.fecha_cierre) },
+    { label: 'Duración', render: (r) => duracionSesion(r) },
     { label: 'IP', render: (r) => d(r.ip_origen) },
     { label: 'Estado', render: (r) => <Badge value={r.estado_sesion} /> },
   ],
@@ -165,7 +193,7 @@ export function cfgEventoAcceso(): ResourceConfig {
       { label: 'Fecha y hora', render: (r) => fmtFechaHora(r.fecha_hora) },
       { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
       { label: 'Punto de control', render: (r) => r.punto?.nombre_punto ?? '—' },
-      { label: 'Vehículo', render: (r) => d(r.vehiculo?.placa) },
+      { label: 'Vehículo', render: (r) => (r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—') },
       { label: 'Conductor', render: (r) => (r.es_conductor ? 'Sí' : 'No') },
       { label: 'Origen', render: (r) => r.origen_registro },
       { label: 'Motivo', render: (r) => d(r.motivo_resultado) },

@@ -97,9 +97,15 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
   const filtradas = useMemo(() => {
     let out = rows
     const t = busqueda.trim().toLowerCase()
+    // Segunda pasada ignorando separadores: la placa se guarda canónica ("PDF1234") pero el
+    // usuario la teclea como la ve en el vehículo ("PDF-1234"). Mismo caso para MAC y cédula.
+    const tPlano = t.replace(/[^a-z0-9]/g, '')
     if (t && config.buscarEn?.length) {
       out = out.filter((r) =>
-        config.buscarEn!.some((campo) => String(leerRuta(r, campo) ?? '').toLowerCase().includes(t)),
+        config.buscarEn!.some((campo) => {
+          const v = String(leerRuta(r, campo) ?? '').toLowerCase()
+          return v.includes(t) || (tPlano.length > 0 && v.replace(/[^a-z0-9]/g, '').includes(tPlano))
+        }),
       )
     }
     for (const [campo, valor] of Object.entries(filtrosValor)) {
@@ -402,6 +408,18 @@ function RecordForm({
         setError(`El campo "${c.label}" es obligatorio.`)
         return
       }
+      // Validación de formato (espejo de los CHECK de la BD, ver web/src/lib/validacion.ts).
+      // Los campos bloqueados en edición no se envían, así que no se validan.
+      if (c.validar && !bloqueadoEnEdicion(c)) {
+        const v = valores[c.name]
+        if (v != null && v !== '') {
+          const problema = c.validar(String(v), valores)
+          if (problema) {
+            setError(`${c.label}: ${problema}`)
+            return
+          }
+        }
+      }
     }
 
     // Selección múltiple (feedback GPE): un INSERT por cada valor elegido, mismo resto de campos.
@@ -413,6 +431,7 @@ function RecordForm({
       for (const c of config.campos) {
         if (c === campoMulti || c.persistir === false) continue
         let v = valores[c.name]
+        if (c.normalizar && typeof v === 'string' && v !== '') v = c.normalizar(v)
         if (v === '') v = null
         if (c.type === 'number' && v != null) v = Number(v)
         base[c.name] = v
@@ -437,6 +456,7 @@ function RecordForm({
       if (c.persistir === false) continue
       if (esEdicion && (c.insertOnly || bloqueadoEnEdicion(c))) continue
       let v = valores[c.name]
+      if (c.normalizar && typeof v === 'string' && v !== '') v = c.normalizar(v)
       if (v === '') v = null
       if (c.type === 'number' && v != null) v = Number(v)
       payload[c.name] = v

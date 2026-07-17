@@ -8,3 +8,6 @@ dist-ssr
 .DS_Store
 *.log
 .env*
+
+# Artefacto incremental de tsc (se regenera en cada build)
+tsconfig.tsbuildinfo
