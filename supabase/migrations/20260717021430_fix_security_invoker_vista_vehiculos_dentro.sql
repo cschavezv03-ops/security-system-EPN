@@ -1,0 +1,17 @@
+-- Restaura security_invoker = true en vista_vehiculos_dentro.
+--
+-- Que paso: 20260717021013_vista_vehiculos_dentro_con_conductor se aplico al
+-- remoto con CREATE OR REPLACE VIEW SIN la clausula WITH. Eso NO conserva las
+-- reloptions: la vista volvio al valor por defecto (security_invoker = false),
+-- es decir, pasaba a evaluarse con los permisos de su propietario y se saltaba
+-- el RLS de quien consulta.
+--
+-- Grave porque la vista acababa de ganar el nombre y la cedula del conductor:
+-- cualquiera con acceso a la vista habria leido datos de persona sin pasar por
+-- las politicas de esa tabla. Lo detecto el linter de Supabase
+-- (0010_security_definer_view) al revisar los advisors tras el cambio.
+--
+-- El archivo de 021013 ya lleva la clausula, asi que un `db reset` desde cero no
+-- reproduce el fallo; esta migracion existe para reparar el proyecto remoto, que
+-- si llego a tenerlo, y para dejar constancia del incidente.
+alter view public.vista_vehiculos_dentro set (security_invoker = true);
