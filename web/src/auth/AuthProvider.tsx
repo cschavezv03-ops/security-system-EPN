@@ -203,7 +203,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ultimoLatido.current = ahora
       // Solo la sesión de este dispositivo: si no, la actividad en el PC
       // mantendría viva la del celular y el timeout de inactividad no serviría.
-      supabase.rpc('tocar_sesion', { p_id_sesion: getIdSesionActual() }).then(() => {})
+      // Devuelve false si la sesión fue revocada: en ese caso el token todavía no
+      // ha caducado, pero ya no sirve para nada, así que se cierra sesión sola en
+      // vez de dejar al usuario en una pantalla sin datos.
+      supabase.rpc('tocar_sesion', { p_id_sesion: getIdSesionActual() }).then(({ data, error }) => {
+        if (!error && data === false) {
+          setIdSesionActual(null)
+          void supabase.auth.signOut()
+        }
+      })
     }
     latir()
     window.addEventListener('click', latir)

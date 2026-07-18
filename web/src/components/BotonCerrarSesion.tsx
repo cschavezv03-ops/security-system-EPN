@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
-import { supabase, mensajeError } from '../lib/supabase'
+import { supabase, mensajeError, getIdSesionActual } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { Button, useToast } from './ui'
 
@@ -34,6 +34,13 @@ export function BotonCerrarSesion({
       toast('error', mensajeError(error))
       return
     }
+    // Si el administrador cerró su propia sesión, se sale de inmediato: el token
+    // ya no sirve para nada y seguir en pantalla solo daría errores.
+    if (idSesion === getIdSesionActual()) {
+      await supabase.auth.signOut()
+      return
+    }
+
     toast('ok', 'Sesión cerrada.')
     await onCerrada()
   }

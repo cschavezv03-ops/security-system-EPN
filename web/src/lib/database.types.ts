@@ -1409,10 +1409,11 @@ export type Database = {
         Returns: number
       }
       ruc_pasa_algoritmo_legado: { Args: { p_ruc: string }; Returns: boolean }
+      sesion_vigente: { Args: never; Returns: boolean }
       tiene_acceso_operativo_cac: { Args: never; Returns: boolean }
       tiene_algun_modulo: { Args: never; Returns: boolean }
       tiene_permiso: { Args: { p_codigo: string }; Returns: boolean }
-      tocar_sesion: { Args: { p_id_sesion?: string }; Returns: undefined }
+      tocar_sesion: { Args: { p_id_sesion?: string }; Returns: boolean }
       valor_parametro_coherente: {
         Args: { p_tipo_dato: string; p_valor: string }
         Returns: boolean
