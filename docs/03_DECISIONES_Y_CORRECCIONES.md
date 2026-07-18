@@ -523,3 +523,54 @@ extensión 1:1 en vez de una tabla `Persona_Interna` separada; catálogo único
 `categoria_persona`; entidad `empresa` nueva; `id_vehiculo` añadido a `evento_acceso`;
 FKs de auditoría apuntando a `usuario_sistema` y no a `persona`; PK `id_alerta` añadida;
 jerarquía recursiva `id_zona_padre` en `zona`; tabla `autorizacion_visita_diaria` nueva.
+
+---
+
+## Ronda de validaciones generales (2026-07-17) — reqs 9-38
+
+> Implementación de `docs/New_Req/especificacion_validaciones_sistema_general.md`. Migraciones
+> `20260717030000..030300`, Edge Functions y frontend. Decisiones aprobadas por el usuario.
+
+### D34 — "Recordar sesión" y sesiones FUNCIONALES (supera §D10)
+- **Conflicto:** §D10 dejó `sesion` como auditoría y `recordar_sesion` deshabilitado; los reqs
+  29/30 exigen sesiones y "recordar sesión" funcionales.
+- **Decisión del usuario:** seguir la nueva especificación. Se **supera D10** (queda como
+  antecedente histórico, no se re-litiga hacia atrás).
+- **Implementado:** `recordar_sesion` controla el almacén del token del proveedor
+  (localStorage vs sessionStorage; **nunca** la contraseña). `sesion` se amplió
+  (`fecha_ultima_actividad`, `user_agent`, `dispositivo_nombre`, `motivo_cierre`,
+  `revocada_por`, `fecha_revocacion`) con estados nuevos `REVOCADA` y
+  `CERRADA_CAMBIO_PASSWORD`. Timeout de inactividad (`SESION_INACTIVIDAD_MIN`) + expiración
+  absoluta en `expirar_sesiones_vencidas()` (pg_cron). Revocación efectiva en GoTrue vía
+  `revocar_sesiones_usuario()` / `revocar_mis_sesiones()` (borran refresh tokens + auth.sessions).
+
+### D35 — RUC de sociedades: estructura vs algoritmo legado (req 14)
+- El módulo 11 **deja de ser rechazo** para sociedades: el CHECK usa `es_ruc_estructural()`
+  (13 dígitos, provincia, 3.er dígito 0-5/6/9, establecimiento; natural exige cédula válida).
+  El módulo 11 se conserva como **advertencia** (`ruc_pasa_algoritmo_legado()`), y la
+  verificación oficial se rastrea en `empresa.estado_verificacion_ruc` (default `NO_VERIFICADO`;
+  no hay integración SRI). Cédula endurecida: rechazo de patrones de relleno (`es_relleno_obvio`).
+
+### D36 — Turno de guardia con hora del servidor (req 34)
+- `esta_en_turno_guardia(uuid, timestamptz)` en `America/Guayaquil`, nunca la hora del cliente.
+  Entiende códigos (`MATUTINO/VESPERTINO/NOCTURNO`, ventanas en `parametro_sistema`) **y** rangos
+  literales `HH:MM–HH:MM` (dato heterogéneo del remoto, §V4). Cruce de medianoche + tolerancia.
+  Barrera dura en la Edge Function `registrar-evento-acceso` (el guardia escribe con service_role,
+  así que el trigger de `evento_acceso` no cubre ese camino) y trigger para escrituras REST.
+  Otros roles **no** se ven afectados. Intentos denegados → `bitacora_sistema`.
+
+### D37 — Máximo 2 vehículos y registro atómico (req 35)
+- Trigger `enforce_max_vehiculos_activos` con `pg_advisory_xact_lock` por persona (a prueba de
+  concurrencia). Cuentan las relaciones `ACTIVA` de tipo `PROPIETARIO`/`CONDUCTOR_AUTORIZADO`
+  vigentes; el límite es `MAX_VEHICULOS_POR_PERSONA`. RPC `crear_vehiculo_con_propietario`
+  (SECURITY INVOKER, respeta RLS) crea vehículo + relación en una transacción: si falla la
+  asociación, no queda vehículo huérfano. Índices únicos: relación activa persona-vehículo y
+  un único PROPIETARIO activo por vehículo. **Múltiples roles activos por usuario SÍ se permiten**
+  (verificado: `guardia_demo` tiene 2); solo se prohíbe duplicar el mismo rol activo.
+
+### D38 — Recuperación de contraseña: flujo nativo, sin tabla propia (req 31)
+- Se usa `resetPasswordForEmail` de Supabase Auth (administra token, expiración, un solo uso y
+  rate limiting; spec §5.4). **No hay SMTP** en el proyecto: el flujo está completo y la respuesta
+  es neutral (no revela si la cuenta existe), pero el ENVÍO queda `NO_VERIFICADO` hasta configurar
+  SMTP. Tras el cambio se revocan todas las sesiones y se redirige al login sin iniciar sesión.
+- Sin correo autogenerado (req 38): el visitante externo se guarda con `persona.correo = NULL`.

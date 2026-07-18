@@ -239,3 +239,37 @@ Verificado: las dos vistas del proyecto tienen `security_invoker = true`.
 
 **Lección para el equipo:** todo `CREATE OR REPLACE VIEW` en este proyecto debe repetir
 `with (security_invoker = true)`. Conviene pasar los advisors después de cada cambio de esquema.
+
+---
+
+# Ronda de validaciones generales (2026-07-17) — reqs 9-38
+
+## V8 — Recuperación de contraseña sin SMTP → **flujo listo, envío NO_VERIFICADO**
+El flujo de "¿Olvidó su contraseña?" usa `resetPasswordForEmail` de Supabase Auth (nativo,
+seguro, respuesta neutral). **No hay SMTP configurado**, así que no llega correo. Todo el resto
+(token, expiración, un solo uso, revocación de sesiones, redirección al login) es real.
+**Pendiente del equipo:** configurar SMTP en el dashboard de Supabase (Auth → Email) para que el
+enlace se entregue. No requiere cambios de código.
+
+## V9 — La cédula ecuatoriana se exige a TODA persona (incluidos externos)
+El CHECK `persona_cedula_valida` = `es_cedula_ecuatoriana` (ya existía, ahora además rechaza
+relleno). Un visitante extranjero con pasaporte **no** puede registrarse con ese documento.
+Es coherente con §D20 (el externo se identifica con "su cédula"), pero si el negocio necesita
+admitir pasaportes habría que añadir un tipo de documento. **Pendiente del equipo:** confirmar si
+se aceptan documentos no ecuatorianos; hoy no.
+
+## V10 — Turno de guardia con dato heterogéneo → **se interpreta, no se normaliza**
+`guardia_punto_control.turno` tiene `MATUTINO`, `06:00–20:00` y `07:00–17:00` (§V4). La función
+`esta_en_turno_guardia` entiende ambos formatos, así que no se fuerza una migración del dato. Un
+turno que no se pueda interpretar **no habilita** el acceso (conservador). **Pendiente del equipo:**
+decidir si `turno` pasa a catálogo cerrado (`MATUTINO/VESPERTINO/NOCTURNO`) y migrar los rangos.
+
+## V11 — 18 cédulas ficticias siguen pendientes (arrastre de §V1)
+El endurecimiento de la cédula no cambia esto: las 18 cédulas sintéticas de §V1 siguen siendo
+válidas por estructura pero no corresponden a personas reales. **Pendiente del equipo:** sustituir
+por las cédulas reales desde ADM. (Las nuevas reglas no las rechazan: no son relleno.)
+
+## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
+No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
+`VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
+SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
