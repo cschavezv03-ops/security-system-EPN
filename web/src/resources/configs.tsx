@@ -62,11 +62,12 @@ export const cfgCategoria: ResourceConfig = {
   idField: 'id_categoria',
   orderBy: { columna: 'codigo_categoria' },
   permisos: { select: ['ADM_CATEGORIA_SELECT'], insert: ['ADM_CATEGORIA_INSERT'], update: ['ADM_CATEGORIA_UPDATE'] },
-  buscarEn: ['nombre_categoria', 'codigo_categoria', 'descripcion'],
+  buscarEn: ['codigo_categoria', 'descripcion'],
   // Feedback ADM: "identificar si la categoría corresponde a la parte Interna o Externa;
   // retirar la columna Nombre e implementar una descripción". `nombre_categoria` repetía el
-  // código en versión legible ("Docente" para DOCENTE) y no aportaba nada aquí; sigue en la
-  // base porque otras pantallas lo usan como etiqueta corta.
+  // código en versión legible ("Docente" para DOCENTE), así que el equipo decidió eliminarla
+  // del todo: donde hacía de etiqueta corta ahora va `humanizar(codigo_categoria)`, que da
+  // el mismo texto sin necesidad de mantener el dato a mano en dos sitios.
   columnas: [
     { key: 'codigo_categoria', label: 'Categoría', render: (r) => humanizar(r.codigo_categoria) },
     { key: 'ambito', label: 'Ámbito', badge: true },
@@ -82,14 +83,12 @@ export const cfgCategoria: ResourceConfig = {
   detalle: [
     { label: 'Ámbito', render: (r) => <Badge value={r.ambito} /> },
     { label: 'Descripción', render: (r) => d(r.descripcion) },
-    { label: 'Nombre corto', render: (r) => d(r.nombre_categoria) },
     { label: 'Estado', render: (r) => <Badge value={r.estado} /> },
   ],
   campos: [
     { name: 'codigo_categoria', label: 'Categoría', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_codigo), editable: false },
     { name: 'ambito', label: 'Ámbito', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_ambito), editable: false, hint: 'Interna: pertenece a la Politécnica. Externa: visita o proveedor.' },
     { name: 'descripcion', label: 'Descripción', type: 'textarea', required: true, colSpan: 3, validar: validarNoVacio, hint: 'Qué personas agrupa esta categoría.' },
-    { name: 'nombre_categoria', label: 'Nombre corto', required: true, validar: validarNoVacio, hint: 'Etiqueta breve que se muestra en otras pantallas.' },
     { name: 'estado', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.categoria_estado), default: 'ACTIVO' },
   ],
   campoEstado: 'estado',
@@ -554,7 +553,7 @@ export const cfgPersonaExterna: ResourceConfig = {
   titulo: 'Personal externo',
   singular: 'Persona externa',
   idField: 'id_persona',
-  select: '*, categoria:categoria_persona(nombre_categoria, codigo_categoria), empresa:empresa(nombre), vinculos:persona_memorando(memorando:memorando(fecha_inicio, fecha_fin)), visitas:autorizacion_visita_diaria(fecha_visita)',
+  select: '*, categoria:categoria_persona(codigo_categoria), empresa:empresa(nombre), vinculos:persona_memorando(memorando:memorando(fecha_inicio, fecha_fin)), visitas:autorizacion_visita_diaria(fecha_visita)',
   orderBy: { columna: 'apellidos' },
   filtroFijo: { tipo_persona: 'EXTERNA' },
   permisos: { select: ['GPE_PERSONA_SELECT'], insert: ['GPE_PERSONA_INSERT'], update: ['GPE_PERSONA_UPDATE'] },
@@ -574,7 +573,7 @@ export const cfgPersonaExterna: ResourceConfig = {
     { label: 'Cédula', render: (r) => r.cedula },
     { label: 'Correo', render: (r) => d(r.correo) },
     { label: 'Teléfono', render: (r) => d(r.telefono_contacto) },
-    { label: 'Categoría', render: (r) => r.categoria?.nombre_categoria ?? '—' },
+    { label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria) },
     { label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
     { label: 'Ingreso por días', render: diasIngreso },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
@@ -686,7 +685,7 @@ export const cfgReglaAcceso: ResourceConfig = {
   titulo: 'Reglas de acceso',
   singular: 'Regla de acceso',
   idField: 'id_regla_acceso',
-  select: '*, categoria:categoria_persona(nombre_categoria, codigo_categoria), punto:punto_control(nombre_punto)',
+  select: '*, categoria:categoria_persona(codigo_categoria), punto:punto_control(nombre_punto)',
   orderBy: { columna: 'nombre_regla' },
   permisos: { select: ['CAC_REGLA_SELECT'], insert: ['CAC_REGLA_INSERT'], update: ['CAC_REGLA_UPDATE'] },
   buscarEn: ['nombre_regla', 'descripcion'],
@@ -700,7 +699,7 @@ export const cfgReglaAcceso: ResourceConfig = {
   campoTituloDetalle: (r) => r.nombre_regla,
   campoSubtituloDetalle: (r) => <Badge value={r.estado_regla} />,
   detalle: [
-    { label: 'Categoría', render: (r) => r.categoria?.nombre_categoria ?? '—' },
+    { label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria) },
     { label: 'Punto de control', render: (r) => r.punto?.nombre_punto ?? 'Todos los puntos' },
     { label: 'Horario', render: (r) => `${fmtHora(r.horario_inicio)} – ${fmtHora(r.horario_fin)}` },
     { label: 'Requiere memorando', render: (r) => (r.requiere_memorando ? 'Sí' : 'No') },

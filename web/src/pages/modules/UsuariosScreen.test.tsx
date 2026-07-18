@@ -54,7 +54,7 @@ const PERSONA_BUSCADA = {
   apellidos: 'Amangandi',
   tipo_persona: 'INTERNA',
   estado: 'ACTIVO',
-  categoria: { nombre_categoria: 'Administrativo' },
+  categoria: { codigo_categoria: 'ADMINISTRATIVO' },
 }
 
 const { supabase } = vi.hoisted(() => {

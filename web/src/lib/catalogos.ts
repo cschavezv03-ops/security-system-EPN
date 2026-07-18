@@ -296,7 +296,6 @@ export const ETIQUETA_CAMPO: Record<string, string> = {
   motivo_cierre: 'Motivo de cierre',
   motivo_revocacion: 'Motivo de revocación',
   nombre: 'Nombre',
-  nombre_categoria: 'Nombre de la categoría',
   nombre_parametro: 'Nombre del parámetro',
   nombre_rol: 'Nombre del rol',
   nombre_usuario: 'Nombre de usuario',

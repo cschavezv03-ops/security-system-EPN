@@ -12,7 +12,7 @@ export interface PersonaCedula {
   apellidos: string
   tipo_persona: string
   estado: string
-  categoria?: { nombre_categoria: string } | null
+  categoria?: { codigo_categoria: string } | null
 }
 
 /**
@@ -60,7 +60,7 @@ export function BuscarPersonaPorCedula({
     setBuscando(true)
     const { data, error: err } = await supabase
       .from('persona')
-      .select('id_persona, cedula, nombres, apellidos, tipo_persona, estado, categoria:categoria_persona(nombre_categoria)')
+      .select('id_persona, cedula, nombres, apellidos, tipo_persona, estado, categoria:categoria_persona(codigo_categoria)')
       .eq('cedula', normal)
       .maybeSingle()
     setBuscando(false)
@@ -100,7 +100,7 @@ export function BuscarPersonaPorCedula({
               <IdCard className="h-4 w-4" /> {persona.nombres} {persona.apellidos}
             </p>
             <p className="mt-0.5 text-xs text-ink-soft">
-              Cédula {persona.cedula} · {persona.categoria?.nombre_categoria ?? humanizar(persona.tipo_persona)} ·{' '}
+              Cédula {persona.cedula} · {humanizar(persona.categoria?.codigo_categoria ?? persona.tipo_persona)} ·{' '}
               <Badge value={persona.estado} />
             </p>
           </div>

@@ -23,7 +23,7 @@ export function opcionesTabla(
 }
 
 export const optCategorias = (ambito?: 'INTERNA' | 'EXTERNA') =>
-  opcionesTabla('categoria_persona', 'id_categoria', (r) => `${r.nombre_categoria} (${r.codigo_categoria})`, ambito ? { ambito } : undefined)
+  opcionesTabla('categoria_persona', 'id_categoria', (r) => humanizar(r.codigo_categoria), ambito ? { ambito } : undefined)
 
 export const optEmpresas = opcionesTabla('empresa', 'id_empresa', (r) => r.nombre, { estado: 'ACTIVO' })
 export const optZonas = opcionesTabla('zona', 'id_zona', (r) => `${r.nombre_zona} · ${r.tipo_zona}`)

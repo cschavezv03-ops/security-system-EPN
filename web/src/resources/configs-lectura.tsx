@@ -28,7 +28,7 @@ export function cfgPersonaADM(ambito?: 'INTERNA' | 'EXTERNA'): ResourceConfig {
   titulo,
   singular: 'Persona',
   idField: 'id_persona',
-  select: '*, categoria:categoria_persona(nombre_categoria, codigo_categoria), empresa:empresa(nombre)',
+  select: '*, categoria:categoria_persona(codigo_categoria), empresa:empresa(nombre)',
   orderBy: { columna: 'apellidos' },
   permisos: { select: ['ADM_PERSONA_SELECT'], update: ['ADM_PERSONA_UPDATE'] },
   buscarEn: ['cedula', 'nombres', 'apellidos', 'correo'],
@@ -49,7 +49,7 @@ export function cfgPersonaADM(ambito?: 'INTERNA' | 'EXTERNA'): ResourceConfig {
   detalle: [
     { label: 'Cédula', render: (r) => r.cedula },
     { label: 'Correo', render: (r) => d(r.correo) },
-    { label: 'Categoría', render: (r) => r.categoria?.nombre_categoria ?? '—' },
+    { label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria) },
     { label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
     { label: 'Teléfono', render: (r) => d(r.telefono_contacto) },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },

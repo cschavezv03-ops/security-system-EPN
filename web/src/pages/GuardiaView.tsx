@@ -4,6 +4,7 @@ import { supabase, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { validarCedula } from '../lib/validacion'
 import { fmtFechaHora } from '../lib/format'
+import { humanizar } from '../lib/catalogos'
 import { CameraPanel, type CameraHandle } from '../components/Camera'
 import { TopBar, PageContainer } from '../components/layout/Shell'
 import {
@@ -217,8 +218,8 @@ function NuevoVisitante({ cedula, uid, onCreada }: { cedula: string; uid: string
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.from('categoria_persona').select('id_categoria, nombre_categoria, codigo_categoria').eq('ambito', 'EXTERNA').then(({ data }) => {
-      const opts = (data ?? []).map((c: any) => ({ value: c.id_categoria, label: `${c.nombre_categoria}` }))
+    supabase.from('categoria_persona').select('id_categoria, codigo_categoria').eq('ambito', 'EXTERNA').then(({ data }) => {
+      const opts = (data ?? []).map((c: any) => ({ value: c.id_categoria, label: humanizar(c.codigo_categoria) }))
       setCats(opts)
       const visitante = (data ?? []).find((c: any) => c.codigo_categoria === 'VISITANTE')
       if (visitante) setIdCategoria(visitante.id_categoria)
