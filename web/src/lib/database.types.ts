@@ -1303,7 +1303,7 @@ export type Database = {
       permisos_efectivos: { Args: never; Returns: string[] }
       puntos_control_asignados: { Args: never; Returns: string[] }
       registrar_sesion: {
-        Args: { p_ip_origen?: string; p_recordar_sesion?: boolean }
+        Args: { p_ip_origen?: string; p_recordar_sesion?: boolean; p_user_agent?: string }
         Returns: {
           estado_sesion: string
           fecha_cierre: string | null
@@ -1330,6 +1330,36 @@ export type Database = {
         Args: { p_tipo_dato: string; p_valor: string }
         Returns: boolean
       }
+      crear_vehiculo_con_propietario: {
+        Args: {
+          p_placa: string | null
+          p_tipo_vehiculo: string
+          p_marca?: string | null
+          p_modelo?: string | null
+          p_color?: string | null
+          p_id_persona: string
+          p_tipo_relacion?: string
+          p_fecha_inicio?: string
+          p_motivo_sin_placa?: string | null
+        }
+        Returns: Json
+      }
+      es_relleno_obvio: { Args: { p_num: string }; Returns: boolean }
+      es_ruc_estructural: { Args: { p_ruc: string }; Returns: boolean }
+      ruc_pasa_algoritmo_legado: { Args: { p_ruc: string }; Returns: boolean }
+      es_placa_vehiculo: { Args: { p_placa: string; p_tipo: string }; Returns: boolean }
+      esta_en_turno_guardia: {
+        Args: { p_id_usuario: string; p_momento?: string }
+        Returns: boolean
+      }
+      verificar_turno_guardia_actual: { Args: never; Returns: Json }
+      registrar_intento_fuera_de_turno: {
+        Args: { p_detalle?: string }
+        Returns: undefined
+      }
+      tocar_sesion: { Args: never; Returns: undefined }
+      marcar_password_cambiada: { Args: never; Returns: undefined }
+      revocar_mis_sesiones: { Args: { p_motivo?: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never

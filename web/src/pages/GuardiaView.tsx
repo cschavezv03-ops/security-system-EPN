@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { DoorClosed, DoorOpen, IdCard, LogIn, LogOut, ScanFace, Search, UserPlus } from 'lucide-react'
+import { Clock, DoorClosed, DoorOpen, IdCard, LogIn, LogOut, ScanFace, Search, UserPlus } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
+import { validarCedula } from '../lib/validacion'
 import { fmtFechaHora } from '../lib/format'
 import { CameraPanel, type CameraHandle } from '../components/Camera'
 import { TopBar, PageContainer } from '../components/layout/Shell'
@@ -35,6 +36,7 @@ function GuardiaInner() {
   const toast = useToast()
   const [asignacion, setAsignacion] = useState<Asignacion | null>(null)
   const [cargandoAsig, setCargandoAsig] = useState(true)
+  const [turno, setTurno] = useState<{ permitido: boolean; motivo: string | null } | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -47,9 +49,21 @@ function GuardiaInner() {
       setAsignacion((data as Asignacion | null) ?? null)
       setCargandoAsig(false)
     })()
+
+    // Verificación de turno con la HORA DEL SERVIDOR (req 34). Se revisa al entrar
+    // y cada minuto por si el turno termina durante la jornada. El backend además
+    // rechaza el registro fuera de turno (barrera dura en la Edge Function).
+    const revisarTurno = async () => {
+      const { data } = await supabase.rpc('verificar_turno_guardia_actual')
+      if (data) setTurno(data as { permitido: boolean; motivo: string | null })
+    }
+    revisarTurno()
+    const t = setInterval(revisarTurno, 60000)
+    return () => clearInterval(t)
   }, [])
 
   const idPunto = asignacion?.id_punto_control
+  const enTurno = turno?.permitido !== false
 
   return (
     <div>
@@ -75,6 +89,13 @@ function GuardiaInner() {
           )}
         </div>
 
+        {!enTurno && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{turno?.motivo ?? 'Su turno no se encuentra habilitado a esta hora.'}</span>
+          </div>
+        )}
+
         {!asignacion ? (
           <EmptyState
             title="No tienes un punto de control asignado"
@@ -82,8 +103,8 @@ function GuardiaInner() {
           />
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            <BuscarPorCedula idPunto={idPunto!} uid={session!.user.id} onDone={() => toast('ok', 'Evento registrado.')} />
-            <BiometriaGuardia idPunto={idPunto!} onDone={() => toast('ok', 'Evento registrado.')} />
+            <BuscarPorCedula idPunto={idPunto!} uid={session!.user.id} enTurno={enTurno} onDone={() => toast('ok', 'Evento registrado.')} />
+            <BiometriaGuardia idPunto={idPunto!} enTurno={enTurno} onDone={() => toast('ok', 'Evento registrado.')} />
             <div className="lg:col-span-2">
               <EventosDelPunto idPunto={idPunto!} />
             </div>
@@ -95,7 +116,7 @@ function GuardiaInner() {
 }
 
 /* -------- Búsqueda por cédula (personal EXTERNO, §D20) -------- */
-function BuscarPorCedula({ idPunto, uid, onDone }: { idPunto: string; uid: string; onDone: () => void }) {
+function BuscarPorCedula({ idPunto, uid, enTurno, onDone }: { idPunto: string; uid: string; enTurno: boolean; onDone: () => void }) {
   const [cedula, setCedula] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [persona, setPersona] = useState<PersonaLite | null>(null)
@@ -169,9 +190,10 @@ function BuscarPorCedula({ idPunto, uid, onDone }: { idPunto: string; uid: strin
             Vigencia: {vigencia?.via_vigencia ? <Badge value={vigencia.via_vigencia} /> : <span className="text-red">Sin vía de acceso vigente</span>}
           </div>
           <div className="mt-4 flex gap-2">
-            <Button className="flex-1" onClick={() => registrar('INGRESO')} loading={registrando}><LogIn className="h-4 w-4" /> Ingreso</Button>
-            <Button variant="secondary" className="flex-1" onClick={() => registrar('SALIDA')} loading={registrando}><LogOut className="h-4 w-4" /> Salida</Button>
+            <Button className="flex-1" onClick={() => registrar('INGRESO')} loading={registrando} disabled={!enTurno}><LogIn className="h-4 w-4" /> Ingreso</Button>
+            <Button variant="secondary" className="flex-1" onClick={() => registrar('SALIDA')} loading={registrando} disabled={!enTurno}><LogOut className="h-4 w-4" /> Salida</Button>
           </div>
+          {!enTurno && <p className="mt-2 text-xs text-amber-700">Fuera de turno: no puede registrar movimientos.</p>}
         </div>
       )}
 
@@ -210,12 +232,16 @@ function NuevoVisitante({ cedula, uid, onCreada }: { cedula: string; uid: string
   const crear = async () => {
     setError(null)
     if (!nombres.trim() || !apellidos.trim() || !idCategoria) { setError('Completa nombres, apellidos y categoría.'); return }
+    const errCed = validarCedula(cedula.trim())
+    if (errCed) { setError(errCed); return }
     setGuardando(true)
+    // Sin correo autogenerado (req 38): un visitante externo no tiene correo
+    // institucional; la columna persona.correo es NULL hasta que se registre uno real.
     const { data, error } = await supabase
       .from('persona')
       .insert({
         cedula: cedula.trim(), nombres: nombres.trim(), apellidos: apellidos.trim(),
-        correo: `${cedula.trim()}@visitante.epn.edu.ec`, tipo_persona: 'EXTERNA', estado: 'ACTIVO', id_categoria: idCategoria,
+        correo: null, tipo_persona: 'EXTERNA', estado: 'ACTIVO', id_categoria: idCategoria,
       })
       .select('id_persona, nombres, apellidos, cedula, tipo_persona')
       .maybeSingle()
@@ -239,7 +265,7 @@ function NuevoVisitante({ cedula, uid, onCreada }: { cedula: string; uid: string
 }
 
 /* -------- Identificación biométrica (personal INTERNO) -------- */
-function BiometriaGuardia({ idPunto, onDone }: { idPunto: string; onDone: () => void }) {
+function BiometriaGuardia({ idPunto, enTurno, onDone }: { idPunto: string; enTurno: boolean; onDone: () => void }) {
   const camRef = useRef<CameraHandle>(null)
   const [proc, setProc] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -281,9 +307,10 @@ function BiometriaGuardia({ idPunto, onDone }: { idPunto: string; onDone: () => 
         <div className="mt-3 rounded-lg border border-slate-200 p-3">
           <p className="text-sm text-navy">Reconocido · confianza {match.confidence.toFixed(3)}</p>
           <div className="mt-3 flex gap-2">
-            <Button className="flex-1" onClick={() => registrar('INGRESO')} loading={proc}><LogIn className="h-4 w-4" /> Ingreso</Button>
-            <Button variant="secondary" className="flex-1" onClick={() => registrar('SALIDA')} loading={proc}><LogOut className="h-4 w-4" /> Salida</Button>
+            <Button className="flex-1" onClick={() => registrar('INGRESO')} loading={proc} disabled={!enTurno}><LogIn className="h-4 w-4" /> Ingreso</Button>
+            <Button variant="secondary" className="flex-1" onClick={() => registrar('SALIDA')} loading={proc} disabled={!enTurno}><LogOut className="h-4 w-4" /> Salida</Button>
           </div>
+          {!enTurno && <p className="mt-2 text-xs text-amber-700">Fuera de turno: no puede registrar movimientos.</p>}
         </div>
       )}
       {resultado && (

@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ChevronRight, LogOut, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
 import { Button } from '../ui'
+import { EncabezadoUsuarioActual } from '../EncabezadoUsuario'
 
 /** Barra superior fija (07 §2.3). Sin barra de KPIs. */
 export function TopBar() {
-  const { perfil, rolLabel, cerrarSesion } = useAuth()
+  const { cerrarSesion } = useAuth()
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-navy-700/40 bg-navy px-4 text-white">
       <Link to="/" className="flex items-center gap-2.5">
@@ -17,10 +18,8 @@ export function TopBar() {
         </div>
       </Link>
       <div className="flex items-center gap-4">
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium">{perfil?.nombre_completo ?? perfil?.nombre_usuario}</p>
-          <p className="text-[11px] text-white/60">{rolLabel}</p>
-        </div>
+        {/* Encabezado usuario/rol unificado (req 33): nombre arriba, rol debajo. */}
+        <EncabezadoUsuarioActual className="hidden sm:block" />
         <span className="hidden items-center gap-1.5 text-xs text-emerald-300 md:flex">
           <span className="h-2 w-2 rounded-full bg-emerald-400" /> En línea
         </span>

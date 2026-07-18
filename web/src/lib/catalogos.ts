@@ -173,9 +173,17 @@ export const ETIQUETA: Record<string, string> = {
 
   // Sesiones y bitácora
   CERRADA: 'Cerrada',
+  CERRADA_CAMBIO_PASSWORD: 'Cerrada por cambio de contraseña',
   EXPIRADA: 'Expirada',
   EXITO: 'Éxito',
   ERROR: 'Error',
+
+  // Contraseña / verificación
+  REALIZADO: 'Realizado',
+  NO_VERIFICADO: 'No verificado',
+  VALIDO: 'Válido',
+  INVALIDO: 'Inválido',
+  SERVICIO_NO_DISPONIBLE: 'Servicio no disponible',
 
   // Parámetros del sistema
   AUTENTICACION: 'Autenticación',

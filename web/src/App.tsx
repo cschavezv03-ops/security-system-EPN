@@ -1,6 +1,5 @@
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
-import { KeyRound, X } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import { useAuth } from './auth/AuthProvider'
 import { CenterSpinner, ToastProvider } from './components/ui'
 import { TopBar, PageContainer } from './components/layout/Shell'
@@ -14,6 +13,16 @@ const ModuleHome = lazy(() => import('./pages/ModuleHome').then((m) => ({ defaul
 const ScreenPage = lazy(() => import('./pages/ScreenPage').then((m) => ({ default: m.ScreenPage })))
 const CuentaPage = lazy(() => import('./pages/CuentaPage').then((m) => ({ default: m.CuentaPage })))
 const GuardiaView = lazy(() => import('./pages/GuardiaView').then((m) => ({ default: m.GuardiaView })))
+const VehiculoPropietarioPage = lazy(() =>
+  import('./pages/VehiculoPropietarioPage').then((m) => ({ default: m.VehiculoPropietarioPage })),
+)
+const OlvidoPasswordPage = lazy(() => import('./pages/PasswordPages').then((m) => ({ default: m.OlvidoPasswordPage })))
+const RestablecerPasswordPage = lazy(() =>
+  import('./pages/PasswordPages').then((m) => ({ default: m.RestablecerPasswordPage })),
+)
+const CambioObligatorioPage = lazy(() =>
+  import('./pages/PasswordPages').then((m) => ({ default: m.CambioObligatorioPage })),
+)
 
 function CargandoModulo() {
   return (
@@ -23,26 +32,8 @@ function CargandoModulo() {
   )
 }
 
-/** Aviso suave de cambio de contraseña en el primer login (no bloquea; decisión de la sesión). */
-function BannerPassword() {
-  const { perfil } = useAuth()
-  const [oculto, setOculto] = useState(false)
-  if (!perfil?.requiere_cambio_password || oculto) return null
-  return (
-    <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-        <span className="flex items-center gap-2">
-          <KeyRound className="h-4 w-4" /> Debes cambiar tu contraseña de arranque.
-          <Link to="/cuenta" className="font-semibold underline">Cambiar ahora</Link>
-        </span>
-        <button onClick={() => setOculto(true)} className="rounded p-1 hover:bg-amber-100"><X className="h-4 w-4" /></button>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
-  const { session, cargando, esGuardia } = useAuth()
+  const { session, cargando, esGuardia, perfil, recuperacion } = useAuth()
 
   if (cargando) {
     return (
@@ -52,7 +43,38 @@ export default function App() {
     )
   }
 
-  if (!session) return <LoginPage />
+  // El enlace de recuperación crea una sesión, pero el usuario solo debe ver la
+  // pantalla de restablecimiento (req 31), por encima de todo lo demás.
+  if (recuperacion) {
+    return (
+      <Suspense fallback={<CargandoModulo />}>
+        <RestablecerPasswordPage />
+      </Suspense>
+    )
+  }
+
+  // Pre-login: login + recuperación de contraseña.
+  if (!session) {
+    return (
+      <Suspense fallback={<CargandoModulo />}>
+        <Routes>
+          <Route path="/olvido" element={<OlvidoPasswordPage />} />
+          <Route path="/restablecer" element={<RestablecerPasswordPage />} />
+          <Route path="*" element={<LoginPage />} />
+        </Routes>
+      </Suspense>
+    )
+  }
+
+  // Guard duro (reqs 27/28): mientras requiere_cambio_password sea true, el
+  // usuario NO accede al resto del sistema; solo a la pantalla de cambio inicial.
+  if (perfil?.requiere_cambio_password) {
+    return (
+      <Suspense fallback={<CargandoModulo />}>
+        <CambioObligatorioPage />
+      </Suspense>
+    )
+  }
 
   return (
     <ToastProvider>
@@ -63,11 +85,11 @@ export default function App() {
         ) : (
           <div className="min-h-screen">
             <TopBar />
-            <BannerPassword />
             <PageContainer>
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/cuenta" element={<CuentaPage />} />
+                <Route path="/vehiculos/nuevo" element={<VehiculoPropietarioPage />} />
                 <Route path="/m/:codigo" element={<ModuleHome />} />
                 <Route path="/m/:codigo/:sub" element={<ScreenPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -20,9 +20,27 @@ function provinciaValida(cedula: string): boolean {
   return (p >= 1 && p <= 24) || p === 30
 }
 
+/** Patrón de relleno evidente: todos los dígitos iguales, o secuencia ±1 completa.
+ *  Espejo de `public.es_relleno_obvio(text)`. Atrapa `2222222222` (que sí pasa el
+ *  módulo 10) y `0123456789`; `1234567890` lo rechaza el módulo 10 por el salto 9→0. */
+export function esRellenoObvio(num: string): boolean {
+  if (!/^[0-9]+$/.test(num) || num.length < 2) return false
+  if (new RegExp(`^(.)\\1{${num.length - 1}}$`).test(num)) return true
+  let asc = true
+  let desc = true
+  for (let i = 1; i < num.length; i++) {
+    const prev = Number(num[i - 1])
+    const d = Number(num[i])
+    if (d !== prev + 1) asc = false
+    if (d !== prev - 1) desc = false
+  }
+  return asc || desc
+}
+
 /** Algoritmo del Registro Civil: módulo 10 sobre los 9 primeros dígitos. */
 export function esCedulaEcuatoriana(cedula: string): boolean {
   if (!/^[0-9]{10}$/.test(cedula)) return false
+  if (esRellenoObvio(cedula)) return false
   if (!provinciaValida(cedula)) return false
   // Tercer dígito: < 6 = persona natural (6 = sector público, 9 = persona jurídica).
   if (Number(cedula[2]) >= 6) return false
@@ -40,6 +58,7 @@ export const validarCedula: Validador = (v) => {
   if (!v) return null
   if (!/^[0-9]+$/.test(v)) return 'La cédula solo puede contener dígitos.'
   if (v.length !== 10) return `La cédula debe tener 10 dígitos (tiene ${v.length}).`
+  if (esRellenoObvio(v)) return 'La cédula no puede ser un valor de relleno (dígitos repetidos o en secuencia).'
   if (!provinciaValida(v)) return `Los dos primeros dígitos (${v.slice(0, 2)}) no corresponden a ninguna provincia del Ecuador.`
   if (Number(v[2]) >= 6) return 'El tercer dígito indica que no es la cédula de una persona natural.'
   if (!esCedulaEcuatoriana(v)) return 'El dígito verificador no es correcto: revisa que la cédula esté bien digitada.'
@@ -50,29 +69,46 @@ export const validarCedula: Validador = (v) => {
 // RUC ecuatoriano
 // ---------------------------------------------------------------------------
 
-/** El tercer dígito define el tipo de contribuyente, y con él el algoritmo del verificador. */
-export function esRucEcuatoriano(ruc: string): boolean {
+/** Validación ESTRUCTURAL del RUC (espejo de `public.es_ruc_estructural`).
+ *  Es la única que decide si un RUC se acepta. Para sociedades NO corre el módulo 11:
+ *  el SRI reconoce RUC de sociedad válidos que no lo cumplen (req 14). La existencia
+ *  oficial se rastrea aparte en `empresa.estado_verificacion_ruc`. */
+export function esRucEstructural(ruc: string): boolean {
   if (!/^[0-9]{13}$/.test(ruc)) return false
+  if (esRellenoObvio(ruc.slice(0, 10))) return false
   if (!provinciaValida(ruc)) return false
 
   const tercero = Number(ruc[2])
-
-  // Persona natural: los 10 primeros son una cédula válida + establecimiento.
+  // Persona natural: los 10 primeros SÍ deben ser una cédula válida.
   if (tercero < 6) {
-    return esCedulaEcuatoriana(ruc.slice(0, 10)) && Number(ruc.slice(10, 13)) >= 1
+    return esCedulaEcuatoriana(ruc.slice(0, 10)) && /^[0-9]{3}$/.test(ruc.slice(10, 13)) && Number(ruc.slice(10, 13)) >= 1
   }
+  // Sector público: establecimiento de 4 dígitos.
+  if (tercero === 6) {
+    return /^[0-9]{4}$/.test(ruc.slice(9, 13)) && Number(ruc.slice(9, 13)) >= 1
+  }
+  // Sociedad privada / extranjera: establecimiento de 3 dígitos. Sin módulo 11.
+  if (tercero === 9) {
+    return /^[0-9]{3}$/.test(ruc.slice(10, 13)) && Number(ruc.slice(10, 13)) >= 1
+  }
+  return false
+}
 
-  // Sector público (verificador en la posición 9) o sociedad privada (posición 10).
+/** Algoritmo LEGADO (módulo 10 natural / módulo 11 sociedad). Solo ADVERTENCIA:
+ *  no se usa para rechazar sociedades (req 14). Espejo de `es_ruc_ecuatoriano`. */
+export function rucPasaAlgoritmoLegado(ruc: string): boolean {
+  if (!/^[0-9]{13}$/.test(ruc)) return false
+  if (!provinciaValida(ruc)) return false
+  const tercero = Number(ruc[2])
+  if (tercero < 6) return esCedulaEcuatoriana(ruc.slice(0, 10)) && Number(ruc.slice(10, 13)) >= 1
   const esPublico = tercero === 6
   const coef = esPublico ? [3, 2, 7, 6, 5, 4, 3, 2] : [4, 3, 2, 7, 6, 5, 4, 3, 2]
-  if (!esPublico && tercero !== 9) return false // 7 y 8 no son tipos asignados
-
+  if (!esPublico && tercero !== 9) return false
   let suma = 0
   for (let i = 0; i < coef.length; i++) suma += Number(ruc[i]) * coef[i]
   const resto = suma % 11
   const dv = resto === 0 ? 0 : 11 - resto
   if (dv === 10) return false
-
   return esPublico
     ? dv === Number(ruc[8]) && Number(ruc.slice(9, 13)) >= 1
     : dv === Number(ruc[9]) && Number(ruc.slice(10, 13)) >= 1
@@ -82,8 +118,20 @@ export const validarRuc: Validador = (v) => {
   if (!v) return null
   if (!/^[0-9]+$/.test(v)) return 'El RUC solo puede contener dígitos.'
   if (v.length !== 13) return `El RUC debe tener 13 dígitos (tiene ${v.length}).`
+  if (esRellenoObvio(v.slice(0, 10))) return 'El RUC no puede ser un valor de relleno.'
   if (!provinciaValida(v)) return `Los dos primeros dígitos (${v.slice(0, 2)}) no corresponden a ninguna provincia del Ecuador.`
-  if (!esRucEcuatoriano(v)) return 'El RUC no es válido: revisa el dígito verificador y que termine en el número de establecimiento (001).'
+  if (!esRucEstructural(v)) return 'El RUC no es válido: revisa el tipo de contribuyente (3.er dígito) y el número de establecimiento.'
+  return null
+}
+
+/** Advertencia no bloqueante para sociedades cuyo RUC es estructuralmente válido pero
+ *  no pasa el módulo 11. La verificación oficial (SRI) queda como NO_VERIFICADO. */
+export function advertenciaRuc(v: string): string | null {
+  if (!v || !esRucEstructural(v)) return null
+  const tercero = Number(v[2])
+  if ((tercero === 6 || tercero === 9) && !rucPasaAlgoritmoLegado(v)) {
+    return 'El RUC es estructuralmente válido pero no pasa el algoritmo tradicional. Su existencia no está verificada con el SRI (NO_VERIFICADO).'
+  }
   return null
 }
 
@@ -167,16 +215,47 @@ export function esPlacaEc(valor: string): boolean {
   return new RegExp(`^[${LETRAS_PROVINCIA}][A-Z]{2}[0-9]{3,4}$`).test(c)
 }
 
-export const validarPlaca: Validador = (v) => {
-  if (!v) return null
-  const c = normalizarPlaca(v)
-  if (!/^[A-Z]{3}[0-9]{3,4}$/.test(c)) {
-    return 'Placa no válida. Formato ecuatoriano: 3 letras y 3 o 4 dígitos (ABC-1234).'
+/** Valida la placa según el tipo de vehículo. Espejo de `public.es_placa_vehiculo`.
+ *  Ordinaria (auto/camioneta): 3 letras + 3/4 dígitos. Motocicleta: también el
+ *  histórico 2 letras + 3 dígitos + 1 letra (AB123C). BICICLETA/OTRO: no se fuerza
+ *  un patrón (placas especiales, temporales o inexistentes). */
+export function esPlacaVehiculo(valor: string, tipo: string): boolean {
+  const c = normalizarPlaca(valor)
+  if (!c) return true // la obligatoriedad la decide otra regla
+  if (tipo === 'AUTOMOVIL' || tipo === 'CAMIONETA') {
+    return new RegExp(`^[${LETRAS_PROVINCIA}][A-Z]{2}[0-9]{3,4}$`).test(c)
   }
-  if (!LETRAS_PROVINCIA.includes(c[0])) {
-    return `La primera letra (${c[0]}) no corresponde a ninguna provincia del Ecuador.`
+  if (tipo === 'MOTOCICLETA') {
+    return (
+      new RegExp(`^[${LETRAS_PROVINCIA}][A-Z]{2}[0-9]{3,4}$`).test(c) ||
+      new RegExp(`^[${LETRAS_PROVINCIA}][A-Z][0-9]{3}[A-Z]$`).test(c)
+    )
   }
-  return null
+  return /^[A-Z0-9]{3,8}$/.test(c)
+}
+
+/** Validador ordinario (auto). Se conserva por compatibilidad. */
+export const validarPlaca: Validador = (v) => validarPlacaTipo('AUTOMOVIL')(v)
+
+/** Fábrica de validador de placa parametrizado por tipo de vehículo. */
+export function validarPlacaTipo(tipo: string): Validador {
+  return (v) => {
+    if (!v) return null
+    const c = normalizarPlaca(v)
+    if (esPlacaVehiculo(v, tipo)) {
+      if ((tipo === 'AUTOMOVIL' || tipo === 'CAMIONETA' || tipo === 'MOTOCICLETA') && !LETRAS_PROVINCIA.includes(c[0])) {
+        return `La primera letra (${c[0]}) no corresponde a ninguna provincia del Ecuador.`
+      }
+      return null
+    }
+    if (tipo === 'MOTOCICLETA') {
+      return 'Placa de moto no válida. Formatos: 3 letras + 3/4 dígitos (ABC-123) o 2 letras + 3 dígitos + 1 letra (AB-123C).'
+    }
+    if (tipo === 'AUTOMOVIL' || tipo === 'CAMIONETA') {
+      return 'Placa no válida. Formato ecuatoriano: 3 letras y 3 o 4 dígitos (ABC-1234).'
+    }
+    return 'Placa no válida.'
+  }
 }
 
 /** Autoformatea mientras se escribe: mayúsculas y guion tras la tercera letra. */
