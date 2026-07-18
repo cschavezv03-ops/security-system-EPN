@@ -174,6 +174,7 @@ export type Database = {
         Row: {
           ambito: string
           codigo_categoria: string
+          descripcion: string
           estado: string
           id_categoria: string
           nombre_categoria: string
@@ -181,6 +182,7 @@ export type Database = {
         Insert: {
           ambito: string
           codigo_categoria: string
+          descripcion: string
           estado?: string
           id_categoria?: string
           nombre_categoria: string
@@ -188,6 +190,7 @@ export type Database = {
         Update: {
           ambito?: string
           codigo_categoria?: string
+          descripcion?: string
           estado?: string
           id_categoria?: string
           nombre_categoria?: string
@@ -462,6 +465,7 @@ export type Database = {
           modulo_aplicacion: string
           nombre_parametro: string
           tipo_dato: string
+          unidad_medida: string | null
           valor_parametro: string
         }
         Insert: {
@@ -476,6 +480,7 @@ export type Database = {
           modulo_aplicacion: string
           nombre_parametro: string
           tipo_dato: string
+          unidad_medida?: string | null
           valor_parametro: string
         }
         Update: {
@@ -490,6 +495,7 @@ export type Database = {
           modulo_aplicacion?: string
           nombre_parametro?: string
           tipo_dato?: string
+          unidad_medida?: string | null
           valor_parametro?: string
         }
         Relationships: [
@@ -1196,6 +1202,43 @@ export type Database = {
       }
     }
     Views: {
+      v_auditoria: {
+        Row: {
+          accion: string | null
+          cambios: Json | null
+          datos: string | null
+          descripcion: string | null
+          ejecutor_correo: string | null
+          ejecutor_nombre: string | null
+          ejecutor_usuario: string | null
+          entidad_afectada: string | null
+          fecha_hora: string | null
+          hora_entrada: string | null
+          hora_salida: string | null
+          id_bitacora: string | null
+          id_entidad_afectada: string | null
+          id_usuario: string | null
+          ip_origen: string | null
+          modulo: string | null
+          motivo_cierre: string | null
+          registro_afectado: string | null
+          resultado: string | null
+          tipo_registro: string | null
+          usuario_accedido: string | null
+          usuario_accedido_correo: string | null
+          valor_anterior: Json | null
+          valor_nuevo: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bitacora_sistema_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "usuario_sistema"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       vista_vehiculos_dentro: {
         Row: {
           apellidos_conductor: string | null
@@ -1296,6 +1339,7 @@ export type Database = {
         Args: { p_id_usuario: string }
         Returns: undefined
       }
+      detalle_cambio: { Args: { anterior: Json; nuevo: Json }; Returns: Json }
       enrolar_biometria: {
         Args: {
           p_descriptor: number[]
@@ -1331,6 +1375,7 @@ export type Database = {
         Args: { p_id_usuario: string; p_momento?: string }
         Returns: boolean
       }
+      etiqueta_entidad: { Args: { entidad: string }; Returns: string }
       expirar_sesiones_vencidas: { Args: never; Returns: number }
       formatear_placa: { Args: { p_placa: string }; Returns: string }
       guardias_disponibles: {
@@ -1398,6 +1443,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      resumir_cambio: { Args: { anterior: Json; nuevo: Json }; Returns: string }
       revisar_permanencia_vehiculos: { Args: never; Returns: undefined }
       revocar_mis_sesiones: { Args: { p_motivo?: string }; Returns: number }
       revocar_sesiones_usuario: {
@@ -1414,6 +1460,7 @@ export type Database = {
       tiene_algun_modulo: { Args: never; Returns: boolean }
       tiene_permiso: { Args: { p_codigo: string }; Returns: boolean }
       tocar_sesion: { Args: { p_id_sesion?: string }; Returns: boolean }
+      uuid_seguro: { Args: { texto: string }; Returns: string }
       valor_parametro_coherente: {
         Args: { p_tipo_dato: string; p_valor: string }
         Returns: boolean
