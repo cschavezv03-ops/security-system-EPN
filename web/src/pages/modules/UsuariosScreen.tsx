@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { KeyRound, Lock, Search, ShieldCheck, UserPlus, UserX } from 'lucide-react'
+import { KeyRound, Lock, Plus, Search, ShieldCheck, UserPlus, UserX, X } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthProvider'
-import { fmtFechaHora } from '../../lib/format'
+import { fmtFecha, fmtFechaHora } from '../../lib/format'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Modal, Select,
   SidePanel, useToast,
 } from '../../components/ui'
 import { ROL_LABEL, humanizar } from '../../lib/catalogos'
 import { validarCorreoInstitucional, validarNombreUsuario } from '../../lib/validacion'
+import { useBorrador } from '../../lib/useBorrador'
+import { BuscarPersonaPorCedula, type PersonaCedula } from '../../components/BuscarPersonaPorCedula'
+
+interface Asignacion {
+  id_usuario_rol: string
+  estado_asignacion: string
+  fecha_asignacion: string
+  fecha_revocacion: string | null
+  observacion: string | null
+  rol?: { id_rol: string; nombre_rol: string } | null
+}
 
 interface Usuario {
   id_usuario: string
@@ -21,6 +32,7 @@ interface Usuario {
   /** Bloqueo TEMPORAL por intentos fallidos; distinto de estado_usuario = BLOQUEADO. */
   bloqueado_hasta: string | null
   persona?: { nombres: string; apellidos: string; cedula: string } | null
+  roles?: Asignacion[]
 }
 
 /** ¿La cuenta está bloqueada AHORA por intentos fallidos? El bloqueo caduca solo. */
@@ -41,16 +53,38 @@ function estadoEfectivo(u: { estado_usuario: string; bloqueado_hasta: string | n
   return u.estado_usuario === 'ACTIVO' && bloqueoVigente(u) ? 'BLOQUEO_TEMPORAL' : u.estado_usuario
 }
 
+/** Etiqueta legible del rol, con el mapa de nombres propios del sistema. */
+const nombreRol = (a: Asignacion): string =>
+  a.rol ? (ROL_LABEL[a.rol.nombre_rol] ?? humanizar(a.rol.nombre_rol)) : '—'
+
 /**
- * Gestión de usuarios (feedback ADM §5.3/§7.2): la pantalla genérica de CRUD no alcanza para
- * esto porque cada transición de estado tiene su propio permiso granular (bloquear/desbloquear/
- * activar/dar de baja) en vez de un solo ADM_USUARIO_UPDATE — y "restablecer contraseña" no es
- * ni siquiera un UPDATE de esta tabla, es la Auth Admin API vía Edge Function.
+ * Fecha en la que el estado ACTUAL de la asignación empezó a regir: la de revocación si
+ * está revocada, la de asignación si sigue activa. Es la "fecha de estado" que pide el
+ * documento de requerimientos, y sin ella una asignación revocada no dice cuándo lo fue.
+ */
+const fechaEstado = (a: Asignacion): string | null =>
+  a.estado_asignacion === 'REVOCADO' ? a.fecha_revocacion : a.fecha_asignacion
+
+const activas = (u: Usuario): Asignacion[] => (u.roles ?? []).filter((a) => a.estado_asignacion === 'ACTIVO')
+
+/**
+ * Usuarios del sistema, con sus roles (feedback ADM).
+ *
+ * Antes eran dos tarjetas: "Usuarios" y "Asignaciones de rol". Al crear una cuenta se
+ * elegía el rol, pero luego no aparecía por ningún lado en la pantalla de usuarios: había
+ * que abrir la otra para verlo. Ahora es un solo apartado, "Usuarios", que muestra rol,
+ * cédula, fecha de asignación y fecha de estado, y desde el que se asigna y se revoca.
+ *
+ * Sigue siendo una pantalla dedicada y no una configuración genérica de `ResourceScreen`
+ * porque cada transición de estado tiene su propio permiso granular (bloquear/desbloquear/
+ * activar/dar de baja) en vez de un solo ADM_USUARIO_UPDATE — y "restablecer contraseña"
+ * no es ni siquiera un UPDATE de esta tabla, es la Auth Admin API vía Edge Function.
  */
 export function UsuariosScreen() {
   const { tiene, perfil } = useAuth()
   const toast = useToast()
   const puedeLeer = tiene('ADM_USUARIO_SELECT')
+  const puedeVerRoles = tiene('ADM_USUARIO_ROL_SELECT')
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [cargando, setCargando] = useState(true)
@@ -63,12 +97,17 @@ export function UsuariosScreen() {
 
   const cargar = async () => {
     setCargando(true)
-    const { data, error } = await supabase
-      .from('usuario_sistema')
-      .select('id_usuario, nombre_usuario, correo_electronico, estado_usuario, requiere_cambio_password, fecha_ultimo_login, intentos_fallidos, bloqueado_hasta, persona:persona!usuario_sistema_id_persona_fkey(nombres, apellidos, cedula)')
-      .order('nombre_usuario')
+    // Los roles se traen embebidos: una consulta en lugar de una por usuario, y así la
+    // tabla puede mostrarlos sin saltar a otra pantalla.
+    const select = puedeVerRoles
+      ? 'id_usuario, nombre_usuario, correo_electronico, estado_usuario, requiere_cambio_password, fecha_ultimo_login, intentos_fallidos, bloqueado_hasta, persona:persona!usuario_sistema_id_persona_fkey(nombres, apellidos, cedula), roles:usuario_rol(id_usuario_rol, estado_asignacion, fecha_asignacion, fecha_revocacion, observacion, rol:rol(id_rol, nombre_rol))'
+      : 'id_usuario, nombre_usuario, correo_electronico, estado_usuario, requiere_cambio_password, fecha_ultimo_login, intentos_fallidos, bloqueado_hasta, persona:persona!usuario_sistema_id_persona_fkey(nombres, apellidos, cedula)'
+    const { data, error } = await supabase.from('usuario_sistema').select(select).order('nombre_usuario')
     if (error) setError(mensajeError(error))
-    setUsuarios((data as Usuario[] | null) ?? [])
+    const filas = (data as unknown as Usuario[] | null) ?? []
+    setUsuarios(filas)
+    // Mantiene abierto el panel del usuario seleccionado con los datos recién cargados.
+    setSel((s) => (s ? filas.find((u) => u.id_usuario === s.id_usuario) ?? null : null))
     setCargando(false)
   }
 
@@ -81,8 +120,14 @@ export function UsuariosScreen() {
     const t = busqueda.trim().toLowerCase()
     if (!t) return usuarios
     return usuarios.filter((u) =>
-      [u.nombre_usuario, u.correo_electronico, u.persona?.cedula, u.persona?.apellidos]
-        .some((c) => String(c ?? '').toLowerCase().includes(t)),
+      [
+        u.nombre_usuario,
+        u.correo_electronico,
+        u.persona?.cedula,
+        u.persona?.apellidos,
+        u.persona?.nombres,
+        ...(u.roles ?? []).map(nombreRol),
+      ].some((c) => String(c ?? '').toLowerCase().includes(t)),
     )
   }, [usuarios, busqueda])
 
@@ -97,7 +142,6 @@ export function UsuariosScreen() {
       return
     }
     toast('ok', 'Cuenta desbloqueada.')
-    setSel((s) => (s ? { ...s, bloqueado_hasta: null, intentos_fallidos: 0 } : s))
     await cargar()
   }
 
@@ -111,7 +155,6 @@ export function UsuariosScreen() {
       return
     }
     toast('ok', 'Estado actualizado.')
-    setSel((s) => (s ? { ...s, estado_usuario: nuevoEstado } : s))
     await cargar()
   }
 
@@ -156,7 +199,8 @@ export function UsuariosScreen() {
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por usuario, correo, cédula..."
+            placeholder="Buscar por usuario, correo, cédula o rol..."
+            aria-label="Buscar usuarios"
             className="epn-input pl-9"
           />
         </div>
@@ -192,17 +236,38 @@ export function UsuariosScreen() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase text-ink-soft">
                   <th className="px-4 py-2.5">Usuario</th>
-                  <th className="px-4 py-2.5">Correo</th>
                   <th className="px-4 py-2.5">Persona</th>
-                  <th className="px-4 py-2.5">Estado</th>
+                  <th className="px-4 py-2.5">Cédula</th>
+                  <th className="px-4 py-2.5">Rol</th>
+                  <th className="px-4 py-2.5">Estado de la cuenta</th>
                 </tr>
               </thead>
               <tbody>
                 {filtrados.map((u) => (
                   <tr key={u.id_usuario} onClick={() => setSel(u)} className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-navy">{u.nombre_usuario}</td>
-                    <td className="px-4 py-2.5">{u.correo_electronico}</td>
-                    <td className="px-4 py-2.5">{u.persona ? `${u.persona.nombres} ${u.persona.apellidos}` : '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-navy">{u.nombre_usuario}</div>
+                      <div className="text-xs text-ink-soft">{u.correo_electronico}</div>
+                    </td>
+                    <td className="px-4 py-2.5">{u.persona ? `${u.persona.apellidos} ${u.persona.nombres}` : '—'}</td>
+                    <td className="px-4 py-2.5">{u.persona?.cedula ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      {!puedeVerRoles ? (
+                        <span className="text-xs text-ink-soft">Sin permiso para ver roles</span>
+                      ) : activas(u).length === 0 ? (
+                        // Una cuenta sin rol no ve nada al entrar: conviene que salte a la vista.
+                        <span className="text-xs text-amber-700">Sin rol asignado</span>
+                      ) : (
+                        <ul className="space-y-0.5">
+                          {activas(u).map((a) => (
+                            <li key={a.id_usuario_rol}>
+                              <span className="text-navy">{nombreRol(a)}</span>{' '}
+                              <span className="text-xs text-ink-soft">desde {fmtFecha(a.fecha_asignacion)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5"><Badge value={estadoEfectivo(u)} /></td>
                   </tr>
                 ))}
@@ -224,12 +289,14 @@ export function UsuariosScreen() {
               <Row label="Correo" val={sel.correo_electronico} />
               <Row label="Persona" val={sel.persona ? `${sel.persona.nombres} ${sel.persona.apellidos}` : '—'} />
               <Row label="Cédula" val={sel.persona?.cedula ?? '—'} />
-              <Row label="Último login" val={fmtFechaHora(sel.fecha_ultimo_login)} />
+              <Row label="Último inicio de sesión" val={fmtFechaHora(sel.fecha_ultimo_login)} />
               <Row label="Intentos fallidos" val={String(sel.intentos_fallidos)} />
               {bloqueoVigente(sel) && (
                 <Row label="Bloqueada hasta" val={fmtFechaHora(sel.bloqueado_hasta)} />
               )}
             </dl>
+
+            {puedeVerRoles && <RolesDelUsuario usuario={sel} onCambio={cargar} />}
 
             {bloqueoVigente(sel) && (
               <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
@@ -304,12 +371,142 @@ function Row({ label, val }: { label: string; val: string }) {
   )
 }
 
-interface PersonaSinCuenta {
-  id_persona: string
-  nombres: string
-  apellidos: string
-  cedula: string
-  correo: string | null
+/**
+ * Roles de un usuario dentro de su propia ficha: la mitad de la antigua pantalla
+ * "Asignaciones de rol".
+ *
+ * Muestra también las revocadas, con su fecha: quién tuvo qué permiso y hasta cuándo es
+ * justo lo que se le pregunta a un sistema de accesos cuando algo sale mal.
+ */
+function RolesDelUsuario({ usuario, onCambio }: { usuario: Usuario; onCambio: () => Promise<void> }) {
+  const { tiene } = useAuth()
+  const toast = useToast()
+  const puedeAsignar = tiene('ADM_USUARIO_ROL_INSERT')
+  const puedeRevocar = tiene('ADM_USUARIO_ROL_UPDATE')
+
+  const [roles, setRoles] = useState<{ id_rol: string; nombre_rol: string }[]>([])
+  const [asignando, setAsignando] = useState(false)
+  const [idRol, setIdRol] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    if (!puedeAsignar) return
+    void (async () => {
+      const { data } = await supabase.from('rol').select('id_rol, nombre_rol').eq('estado_rol', 'ACTIVO').order('nombre_rol')
+      setRoles((data as { id_rol: string; nombre_rol: string }[] | null) ?? [])
+    })()
+  }, [puedeAsignar])
+
+  // Cambiar de usuario con el formulario abierto dejaría el rol elegido apuntando a otra
+  // cuenta: se cierra al cambiar la selección.
+  useEffect(() => {
+    setAsignando(false)
+    setIdRol('')
+  }, [usuario.id_usuario])
+
+  const asignados = usuario.roles ?? []
+  const yaTieneActivo = (id: string) =>
+    asignados.some((a) => a.estado_asignacion === 'ACTIVO' && a.rol?.id_rol === id)
+
+  const asignar = async () => {
+    if (!idRol) return
+    setGuardando(true)
+    const { error } = await supabase.from('usuario_rol').insert({
+      id_usuario: usuario.id_usuario,
+      id_rol: idRol,
+      estado_asignacion: 'ACTIVO',
+    } as never)
+    setGuardando(false)
+    if (error) {
+      toast('error', mensajeError(error))
+      return
+    }
+    toast('ok', 'Rol asignado.')
+    setAsignando(false)
+    setIdRol('')
+    await onCambio()
+  }
+
+  const revocar = async (a: Asignacion) => {
+    setGuardando(true)
+    const { error } = await supabase
+      .from('usuario_rol')
+      .update({ estado_asignacion: 'REVOCADO', fecha_revocacion: new Date().toISOString() } as never)
+      .eq('id_usuario_rol', a.id_usuario_rol)
+    setGuardando(false)
+    if (error) {
+      toast('error', mensajeError(error))
+      return
+    }
+    toast('ok', 'Rol revocado.')
+    await onCambio()
+  }
+
+  return (
+    <div className="mb-5 border-t border-slate-100 pt-4">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-navy">Roles asignados</h3>
+        {puedeAsignar && !asignando && (
+          <Button variant="secondary" onClick={() => setAsignando(true)}>
+            <Plus className="h-4 w-4" /> Asignar rol
+          </Button>
+        )}
+      </div>
+
+      {asignando && (
+        <div className="mb-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+          <Field label="Rol" htmlFor="asignar-rol" hint="Define qué módulos y acciones podrá usar.">
+            <Select
+              id="asignar-rol"
+              value={idRol}
+              onChange={(e) => setIdRol(e.target.value)}
+              placeholder="— Seleccionar —"
+              options={roles
+                .filter((r) => !yaTieneActivo(r.id_rol))
+                .map((r) => ({ value: r.id_rol, label: ROL_LABEL[r.nombre_rol] ?? humanizar(r.nombre_rol) }))}
+            />
+          </Field>
+          <div className="flex gap-2">
+            <Button onClick={asignar} loading={guardando} disabled={!idRol}>Asignar</Button>
+            <Button variant="ghost" onClick={() => { setAsignando(false); setIdRol('') }}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
+      {asignados.length === 0 ? (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Esta cuenta no tiene ningún rol: al entrar no vería ningún módulo.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {asignados.map((a) => (
+            <li key={a.id_usuario_rol} className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-navy">{nombreRol(a)}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
+                  <Badge value={a.estado_asignacion} />
+                  <span>Asignado el {fmtFecha(a.fecha_asignacion)}</span>
+                  <span>· {a.estado_asignacion === 'REVOCADO' ? 'Revocado' : 'Activo'} desde {fmtFecha(fechaEstado(a))}</span>
+                </p>
+                {a.observacion && <p className="mt-0.5 text-xs text-ink-soft">{a.observacion}</p>}
+              </div>
+              {puedeRevocar && a.estado_asignacion === 'ACTIVO' && (
+                <button
+                  type="button"
+                  onClick={() => revocar(a)}
+                  disabled={guardando}
+                  className="rounded p-1 text-slate-400 hover:bg-white hover:text-rose-600 disabled:opacity-50"
+                  aria-label={`Revocar el rol ${nombreRol(a)}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -318,8 +515,10 @@ interface PersonaSinCuenta {
  * La cuenta se crea en la Edge Function `crear-usuario-sistema` (Auth Admin API): auth.users está
  * fuera del alcance de RLS, así que no hay forma de hacerlo con un INSERT desde aquí.
  *
- * Solo lista personas INTERNAS activas que aún no tengan cuenta: `persona` es la maestra única
- * (CLAUDE.md) y el alta de personas es de GPI, no de ADM.
+ * La persona se busca por cédula y no se elige en un combo (feedback ADM: "evita tener que
+ * buscar entre miles de registros manualmente"). Como el combo antiguo ya venía filtrado a
+ * personas internas activas sin cuenta, esas tres condiciones se comprueban ahora sobre la
+ * persona encontrada, con un mensaje que dice cuál falla.
  */
 function CrearUsuarioPanel({
   onCerrar,
@@ -331,40 +530,62 @@ function CrearUsuarioPanel({
   llamarFuncion: (nombre: string, cuerpo: unknown) => Promise<{ ok: boolean; json: any }>
 }) {
   const toast = useToast()
-  const [personas, setPersonas] = useState<PersonaSinCuenta[]>([])
+  const { perfil } = useAuth()
   const [roles, setRoles] = useState<{ id_rol: string; nombre_rol: string }[]>([])
-  const [cargando, setCargando] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [idPersona, setIdPersona] = useState('')
+  const [persona, setPersona] = useState<PersonaCedula | null>(null)
+  const [problemaPersona, setProblemaPersona] = useState<string | null>(null)
   const [nombreUsuario, setNombreUsuario] = useState('')
   const [correo, setCorreo] = useState('')
   const [idRol, setIdRol] = useState('')
   const [usuarioTocado, setUsuarioTocado] = useState(false)
 
+  // Borrador: si el administrador cambia de pestaña a mitad del alta, al volver no tiene
+  // que teclearlo todo otra vez. La contraseña temporal no pasa por aquí, y `useBorrador`
+  // descarta por su cuenta cualquier clave que parezca sensible.
+  const borrador = useBorrador(
+    perfil ? `${perfil.id_usuario}:ADM:usuario_sistema:nuevo` : null,
+    { nombreUsuario, correo, idRol },
+  )
+
   useEffect(() => {
-    ;(async () => {
-      const [personasRes, rolesRes, usuariosRes] = await Promise.all([
-        supabase.from('persona').select('id_persona, nombres, apellidos, cedula, correo')
-          .eq('tipo_persona', 'INTERNA').eq('estado', 'ACTIVO').order('apellidos'),
-        supabase.from('rol').select('id_rol, nombre_rol').eq('estado_rol', 'ACTIVO').order('nombre_rol'),
-        supabase.from('usuario_sistema').select('id_persona'),
-      ])
-      if (personasRes.error) setError(mensajeError(personasRes.error))
-      const conCuenta = new Set(((usuariosRes.data as { id_persona: string }[] | null) ?? []).map((u) => u.id_persona))
-      setPersonas(((personasRes.data as PersonaSinCuenta[] | null) ?? []).filter((p) => !conCuenta.has(p.id_persona)))
-      setRoles((rolesRes.data as { id_rol: string; nombre_rol: string }[] | null) ?? [])
-      setCargando(false)
+    void (async () => {
+      const { data } = await supabase.from('rol').select('id_rol, nombre_rol').eq('estado_rol', 'ACTIVO').order('nombre_rol')
+      setRoles((data as { id_rol: string; nombre_rol: string }[] | null) ?? [])
     })()
+    const previo = borrador.restaurar()
+    if (previo) {
+      if (previo.nombreUsuario) { setNombreUsuario(previo.nombreUsuario); setUsuarioTocado(true) }
+      if (previo.correo) setCorreo(previo.correo)
+      if (previo.idRol) setIdRol(previo.idRol)
+    }
   }, [])
 
-  /** Al elegir la persona se propone usuario y correo, pero se pueden corregir. */
-  const alElegirPersona = (id: string) => {
-    setIdPersona(id)
-    const p = personas.find((x) => x.id_persona === id)
+  /**
+   * Comprueba que la persona encontrada pueda tener cuenta y propone usuario y correo.
+   * La consulta de cuenta existente es puntual (una cédula), no la lista completa.
+   */
+  const alElegirPersona = async (p: PersonaCedula | null) => {
+    setPersona(p)
+    setProblemaPersona(null)
     if (!p) return
-    if (p.correo) setCorreo(p.correo)
+
+    if (p.tipo_persona !== 'INTERNA') {
+      setProblemaPersona('Solo el personal interno puede tener cuenta en el sistema.')
+      return
+    }
+    const { data: yaTiene } = await supabase
+      .from('usuario_sistema')
+      .select('nombre_usuario')
+      .eq('id_persona', p.id_persona)
+      .maybeSingle()
+    if (yaTiene) {
+      setProblemaPersona(`Esta persona ya tiene la cuenta "${(yaTiene as { nombre_usuario: string }).nombre_usuario}".`)
+      return
+    }
+
     if (!usuarioTocado) {
       const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
       const nombre = sinTildes(p.nombres.trim().split(/\s+/)[0] ?? '').toLowerCase()
@@ -375,13 +596,14 @@ function CrearUsuarioPanel({
 
   const errorUsuario = nombreUsuario ? validarNombreUsuario(nombreUsuario) : null
   const errorCorreo = correo ? validarCorreoInstitucional(correo) : null
-  const listo = idPersona && nombreUsuario && correo && idRol && !errorUsuario && !errorCorreo
+  const listo = !!persona && !problemaPersona && nombreUsuario && correo && idRol && !errorUsuario && !errorCorreo
 
   const crear = async () => {
+    if (!persona) return
     setGuardando(true)
     setError(null)
     const { ok, json } = await llamarFuncion('crear-usuario-sistema', {
-      id_persona: idPersona,
+      id_persona: persona.id_persona,
       nombre_usuario: nombreUsuario,
       correo,
       id_rol: idRol,
@@ -391,8 +613,14 @@ function CrearUsuarioPanel({
       setError(json.error ?? 'No se pudo crear el usuario.')
       return
     }
+    borrador.descartar()
     toast('ok', `Cuenta "${json.nombre_usuario}" creada para ${json.persona}.`)
     onCreado(json.password_temporal)
+  }
+
+  const cancelar = () => {
+    borrador.descartar()
+    onCerrar()
   }
 
   return (
@@ -401,86 +629,72 @@ function CrearUsuarioPanel({
         <div>
           <h3 className="text-base font-semibold text-navy">Crear usuario del sistema</h3>
           <p className="mt-0.5 text-sm text-ink-soft">
-            La cuenta se crea sobre una persona interna ya registrada. Si no aparece en la lista, regístrala
-            primero en Personal interno (GPI) o comprueba que no tenga ya una cuenta.
+            Busca por cédula a la persona interna que tendrá la cuenta. Si no aparece, regístrala
+            primero en Personal interno (GPI).
           </p>
         </div>
-        <Button variant="ghost" onClick={onCerrar}>Cancelar</Button>
+        <Button variant="ghost" onClick={cancelar}>Cancelar</Button>
       </div>
 
       <ErrorBanner message={error} />
 
-      {cargando ? (
-        <CenterSpinner label="Cargando personas..." />
-      ) : personas.length === 0 ? (
-        <EmptyState
-          title="No hay personas disponibles"
-          hint="Todas las personas internas activas ya tienen cuenta. Registra una nueva persona en el módulo GPI."
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Field label="Persona" required htmlFor="alta-persona">
-              <Select
-                id="alta-persona"
-                value={idPersona}
-                onChange={(e) => alElegirPersona(e.target.value)}
-                placeholder="— Seleccionar —"
-                options={personas.map((p) => ({ value: p.id_persona, label: `${p.apellidos} ${p.nombres} · ${p.cedula}` }))}
-              />
-            </Field>
-          </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <BuscarPersonaPorCedula onSelect={alElegirPersona} soloActivas label="Cédula de la persona" autoFocus />
+          {problemaPersona && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">{problemaPersona}</p>
+          )}
+        </div>
 
+        <Field
+          label="Nombre de usuario"
+          required
+          htmlFor="alta-usuario"
+          error={errorUsuario}
+          ayuda="Solo minúsculas, dígitos, punto, guion y guion bajo, entre 3 y 50 caracteres. Se propone nombre.apellido a partir de la persona encontrada, pero puedes cambiarlo."
+        >
+          <Input
+            id="alta-usuario"
+            value={nombreUsuario}
+            onChange={(e) => { setUsuarioTocado(true); setNombreUsuario(e.target.value.toLowerCase()) }}
+            placeholder="nombre.apellido"
+          />
+        </Field>
+
+        <Field
+          label="Correo institucional"
+          required
+          htmlFor="alta-correo"
+          error={errorCorreo}
+          ayuda="Debe ser una dirección de la Politécnica: @epn.edu.ec (o un subdominio) o @cec.edu.ec. Es el correo con el que la persona iniciará sesión."
+        >
+          <Input id="alta-correo" type="email" value={correo} onChange={(e) => setCorreo(e.target.value.toLowerCase())} placeholder="nombre.apellido@epn.edu.ec" />
+        </Field>
+
+        <div className="sm:col-span-2">
           <Field
-            label="Nombre de usuario"
+            label="Rol"
             required
-            htmlFor="alta-usuario"
-            error={errorUsuario}
-            ayuda="Solo minúsculas, dígitos, punto, guion y guion bajo, entre 3 y 50 caracteres. Se propone nombre.apellido a partir de la persona elegida, pero puedes cambiarlo."
+            htmlFor="alta-rol"
+            ayuda="Define qué módulos y acciones podrá usar. Un usuario sin rol no tiene ningún permiso y no vería nada al entrar."
           >
-            <Input
-              id="alta-usuario"
-              value={nombreUsuario}
-              onChange={(e) => { setUsuarioTocado(true); setNombreUsuario(e.target.value.toLowerCase()) }}
-              placeholder="nombre.apellido"
+            <Select
+              id="alta-rol"
+              value={idRol}
+              onChange={(e) => setIdRol(e.target.value)}
+              placeholder="— Seleccionar —"
+              options={roles.map((r) => ({ value: r.id_rol, label: ROL_LABEL[r.nombre_rol] ?? humanizar(r.nombre_rol) }))}
             />
           </Field>
-
-          <Field
-            label="Correo institucional"
-            required
-            htmlFor="alta-correo"
-            error={errorCorreo}
-            ayuda="Debe ser una dirección de la Politécnica: @epn.edu.ec (o un subdominio) o @cec.edu.ec. Es el correo con el que la persona iniciará sesión."
-          >
-            <Input id="alta-correo" type="email" value={correo} onChange={(e) => setCorreo(e.target.value.toLowerCase())} placeholder="nombre.apellido@epn.edu.ec" />
-          </Field>
-
-          <div className="sm:col-span-2">
-            <Field
-              label="Rol"
-              required
-              htmlFor="alta-rol"
-              ayuda="Define qué módulos y acciones podrá usar. Un usuario sin rol no tiene ningún permiso y no vería nada al entrar."
-            >
-              <Select
-                id="alta-rol"
-                value={idRol}
-                onChange={(e) => setIdRol(e.target.value)}
-                placeholder="— Seleccionar —"
-                options={roles.map((r) => ({ value: r.id_rol, label: ROL_LABEL[r.nombre_rol] ?? humanizar(r.nombre_rol) }))}
-              />
-            </Field>
-          </div>
-
-          <div className="sm:col-span-2 flex items-center gap-3 pt-1">
-            <Button onClick={crear} loading={guardando} disabled={!listo}>Crear usuario</Button>
-            <span className="text-xs text-ink-soft">
-              Se generará una contraseña temporal que deberás entregarle; el sistema le exigirá cambiarla al entrar.
-            </span>
-          </div>
         </div>
-      )}
+
+        <div className="sm:col-span-2 flex items-center gap-3 pt-1">
+          <Button onClick={crear} loading={guardando} disabled={!listo}>Crear usuario</Button>
+          <span className="text-xs text-ink-soft">
+            Se generará una contraseña temporal que deberás entregarle; el sistema le exigirá cambiarla al entrar.
+          </span>
+        </div>
+      </div>
     </Card>
   )
 }

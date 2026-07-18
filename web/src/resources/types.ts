@@ -115,6 +115,10 @@ export interface ResourceConfig<Row = any> {
   /** Acción extra en el pie del panel de detalle (ej. cerrar una sesión concreta).
    *  Recibe la fila y utilidades para refrescar la lista o cerrar el panel. */
   accionDetalle?: (row: Row, ctx: { recargar: () => Promise<void>; cerrarPanel: () => void }) => ReactNode
+  /** Bloque extra en el CUERPO del panel de detalle, debajo de los datos. Para lo que no
+   *  cabe en un botón: gestionar registros relacionados sin salir de la ficha (ej. las
+   *  personas asociadas a un vehículo). */
+  detalleExtra?: (row: Row, ctx: { recargar: () => Promise<void>; cerrarPanel: () => void }) => ReactNode
   campoTituloDetalle: (row: Row) => string
   campoSubtituloDetalle?: (row: Row) => ReactNode
   campos: FieldConfig[]

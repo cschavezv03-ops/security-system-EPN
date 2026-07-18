@@ -298,6 +298,14 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
                 </div>
               ))}
             </dl>
+            {/* Bloque propio del recurso dentro del panel (ej. gestionar las personas
+                asociadas a un vehículo sin salir de la ficha). A diferencia de
+                `accionDetalle`, que vive en el pie entre los botones, esto ocupa el
+                cuerpo y puede recargar el listado cuando cambia algo. */}
+            {config.detalleExtra?.(seleccion, {
+              recargar: cargar,
+              cerrarPanel: () => setSeleccion(null),
+            })}
           </div>
         )}
       </SidePanel>

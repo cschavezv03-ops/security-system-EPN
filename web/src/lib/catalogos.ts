@@ -48,6 +48,11 @@ export const CAT = {
   parametro_modulo: ['AUTENTICACION', 'SESION', 'SEGURIDAD', 'GENERAL'],
   parametro_tipo_dato: ['ENTERO', 'TEXTO', 'BOOLEANO', 'DECIMAL', 'FECHA'],
   parametro_estado: ['ACTIVO', 'INACTIVO', 'CRITICO'],
+  // Espejo de parametro_sistema_unidad_medida_check (migración 20260718193730).
+  parametro_unidad: [
+    'MINUTOS', 'HORAS', 'DIAS', 'SEGUNDOS', 'INTENTOS', 'VEHICULOS',
+    'PERSONAS', 'CARACTERES', 'PORCENTAJE', 'HORA_DEL_DIA', 'DISTANCIA', 'NINGUNA',
+  ],
   rol_nombre: [
     'ADMINISTRADOR_SISTEMA', 'DIRECTOR_ADMINISTRATIVO', 'RESPONSABLE_PERSONAL_INTERNO',
     'RESPONSABLE_PERSONAL_EXTERNO', 'RESPONSABLE_PUNTOS_CONTROL', 'RESPONSABLE_CONTROL_ACCESOS',
@@ -171,6 +176,18 @@ export const ETIQUETA: Record<string, string> = {
   VEHICULO_PERMANENCIA_EXCEDIDA: 'Vehículo con permanencia excedida',
   VEHICULO_ABANDONADO: 'Vehículo abandonado',
 
+  // Acciones de la auditoría (bitacora_sistema.accion). Las tres primeras las escribe el
+  // trigger genérico; el resto son acciones con nombre propio del sistema.
+  INSERT: 'Creación',
+  UPDATE: 'Modificación',
+  DELETE: 'Eliminación',
+  BLOQUEO_POR_INTENTOS_FALLIDOS: 'Bloqueo por intentos fallidos',
+  DESBLOQUEO_INTENTOS_FALLIDOS: 'Desbloqueo de intentos fallidos',
+  CIERRE_ADMINISTRATIVO_SESION: 'Cierre administrativo de sesión',
+  CIERRE_ADMINISTRATIVO: 'Cierre administrativo',
+  REGISTRO_MANUAL_EVENTO_ACCESO: 'Registro manual de acceso',
+  RECHAZO_DISPOSITIVO_NO_RECONOCIDO: 'Rechazo por dispositivo no reconocido',
+
   // Sesiones y bitácora
   CERRADA: 'Cerrada',
   CERRADA_CAMBIO_PASSWORD: 'Cerrada por cambio de contraseña',
@@ -208,7 +225,109 @@ export const ETIQUETA: Record<string, string> = {
   DECIMAL: 'Decimal',
   FECHA: 'Fecha',
 
+  // Unidades de medida de los parámetros. HORA_DEL_DIA no es una magnitud: marca los
+  // parámetros cuyo valor es un instante del día ("06:00"), como los turnos de guardia.
+  MINUTOS: 'Minutos',
+  HORAS: 'Horas',
+  DIAS: 'Días',
+  SEGUNDOS: 'Segundos',
+  INTENTOS: 'Intentos',
+  VEHICULOS: 'Vehículos',
+  PERSONAS: 'Personas',
+  CARACTERES: 'Caracteres',
+  PORCENTAJE: 'Porcentaje',
+  HORA_DEL_DIA: 'Hora del día',
+  DISTANCIA: 'Distancia',
+  NINGUNA: 'Ninguna',
+
   ...ROL_LABEL,
+}
+
+/**
+ * Etiqueta de una COLUMNA de la base para mostrarla al usuario.
+ *
+ * La usa la pantalla de Auditoría: `v_auditoria.cambios` trae los cambios como
+ * [{campo, antes, despues}] con el nombre real de la columna, y "descripcion" o
+ * "estado_usuario" no son textos presentables. Traducir esto en SQL habría obligado a
+ * duplicar en la base el catálogo que ya vive en este archivo.
+ *
+ * Si una columna no está en el mapa se cae a la conversión automática, igual que
+ * `humanizar`: legible aunque sin tildes, nunca el nombre crudo con guiones bajos.
+ */
+export const ETIQUETA_CAMPO: Record<string, string> = {
+  ambito: 'Ámbito',
+  apellidos: 'Apellidos',
+  bloqueado_hasta: 'Bloqueada hasta',
+  cedula: 'Cédula',
+  codigo_categoria: 'Código de categoría',
+  codigo_parametro: 'Código del parámetro',
+  codigo_permiso: 'Código del permiso',
+  codigo_unico: 'Código único',
+  color: 'Color',
+  correo: 'Correo',
+  correo_electronico: 'Correo electrónico',
+  correo_respaldo: 'Correo de respaldo',
+  descripcion: 'Descripción',
+  detalle_estado: 'Detalle del estado',
+  direccion_domicilio: 'Dirección del domicilio',
+  editable: 'Editable',
+  es_responsable_tramite: 'Responsable del trámite',
+  estado: 'Estado',
+  estado_asignacion: 'Estado de la asignación',
+  estado_parametro: 'Estado del parámetro',
+  estado_permiso: 'Estado del permiso',
+  estado_relacion: 'Estado de la relación',
+  estado_rol: 'Estado del rol',
+  estado_sesion: 'Estado de la sesión',
+  estado_usuario: 'Estado del usuario',
+  estado_vehiculo: 'Estado del vehículo',
+  estado_verificacion_ruc: 'Verificación del RUC',
+  fecha_asignacion: 'Fecha de asignación',
+  fecha_cierre: 'Fecha de cierre',
+  fecha_fin: 'Fecha de fin',
+  fecha_inicio: 'Fecha de inicio',
+  fecha_nacimiento: 'Fecha de nacimiento',
+  fecha_revocacion: 'Fecha de revocación',
+  fecha_ultimo_login: 'Último inicio de sesión',
+  intentos_fallidos: 'Intentos fallidos',
+  marca: 'Marca',
+  modelo: 'Modelo',
+  modulo_aplicacion: 'Módulo',
+  motivo_cierre: 'Motivo de cierre',
+  motivo_revocacion: 'Motivo de revocación',
+  nombre: 'Nombre',
+  nombre_categoria: 'Nombre de la categoría',
+  nombre_parametro: 'Nombre del parámetro',
+  nombre_rol: 'Nombre del rol',
+  nombre_usuario: 'Nombre de usuario',
+  nombres: 'Nombres',
+  observacion: 'Observación',
+  placa: 'Placa',
+  requiere_cambio_password: 'Requiere cambiar la contraseña',
+  ruc: 'RUC',
+  sexo: 'Sexo',
+  telefono_contacto: 'Teléfono de contacto',
+  telefono_respaldo: 'Teléfono de respaldo',
+  tipo_dato: 'Tipo de dato',
+  tipo_persona: 'Tipo de persona',
+  tipo_relacion: 'Tipo de relación',
+  tipo_servicio: 'Tipo de servicio',
+  tipo_vehiculo: 'Tipo de vehículo',
+  unidad_medida: 'Unidad de medida',
+  user_agent: 'Navegador',
+  valor_parametro: 'Valor',
+  vigente: 'Vigente',
+}
+
+/** Etiqueta legible de una columna: `estado_usuario` → "Estado del usuario". */
+export function etiquetaCampo(campo?: string | null): string {
+  if (!campo) return '—'
+  if (ETIQUETA_CAMPO[campo]) return ETIQUETA_CAMPO[campo]
+  return campo
+    .toLowerCase()
+    .split('_')
+    .join(' ')
+    .replace(/^\w/, (c) => c.toUpperCase())
 }
 
 /**

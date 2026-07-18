@@ -10,12 +10,13 @@ import { BiometriaScreen } from '../pages/modules/BiometriaScreen'
 import { AlertasScreen } from '../pages/modules/AlertasScreen'
 import { MonitoreoView } from '../pages/modules/MonitoreoView'
 import {
-  cfgEmpresa, cfgCategoria, cfgParametro, cfgRol, cfgPermiso, cfgUsuarioRol,
+  cfgEmpresa, cfgCategoria, cfgParametro, cfgRol, cfgPermiso,
   cfgVehiculo, cfgPersonaVehiculo, cfgZona, cfgPuntoControl, cfgDispositivo, cfgAsignacionGuardia,
   cfgPersonaExterna, cfgMemorando, cfgPersonaMemorando, cfgReglaAcceso, cfgAutorizacion,
 } from './configs'
-import { cfgPersonaADM, cfgBitacora, cfgSesion, cfgEventoAcceso, cfgBiometriaADM } from './configs-lectura'
+import { cfgBitacora, cfgSesion, cfgEventoAcceso, cfgBiometriaADM } from './configs-lectura'
 import { cfgPersonaInterna, cfgPersonaInternaDetalle } from './configs-gpi'
+import { PersonasADMScreen } from '../pages/modules/PersonasADMScreen'
 import { UsuariosScreen } from '../pages/modules/UsuariosScreen'
 import { RolPermisoScreen } from '../pages/modules/RolPermisoScreen'
 
@@ -107,19 +108,27 @@ export const MODULOS: ModuloDef[] = [
       // Pantalla dedicada (feedback ADM §5.3/§7.2): bloquear/desbloquear/activar/dar de baja/
       // resetear contraseña, cada uno con su propio permiso granular — no encaja en el patrón
       // CRUD genérico de ResourceScreen.
-      { key: 'usuarios', titulo: 'Usuarios', descripcion: 'Cuentas del sistema.', icono: <Users className="h-6 w-6" />, permisoVer: ['ADM_USUARIO_SELECT'], render: () => <UsuariosScreen /> },
-      sub('usuario-rol', 'Asignaciones de rol', 'Roles por usuario.', <UserCog className="h-6 w-6" />, cfgUsuarioRol),
+      // Feedback ADM: "los usuarios y asignaciones de rol deben estar unidos en un mismo
+      // panel... dejar este apartado únicamente con el nombre de Usuario". La tarjeta
+      // "Asignaciones de rol" desaparece: rol, cédula, fecha de asignación y fecha de
+      // estado se ven y se gestionan dentro de esta pantalla.
+      { key: 'usuarios', titulo: 'Usuarios', descripcion: 'Cuentas del sistema y sus roles.', icono: <Users className="h-6 w-6" />, permisoVer: ['ADM_USUARIO_SELECT'], render: () => <UsuariosScreen /> },
       sub('roles', 'Roles', 'Roles del sistema.', <KeyRound className="h-6 w-6" />, cfgRol),
       sub('permisos', 'Permisos', 'Catálogo de permisos.', <Lock className="h-6 w-6" />, cfgPermiso),
       { key: 'rol-permiso', titulo: 'Matriz rol × permiso', descripcion: 'Qué permiso tiene cada rol.', icono: <ListChecks className="h-6 w-6" />, permisoVer: ['ADM_ROL_PERMISO_SELECT'], render: () => <RolPermisoScreen /> },
       sub('categorias', 'Categorías', 'Categorías de persona.', <ListChecks className="h-6 w-6" />, cfgCategoria),
       sub('empresas', 'Empresas', 'Empresas de servicio y proveedores.', <Building2 className="h-6 w-6" />, cfgEmpresa),
       sub('parametros', 'Parámetros', 'Parámetros del sistema.', <Settings className="h-6 w-6" />, cfgParametro),
-      sub('personas', 'Personas', 'Vista global de todas las personas.', <Contact className="h-6 w-6" />, cfgPersonaADM),
+      // Feedback ADM: una sola tabla mezclaba internos y externos. La pantalla monta dos
+      // listados separados, uno por ámbito.
+      { key: 'personas', titulo: 'Personal interno y externo', descripcion: 'Todas las personas, separadas por ámbito.', icono: <Contact className="h-6 w-6" />, permisoVer: ['ADM_PERSONA_SELECT'], render: () => <PersonasADMScreen /> },
       sub('biometria', 'Biometría', 'Metadatos de registros biométricos (sin acceso al archivo).', <Fingerprint className="h-6 w-6" />, cfgBiometriaADM),
-      sub('vehiculos', 'Vehículos', 'Ciclo de vida de vehículos.', <Car className="h-6 w-6" />, cfgVehiculo('ADM')),
-      sub('asociaciones', 'Asociaciones', 'Vínculos persona–vehículo.', <Link2 className="h-6 w-6" />, cfgPersonaVehiculo('ADM')),
-      sub('bitacora', 'Bitácora', 'Auditoría del sistema.', <ScrollText className="h-6 w-6" />, cfgBitacora),
+      // Feedback ADM: "unificar o enlazar claramente las asociaciones persona-vehículo
+      // desde la misma vista". Las asociaciones se gestionan dentro del detalle del
+      // vehículo, así que ADM ya no necesita una tarjeta aparte (GPI y GPE mantienen la
+      // suya: ahí el alta de vínculos es parte de su flujo diario).
+      sub('vehiculos', 'Vehículos', 'Ciclo de vida de vehículos y sus personas asociadas.', <Car className="h-6 w-6" />, cfgVehiculo('ADM')),
+      sub('bitacora', 'Auditoría', 'Quién hizo qué, sobre quién y cuándo.', <ScrollText className="h-6 w-6" />, cfgBitacora),
       sub('sesiones', 'Sesiones', 'Registro de sesiones.', <History className="h-6 w-6" />, cfgSesion),
     ],
   },

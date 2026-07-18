@@ -2,6 +2,7 @@ import type { ResourceConfig } from './types'
 import { CAT, humanizar } from '../lib/catalogos'
 import { fmtFecha, fmtFechaHora, fmtHora, formatearMac, formatearIp } from '../lib/format'
 import { Badge } from '../components/ui'
+import { AsociacionesVehiculo } from '../components/AsociacionesVehiculo'
 import {
   opcionesCatalogo, optCategorias, optEmpresas, optPuntosControl, optZonas, optRoles,
   opcionesTabla, optZonasPorTipo, optPuntosPorZona, optGuardiasDisponibles,
@@ -61,24 +62,34 @@ export const cfgCategoria: ResourceConfig = {
   idField: 'id_categoria',
   orderBy: { columna: 'codigo_categoria' },
   permisos: { select: ['ADM_CATEGORIA_SELECT'], insert: ['ADM_CATEGORIA_INSERT'], update: ['ADM_CATEGORIA_UPDATE'] },
-  buscarEn: ['nombre_categoria', 'codigo_categoria'],
+  buscarEn: ['nombre_categoria', 'codigo_categoria', 'descripcion'],
+  // Feedback ADM: "identificar si la categoría corresponde a la parte Interna o Externa;
+  // retirar la columna Nombre e implementar una descripción". `nombre_categoria` repetía el
+  // código en versión legible ("Docente" para DOCENTE) y no aportaba nada aquí; sigue en la
+  // base porque otras pantallas lo usan como etiqueta corta.
   columnas: [
-    { key: 'codigo_categoria', label: 'Código' },
-    { key: 'nombre_categoria', label: 'Nombre' },
+    { key: 'codigo_categoria', label: 'Categoría', render: (r) => humanizar(r.codigo_categoria) },
     { key: 'ambito', label: 'Ámbito', badge: true },
+    { key: 'descripcion', label: 'Descripción', render: (r) => d(r.descripcion) },
     { key: 'estado', label: 'Estado', badge: true },
   ],
-  campoTituloDetalle: (r) => r.nombre_categoria,
-  campoSubtituloDetalle: (r) => <><Badge value={r.codigo_categoria} /> <Badge value={r.ambito} /></>,
+  // El ámbito filtra la lista: es la pregunta que se hace quien entra aquí.
+  filtros: [
+    { campo: 'ambito', label: 'Ámbito', opciones: opcionesCatalogo(CAT.categoria_ambito) },
+  ],
+  campoTituloDetalle: (r) => humanizar(r.codigo_categoria),
+  campoSubtituloDetalle: (r) => <><Badge value={r.ambito} /> <Badge value={r.estado} /></>,
   detalle: [
-    { label: 'Código', render: (r) => humanizar(r.codigo_categoria) },
     { label: 'Ámbito', render: (r) => <Badge value={r.ambito} /> },
+    { label: 'Descripción', render: (r) => d(r.descripcion) },
+    { label: 'Nombre corto', render: (r) => d(r.nombre_categoria) },
     { label: 'Estado', render: (r) => <Badge value={r.estado} /> },
   ],
   campos: [
-    { name: 'codigo_categoria', label: 'Código', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_codigo), editable: false },
-    { name: 'nombre_categoria', label: 'Nombre', required: true, validar: validarNoVacio },
-    { name: 'ambito', label: 'Ámbito', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_ambito), editable: false },
+    { name: 'codigo_categoria', label: 'Categoría', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_codigo), editable: false },
+    { name: 'ambito', label: 'Ámbito', type: 'select', required: true, options: opcionesCatalogo(CAT.categoria_ambito), editable: false, hint: 'Interna: pertenece a la Politécnica. Externa: visita o proveedor.' },
+    { name: 'descripcion', label: 'Descripción', type: 'textarea', required: true, colSpan: 3, validar: validarNoVacio, hint: 'Qué personas agrupa esta categoría.' },
+    { name: 'nombre_categoria', label: 'Nombre corto', required: true, validar: validarNoVacio, hint: 'Etiqueta breve que se muestra en otras pantallas.' },
     { name: 'estado', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.categoria_estado), default: 'ACTIVO' },
   ],
   campoEstado: 'estado',
@@ -97,13 +108,17 @@ export const cfgParametro: ResourceConfig = {
     { key: 'codigo_parametro', label: 'Código' },
     { key: 'nombre_parametro', label: 'Nombre' },
     { key: 'valor_parametro', label: 'Valor' },
-    { key: 'modulo_aplicacion', label: 'Módulo' },
+    // Feedback ADM: la unidad iba pegada al nombre ("Tiempo de sesion (min)"). Ahora es una
+    // columna propia, así que el valor "30" se puede leer sin adivinar de qué es.
+    { key: 'unidad_medida', label: 'Unidad de medida', render: (r) => humanizar(r.unidad_medida), valorExport: (r) => humanizar(r.unidad_medida) },
+    { key: 'modulo_aplicacion', label: 'Módulo', render: (r) => humanizar(r.modulo_aplicacion) },
     { key: 'estado_parametro', label: 'Estado', badge: true },
   ],
   campoTituloDetalle: (r) => r.nombre_parametro,
   campoSubtituloDetalle: (r) => <><code className="text-xs">{r.codigo_parametro}</code> · <Badge value={r.estado_parametro} /></>,
   detalle: [
-    { label: 'Valor', render: (r) => <b>{r.valor_parametro}</b> },
+    { label: 'Valor', render: (r) => <b>{r.valor_parametro}{r.unidad_medida ? ` ${humanizar(r.unidad_medida).toLowerCase()}` : ''}</b> },
+    { label: 'Unidad de medida', render: (r) => humanizar(r.unidad_medida) },
     { label: 'Tipo de dato', render: (r) => humanizar(r.tipo_dato) },
     { label: 'Módulo', render: (r) => humanizar(r.modulo_aplicacion) },
     { label: 'Editable', render: (r) => (r.editable ? 'Sí' : 'No') },
@@ -115,6 +130,7 @@ export const cfgParametro: ResourceConfig = {
     { name: 'nombre_parametro', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio },
     // El valor debe castear al tipo_dato elegido en el propio formulario.
     { name: 'valor_parametro', label: 'Valor', required: true, validar: (v, vals) => validarValorParametro(String(vals.tipo_dato ?? ''), v), ayuda: 'El valor debe corresponder al tipo de dato elegido abajo: un número entero si es ENTERO, un decimal como 0.38 si es DECIMAL, true o false si es BOOLEANO.' },
+    { name: 'unidad_medida', label: 'Unidad de medida', type: 'select', options: opcionesCatalogo(CAT.parametro_unidad), hint: 'En qué se expresa el valor.', ayuda: 'Acompaña al valor para que se entienda sin abrir la descripción: 30 minutos, 5 intentos, 2 vehículos. Déjalo en blanco solo si el parámetro no expresa ninguna magnitud. "Hora del día" es para los valores tipo 06:00 de los turnos.' },
     { name: 'tipo_dato', label: 'Tipo de dato', type: 'select', required: true, options: opcionesCatalogo(CAT.parametro_tipo_dato) },
     { name: 'modulo_aplicacion', label: 'Módulo', type: 'select', required: true, options: opcionesCatalogo(CAT.parametro_modulo) },
     { name: 'estado_parametro', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.parametro_estado), default: 'ACTIVO' },
@@ -157,13 +173,27 @@ export const cfgPermiso: ResourceConfig = {
   orderBy: { columna: 'codigo_permiso' },
   permisos: { select: ['ADM_PERMISO_SELECT'], insert: ['ADM_PERMISO_INSERT'], update: ['ADM_PERMISO_UPDATE'] },
   buscarEn: ['codigo_permiso', 'descripcion'],
+  // Feedback ADM: "cambiar el título de la columna Código por Permiso. El código técnico
+  // puede mantenerse como información secundaria". Quien administra permisos quiere leer
+  // qué autoriza el permiso; GPI_PERSONA_INSERT es la clave del sistema, no su nombre.
   columnas: [
-    { key: 'codigo_permiso', label: 'Código' },
-    { key: 'descripcion', label: 'Descripción', render: (r) => d(r.descripcion) },
+    {
+      key: 'codigo_permiso',
+      label: 'Permiso',
+      render: (r) => (
+        <div>
+          <div className="font-medium text-navy">{d(r.descripcion)}</div>
+          <code className="text-xs text-ink-soft">{r.codigo_permiso}</code>
+        </div>
+      ),
+      valorExport: (r) => `${r.descripcion ?? ''} (${r.codigo_permiso})`,
+    },
     { key: 'estado_permiso', label: 'Estado', badge: true },
   ],
-  campoTituloDetalle: (r) => r.codigo_permiso,
+  campoTituloDetalle: (r) => d(r.descripcion),
+  campoSubtituloDetalle: (r) => <code className="text-xs">{r.codigo_permiso}</code>,
   detalle: [
+    { label: 'Código técnico', render: (r) => <code className="text-xs">{r.codigo_permiso}</code> },
     { label: 'Descripción', render: (r) => d(r.descripcion) },
     { label: 'Estado', render: (r) => <Badge value={r.estado_permiso} /> },
   ],
@@ -174,36 +204,10 @@ export const cfgPermiso: ResourceConfig = {
   ],
 }
 
-export const cfgUsuarioRol: ResourceConfig = {
-  tabla: 'usuario_rol',
-  titulo: 'Asignaciones de rol',
-  singular: 'Asignación',
-  idField: 'id_usuario_rol',
-  select: '*, usuario:usuario_sistema(nombre_usuario, correo_electronico), rol:rol(nombre_rol)',
-  permisos: { select: ['ADM_USUARIO_ROL_SELECT'], insert: ['ADM_USUARIO_ROL_INSERT'], update: ['ADM_USUARIO_ROL_UPDATE'] },
-  buscarEn: ['usuario.nombre_usuario', 'usuario.correo_electronico', 'rol.nombre_rol'],
-  columnas: [
-    { key: 'usuario', label: 'Usuario', render: (r) => r.usuario?.correo_electronico ?? d(r.id_usuario) },
-    { key: 'rol', label: 'Rol', render: (r) => r.rol?.nombre_rol ?? '—' },
-    { key: 'estado_asignacion', label: 'Estado', badge: true },
-    { key: 'fecha_asignacion', label: 'Asignado', render: (r) => fmtFecha(r.fecha_asignacion) },
-  ],
-  campoTituloDetalle: (r) => r.rol?.nombre_rol ?? 'Asignación',
-  campoSubtituloDetalle: (r) => r.usuario?.correo_electronico,
-  detalle: [
-    { label: 'Usuario', render: (r) => r.usuario?.correo_electronico ?? d(r.id_usuario) },
-    { label: 'Rol', render: (r) => r.rol?.nombre_rol },
-    { label: 'Estado', render: (r) => <Badge value={r.estado_asignacion} /> },
-    { label: 'Observación', render: (r) => d(r.observacion) },
-  ],
-  campos: [
-    { name: 'id_usuario', label: 'Usuario', type: 'select', required: true, editable: false, options: opcionesTabla('usuario_sistema', 'id_usuario', (u) => u.correo_electronico) },
-    { name: 'id_rol', label: 'Rol', type: 'select', required: true, editable: false, options: optRoles },
-    { name: 'estado_asignacion', label: 'Estado', type: 'select', options: opcionesCatalogo(['ACTIVO', 'REVOCADO']), default: 'ACTIVO' },
-    { name: 'observacion', label: 'Observación', type: 'textarea', colSpan: 3 },
-  ],
-  baja: { campoEstado: 'estado_asignacion', valorBaja: 'REVOCADO', etiqueta: 'Revocar rol' },
-}
+// `cfgUsuarioRol` se eliminó: las asignaciones de rol dejaron de ser una pantalla propia
+// y viven dentro de la ficha del usuario (pages/modules/UsuariosScreen.tsx), como pidió el
+// equipo. Los permisos ADM_USUARIO_ROL_* siguen existiendo y son los que consulta esa
+// pantalla para decidir si puede asignar o revocar.
 
 /* =========================================================================
    Compartidos: vehículo, persona_vehiculo (ADM/GPI/GPE)
@@ -279,6 +283,13 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
       },
       { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
     ],
+    // Feedback ADM: las asociaciones persona-vehículo se gestionan desde la propia ficha
+    // del vehículo. Solo en ADM: GPI y GPE conservan su pantalla de asociaciones, donde el
+    // alta de vínculos forma parte de su flujo diario.
+    detalleExtra:
+      modulo === 'ADM'
+        ? (r, { recargar }) => <AsociacionesVehiculo idVehiculo={r.id_vehiculo} onCambio={recargar} />
+        : undefined,
     campos: [
       // Se teclea con guion (ABC-1234) pero se guarda canónica sin guion: es la clave con la
       // que el OCR de placas comparará contra la BD.

@@ -5,25 +5,43 @@ import { describirDispositivo } from '../lib/dispositivo'
 import { Badge } from '../components/ui'
 import { BotonCerrarSesion } from '../components/BotonCerrarSesion'
 import { opcionesCatalogo } from './opciones'
-import { humanizar } from '../lib/catalogos'
+import { etiquetaCampo, humanizar } from '../lib/catalogos'
 
 const d = (v: any) => (v == null || v === '' ? '—' : String(v))
 
-/** Personas (vista global ADM, solo lectura + edición ADM). */
-export const cfgPersonaADM: ResourceConfig = {
+/**
+ * Personas (vista global ADM, solo lectura + edición ADM).
+ *
+ * Feedback ADM: "para evitar mezclar personal interno y personal externo, mostrar en la
+ * vista dos tablas diferentes". La pantalla `PersonasADMScreen` monta esta configuración
+ * dos veces, una por ámbito, en lugar de duplicar el motor de listado: `ambito` decide el
+ * filtro fijo, el título y la columna que aporta información en cada caso (la categoría
+ * distingue a los internos; la empresa, a los externos).
+ */
+export function cfgPersonaADM(ambito?: 'INTERNA' | 'EXTERNA'): ResourceConfig {
+  const titulo =
+    ambito === 'INTERNA' ? 'Personal interno'
+    : ambito === 'EXTERNA' ? 'Personal externo'
+    : 'Personal interno y externo'
+  return {
   tabla: 'persona',
-  titulo: 'Personas (todas)',
+  titulo,
   singular: 'Persona',
   idField: 'id_persona',
   select: '*, categoria:categoria_persona(nombre_categoria, codigo_categoria), empresa:empresa(nombre)',
   orderBy: { columna: 'apellidos' },
   permisos: { select: ['ADM_PERSONA_SELECT'], update: ['ADM_PERSONA_UPDATE'] },
   buscarEn: ['cedula', 'nombres', 'apellidos', 'correo'],
+  filtroFijo: ambito ? { tipo_persona: ambito } : undefined,
   columnas: [
     { key: 'cedula', label: 'Cédula' },
     { key: 'nombres', label: 'Nombre', render: (r) => `${r.apellidos} ${r.nombres}` },
-    { key: 'tipo_persona', label: 'Tipo', badge: true },
-    { key: 'categoria', label: 'Categoría', render: (r) => r.categoria?.codigo_categoria ?? '—' },
+    // Dentro de una tabla ya separada por ámbito, repetir "Interna" en cada fila no dice
+    // nada: el hueco lo ocupa la empresa, que en los externos es lo que falta saber.
+    ...(ambito
+      ? [{ key: 'empresa', label: 'Empresa', render: (r: any) => r.empresa?.nombre ?? '—', valorExport: (r: any) => r.empresa?.nombre ?? '' }]
+      : [{ key: 'tipo_persona', label: 'Tipo', badge: true }]),
+    { key: 'categoria', label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria) },
     { key: 'estado', label: 'Estado', badge: true },
   ],
   campoTituloDetalle: (r) => `${r.nombres} ${r.apellidos}`,
@@ -45,68 +63,220 @@ export const cfgPersonaADM: ResourceConfig = {
     { name: 'direccion_domicilio', label: 'Dirección', colSpan: 2 },
   ],
   campoEstado: 'estado',
+  }
 }
 
-/** Metadatos de biometría para ADM (doc 02 nota ⁴: nunca el archivo, solo persona/vigencia/fechas). */
+/**
+ * Referencia corta del rostro almacenado: los 8 primeros caracteres del id del registro
+ * más el nombre del archivo. Identifica la fila sin exponer la ruta completa ni, desde
+ * luego, la imagen.
+ */
+function referenciaRostro(r: any): string {
+  const archivo = String(r.path_storage ?? '').split('/').pop()
+  return `Rostro ${String(r.id_registro ?? '').slice(0, 8)}${archivo ? ` · ${archivo}` : ''}`
+}
+
+/**
+ * Dónde está guardado el rostro, en lenguaje llano.
+ *
+ * `path_storage` tiene la forma `<bucket>/<id_persona>/<archivo>.jpg`, así que el primer
+ * segmento es el bucket. Se añade si además hay descriptor facial, porque entonces el dato
+ * vive en dos sitios: la imagen en Storage y el vector de 128 dimensiones en la tabla.
+ */
+function lugarAlmacenamiento(r: any): string {
+  const bucket = String(r.path_storage ?? '').split('/')[0]
+  const lugares = []
+  if (bucket) lugares.push(`Supabase Storage · ${bucket}`)
+  if (r.descriptor_facial != null) lugares.push('vector facial en la base de datos')
+  return lugares.length > 0 ? lugares.join(' + ') : '—'
+}
+
+/**
+ * Metadatos de biometría para ADM (doc 02 nota ⁴: nunca el archivo, solo persona/vigencia/
+ * fechas).
+ *
+ * Feedback ADM: "incorporar la referencia de Rostros o tabla de rostros y la columna Lugar
+ * de almacenamiento, solo se tiene que especificar en dónde está almacenado dicho rostro,
+ * no mostrar el rostro". Las dos columnas se derivan de `path_storage`; ni esta pantalla ni
+ * la consulta piden nunca el archivo a Storage.
+ */
 export const cfgBiometriaADM: ResourceConfig = {
   tabla: 'registro_biometrico',
   titulo: 'Biometría (metadatos)',
   singular: 'Registro biométrico',
   idField: 'id_registro',
-  select: '*, persona:persona(nombres, apellidos, cedula)',
+  // `descriptor_facial` se pide solo para saber SI existe (lugarAlmacenamiento); el vector
+  // en sí no se muestra en ninguna columna.
+  select: 'id_registro, id_persona, tipo_dato, path_storage, vigente, fecha_registro, descriptor_facial, persona:persona(nombres, apellidos, cedula)',
   orderBy: { columna: 'fecha_registro', ascendente: false },
   permisos: { select: ['ADM_BIOMETRIA_SELECT'] },
   buscarEn: ['persona.cedula', 'persona.apellidos'],
   columnas: [
     { key: 'persona', label: 'Persona', render: (r) => (r.persona ? `${r.persona.apellidos} ${r.persona.nombres}` : '—') },
     { key: 'cedula', label: 'Cédula', render: (r) => d(r.persona?.cedula) },
-    { key: 'tipo_dato', label: 'Tipo de dato', render: (r) => humanizar(r.tipo_dato) },
+    { key: 'referencia', label: 'Referencia del rostro', render: (r) => <code className="text-xs">{referenciaRostro(r)}</code>, valorExport: (r) => referenciaRostro(r) },
+    { key: 'almacenamiento', label: 'Lugar de almacenamiento', render: (r) => lugarAlmacenamiento(r), valorExport: (r) => lugarAlmacenamiento(r) },
     { key: 'vigente', label: 'Vigente', render: (r) => (r.vigente ? <Badge value="ACTIVA" /> : <Badge value="INACTIVO" />) },
     { key: 'fecha_registro', label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campoTituloDetalle: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : 'Registro biométrico'),
   detalle: [
     { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
+    { label: 'Referencia del rostro', render: (r) => <code className="text-xs">{referenciaRostro(r)}</code> },
+    { label: 'Lugar de almacenamiento', render: (r) => lugarAlmacenamiento(r) },
     { label: 'Tipo de dato', render: (r) => humanizar(r.tipo_dato) },
     { label: 'Vigente', render: (r) => (r.vigente ? 'Sí' : 'No') },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
+    {
+      label: 'Acceso al archivo',
+      render: () => (
+        <span className="text-xs text-ink-soft">
+          Administración consulta metadatos. El archivo biométrico no se muestra ni se descarga desde aquí.
+        </span>
+      ),
+    },
   ],
   campos: [],
 }
 
+/** Un cambio concreto tal y como lo devuelve `v_auditoria.cambios`. */
+interface Cambio {
+  campo: string
+  antes: string | null
+  despues: string | null
+}
+
+/**
+ * ¿El valor es un código de catálogo (`DADO_DE_BAJA`) o un dato libre (una fecha, un
+ * nombre, un número)? Solo los primeros se traducen: pasar "1750000109" por `humanizar`
+ * no haría daño, pero pasar "true" lo convertiría en "True".
+ */
+function valorAuditoria(valor: string | null): string {
+  if (valor == null || valor === '') return '—'
+  if (valor === 'true') return 'Sí'
+  if (valor === 'false') return 'No'
+  return /^[A-Z][A-Z0-9_]*$/.test(valor) ? humanizar(valor) : valor
+}
+
+/** Un cambio en una línea: "Estado del usuario: Activo → Bloqueado". */
+function textoCambio(c: Cambio): string {
+  const etiqueta = etiquetaCampo(c.campo)
+  // Sin `antes` es un alta: no hay flecha que dibujar.
+  return c.antes == null
+    ? `${etiqueta}: ${valorAuditoria(c.despues)}`
+    : `${etiqueta}: ${valorAuditoria(c.antes)} → ${valorAuditoria(c.despues)}`
+}
+
+const cambiosDe = (r: any): Cambio[] => (Array.isArray(r.cambios) ? (r.cambios as Cambio[]) : [])
+
+/**
+ * Auditoría del sistema (antes "Bitácora").
+ *
+ * Feedback ADM: "cambiar el nombre Bitácora por Auditoría. Reemplazar Entidad por una
+ * referencia más intuitiva, mostrar Usuario que realizó la acción, Usuario accedido cuando
+ * aplique, Datos y la hora de salida para eventos de sesión."
+ *
+ * Se lee de `v_auditoria` y no de `bitacora_sistema`: la vista ya resuelve el uuid de
+ * `id_entidad_afectada` contra la tabla correspondiente y trae la sesión asociada. Hacerlo
+ * aquí habría exigido una consulta por fila.
+ */
 export const cfgBitacora: ResourceConfig = {
-  tabla: 'bitacora_sistema',
-  titulo: 'Bitácora del sistema',
-  singular: 'Registro de bitácora',
+  tabla: 'v_auditoria',
+  titulo: 'Auditoría del sistema',
+  singular: 'Registro de auditoría',
   idField: 'id_bitacora',
-  select: '*, usuario:usuario_sistema(correo_electronico)',
   orderBy: { columna: 'fecha_hora', ascendente: false },
   permisos: { select: ['ADM_BITACORA_SELECT'] },
   exportarConPermiso: ['ADM_BITACORA_EXPORTAR'],
-  buscarEn: ['modulo', 'entidad_afectada', 'accion', 'descripcion', 'fecha_hora'],
+  buscarEn: ['modulo', 'tipo_registro', 'accion', 'registro_afectado', 'ejecutor_usuario', 'usuario_accedido', 'descripcion'],
   filtros: [
     { campo: 'modulo', label: 'Filtrar por módulo', opciones: opcionesCatalogo(['ADM', 'GPI', 'GPE', 'PCO', 'CAC']) },
-    { campo: 'accion', label: 'Filtrar por acción', opciones: opcionesCatalogo(['INSERT', 'UPDATE', 'DELETE']) },
+    { campo: 'accion', label: 'Filtrar por acción', opciones: opcionesCatalogo(['INSERT', 'UPDATE', 'DELETE', 'CIERRE_ADMINISTRATIVO_SESION', 'BLOQUEO_POR_INTENTOS_FALLIDOS', 'DESBLOQUEO_INTENTOS_FALLIDOS']) },
     { campo: 'resultado', label: 'Filtrar por resultado', opciones: opcionesCatalogo(['EXITO', 'ERROR']) },
   ],
   columnas: [
-    { key: 'fecha_hora', label: 'Fecha', render: (r) => fmtFechaHora(r.fecha_hora), valorExport: (r) => fmtFechaHora(r.fecha_hora) },
-    { key: 'modulo', label: 'Módulo' },
-    { key: 'entidad_afectada', label: 'Entidad' },
-    { key: 'accion', label: 'Acción' },
+    { key: 'fecha_hora', label: 'Fecha y hora', render: (r) => fmtFechaHora(r.fecha_hora), valorExport: (r) => fmtFechaHora(r.fecha_hora) },
+    { key: 'accion', label: 'Acción', render: (r) => humanizar(r.accion), valorExport: (r) => humanizar(r.accion) },
+    // Sustituye a "Entidad": el tipo de registro en cristiano y, debajo, cuál en concreto.
+    {
+      key: 'registro_afectado',
+      label: 'Registro afectado',
+      render: (r) => (
+        <div>
+          <div className="font-medium text-navy">{d(r.registro_afectado)}</div>
+          <div className="text-xs text-ink-soft">{d(r.tipo_registro)}</div>
+        </div>
+      ),
+      valorExport: (r) => `${r.registro_afectado ?? ''} (${r.tipo_registro ?? ''})`,
+    },
+    {
+      key: 'ejecutor_usuario',
+      label: 'Usuario que ejecutó',
+      // Sin usuario es una acción del propio sistema (un trigger, una tarea programada):
+      // decirlo evita que el auditor lo lea como un dato que falta.
+      render: (r) => (r.ejecutor_usuario ? <div><div>{r.ejecutor_usuario}</div>{r.ejecutor_nombre && <div className="text-xs text-ink-soft">{r.ejecutor_nombre}</div>}</div> : <span className="text-ink-soft">Sistema</span>),
+      valorExport: (r) => r.ejecutor_usuario ?? 'Sistema',
+    },
+    { key: 'usuario_accedido', label: 'Usuario accedido', render: (r) => d(r.usuario_accedido), valorExport: (r) => r.usuario_accedido ?? '' },
+    { key: 'hora_salida', label: 'Salida', render: (r) => (r.hora_salida ? fmtFechaHora(r.hora_salida) : '—'), valorExport: (r) => (r.hora_salida ? fmtFechaHora(r.hora_salida) : '') },
+    {
+      key: 'datos',
+      label: 'Datos',
+      // Dos cambios caben en una fila; el resto se cuenta y se ve completo en el detalle.
+      render: (r) => {
+        const cambios = cambiosDe(r)
+        if (cambios.length === 0) return <span className="text-ink-soft">{d(r.descripcion)}</span>
+        const visibles = cambios.slice(0, 2).map(textoCambio).join(' · ')
+        return (
+          <span className="text-xs">
+            {visibles}
+            {cambios.length > 2 && <span className="text-ink-soft"> y {cambios.length - 2} más</span>}
+          </span>
+        )
+      },
+      valorExport: (r) => (cambiosDe(r).map(textoCambio).join(' · ') || r.descripcion || ''),
+    },
     { key: 'resultado', label: 'Resultado', badge: true },
-    { key: 'usuario', label: 'Usuario', render: (r) => r.usuario?.correo_electronico ?? '—', valorExport: (r) => r.usuario?.correo_electronico ?? '' },
   ],
-  campoTituloDetalle: (r) => `${r.accion} · ${r.entidad_afectada}`,
+  campoTituloDetalle: (r) => `${humanizar(r.accion)} · ${d(r.registro_afectado)}`,
   campoSubtituloDetalle: (r) => <><Badge value={r.resultado} /> · {fmtFechaHora(r.fecha_hora)}</>,
   detalle: [
-    { label: 'Módulo', render: (r) => r.modulo },
-    { label: 'Entidad', render: (r) => r.entidad_afectada },
-    { label: 'ID entidad', render: (r) => d(r.id_entidad_afectada) },
-    { label: 'Usuario', render: (r) => r.usuario?.correo_electronico ?? '—' },
+    { label: 'Tipo de registro', render: (r) => d(r.tipo_registro) },
+    { label: 'Registro afectado', render: (r) => d(r.registro_afectado) },
+    { label: 'Módulo', render: (r) => d(r.modulo) },
+    { label: 'Usuario que ejecutó', render: (r) => (r.ejecutor_usuario ? `${r.ejecutor_usuario}${r.ejecutor_nombre ? ` — ${r.ejecutor_nombre}` : ''}` : 'Sistema') },
+    { label: 'Usuario accedido', render: (r) => (r.usuario_accedido ? `${r.usuario_accedido}${r.usuario_accedido_correo ? ` — ${r.usuario_accedido_correo}` : ''}` : '—') },
+    // Solo en eventos de sesión hay entrada y salida; en el resto de filas estas tres
+    // líneas mostrarían un guion que no significa nada.
+    { label: 'Entrada', render: (r) => (r.hora_entrada ? fmtFechaHora(r.hora_entrada) : '—') },
+    { label: 'Salida', render: (r) => (r.hora_salida ? fmtFechaHora(r.hora_salida) : '—') },
+    { label: 'Motivo de cierre', render: (r) => (r.motivo_cierre ? humanizar(r.motivo_cierre) : '—') },
+    {
+      label: 'Datos',
+      render: (r) => {
+        const cambios = cambiosDe(r)
+        if (cambios.length === 0) return <span>{d(r.descripcion)}</span>
+        return (
+          <ul className="space-y-1">
+            {cambios.map((c, i) => (
+              <li key={i} className="text-sm">
+                <span className="text-ink-soft">{etiquetaCampo(c.campo)}:</span>{' '}
+                {c.antes == null ? (
+                  <b>{valorAuditoria(c.despues)}</b>
+                ) : (
+                  <>
+                    <span className="line-through decoration-slate-300">{valorAuditoria(c.antes)}</span>{' '}
+                    → <b>{valorAuditoria(c.despues)}</b>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )
+      },
+    },
     { label: 'Descripción', render: (r) => d(r.descripcion) },
-    { label: 'Valor anterior', render: (r) => <pre className="whitespace-pre-wrap break-all text-xs">{r.valor_anterior ? JSON.stringify(r.valor_anterior, null, 2) : '—'}</pre> },
-    { label: 'Valor nuevo', render: (r) => <pre className="whitespace-pre-wrap break-all text-xs">{r.valor_nuevo ? JSON.stringify(r.valor_nuevo, null, 2) : '—'}</pre> },
+    { label: 'Dirección IP', render: (r) => d(r.ip_origen) },
   ],
   campos: [],
 }
