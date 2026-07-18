@@ -9,23 +9,47 @@
     },
     {
       "type": "action",
-      "description": "Desde el Panel Principal, abrir el módulo 'Administración'"
+      "description": "Desde el Panel Principal, abrir el módulo 'Administración' y luego la tarjeta 'Usuarios'"
     },
     {
       "type": "action",
-      "description": "Abrir 'Usuarios' y escribir 'frank' en la caja de búsqueda"
-    },
-    {
-      "type": "assertion",
-      "description": "La fila de 'frank.jumbo' muestra el estado 'Bloqueado' escrito así, en español y con mayúscula inicial, no como BLOQUEADO ni como un código"
+      "description": "Escribir 'frank' en la caja de búsqueda para filtrar la lista"
     },
     {
       "type": "action",
-      "description": "Hacer clic en la fila de 'frank.jumbo'"
+      "description": "Hacer clic en la fila del usuario 'frank.jumbo' para abrir su ficha"
+    },
+    {
+      "type": "action",
+      "description": "Si la ficha ofrece el botón 'Bloquear usuario', pulsarlo. Si en su lugar ofrece 'Desbloquear usuario', pulsarlo primero y después pulsar 'Bloquear usuario'"
     },
     {
       "type": "assertion",
-      "description": "El panel ofrece la acción 'Desbloquear usuario', distinta de cualquier acción de desbloqueo por intentos fallidos"
+      "description": "En la tabla, la fila de 'frank.jumbo' muestra el estado escrito exactamente 'Bloqueado': en español, con mayúscula inicial y sin guiones bajos, nunca 'BLOQUEADO'"
+    },
+    {
+      "type": "action",
+      "description": "Volver a abrir la ficha de 'frank.jumbo'"
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha ofrece la acción 'Desbloquear usuario', y esa acción es distinta de 'Desbloquear intentos fallidos': no aparecen las dos con el mismo texto"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar 'Desbloquear usuario' para dejar la cuenta como estaba"
+    },
+    {
+      "type": "assertion",
+      "description": "La fila de 'frank.jumbo' vuelve a mostrar el estado 'Activo'"
+    },
+    {
+      "type": "action",
+      "description": "Borrar la búsqueda para ver la lista completa de usuarios"
+    },
+    {
+      "type": "assertion",
+      "description": "Ningún estado de la columna 'Estado de la cuenta' aparece en mayúsculas sostenidas ni con guiones bajos: los valores visibles son de la forma 'Activo', 'Inactivo', 'Bloqueado' o 'Dado de baja'"
     }
   ]
 }

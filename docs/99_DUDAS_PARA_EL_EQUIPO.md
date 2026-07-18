@@ -365,10 +365,14 @@ testsprite project credential 25bd3dbb-b7dc-4688-8141-6f289513ea66 \
 Ojo: el token de Supabase caduca en una hora. Un token que se refresque solo
 (`testsprite project auto-auth`) es de plan Pro.
 
-## V17 — `nombre_categoria` quedó como columna sin sitio claro
+## V17 — `nombre_categoria` → **RESUELTA: eliminada del todo**
 
-El equipo pidió retirar "Nombre" de la tabla de Categorías y sustituirlo por una descripción.
-La columna sigue en la base porque otras pantallas la usan como etiqueta corta (el buscador
-por cédula, por ejemplo, muestra "Administrativo"). Si el equipo prefiere quitarla del todo,
-hay que decidir antes qué muestran esos sitios: el código de categoría humanizado sería lo
-natural.
+El equipo decidió quitarla del todo. Donde hacía de etiqueta corta va ahora
+`humanizar(codigo_categoria)`, que da el mismo texto desde el catálogo que ya existía, sin
+un segundo dato que mantener a mano. Nueve puntos del frontend actualizados y columna
+eliminada en la migración `20260718210421`.
+
+La secuencia importó: primero el frontend desplegado, después el DROP. Al revés, la
+aplicación en vivo habría pedido una columna inexistente y PostgREST responde 400 a un embed
+sobre una columna que no existe — las pantallas de personas habrían roto durante los minutos
+que separan un despliegue del otro.

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       alerta_seguridad: {
@@ -199,23 +174,23 @@ export type Database = {
         Row: {
           ambito: string
           codigo_categoria: string
+          descripcion: string
           estado: string
           id_categoria: string
-          nombre_categoria: string
         }
         Insert: {
           ambito: string
           codigo_categoria: string
+          descripcion: string
           estado?: string
           id_categoria?: string
-          nombre_categoria: string
         }
         Update: {
           ambito?: string
           codigo_categoria?: string
+          descripcion?: string
           estado?: string
           id_categoria?: string
-          nombre_categoria?: string
         }
         Relationships: []
       }
@@ -257,6 +232,7 @@ export type Database = {
       empresa: {
         Row: {
           estado: string
+          estado_verificacion_ruc: string
           fecha_registro: string
           id_empresa: string
           nombre: string
@@ -265,6 +241,7 @@ export type Database = {
         }
         Insert: {
           estado?: string
+          estado_verificacion_ruc?: string
           fecha_registro?: string
           id_empresa?: string
           nombre: string
@@ -273,6 +250,7 @@ export type Database = {
         }
         Update: {
           estado?: string
+          estado_verificacion_ruc?: string
           fecha_registro?: string
           id_empresa?: string
           nombre?: string
@@ -484,6 +462,7 @@ export type Database = {
           modulo_aplicacion: string
           nombre_parametro: string
           tipo_dato: string
+          unidad_medida: string | null
           valor_parametro: string
         }
         Insert: {
@@ -498,6 +477,7 @@ export type Database = {
           modulo_aplicacion: string
           nombre_parametro: string
           tipo_dato: string
+          unidad_medida?: string | null
           valor_parametro: string
         }
         Update: {
@@ -512,6 +492,7 @@ export type Database = {
           modulo_aplicacion?: string
           nombre_parametro?: string
           tipo_dato?: string
+          unidad_medida?: string | null
           valor_parametro?: string
         }
         Relationships: [
@@ -963,42 +944,70 @@ export type Database = {
       }
       sesion: {
         Row: {
+          dispositivo_nombre: string | null
           estado_sesion: string
           fecha_cierre: string | null
           fecha_expiracion: string
           fecha_inicio: string
+          fecha_revocacion: string | null
+          fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
+          motivo_cierre: string | null
           recordar_sesion: boolean
+          revocada_por: string | null
           token_hash: string | null
+          user_agent: string | null
         }
         Insert: {
+          dispositivo_nombre?: string | null
           estado_sesion?: string
           fecha_cierre?: string | null
           fecha_expiracion: string
           fecha_inicio?: string
+          fecha_revocacion?: string | null
+          fecha_ultima_actividad?: string | null
           id_sesion?: string
+          id_sesion_proveedor?: string | null
           id_usuario: string
           ip_origen?: string | null
+          motivo_cierre?: string | null
           recordar_sesion?: boolean
+          revocada_por?: string | null
           token_hash?: string | null
+          user_agent?: string | null
         }
         Update: {
+          dispositivo_nombre?: string | null
           estado_sesion?: string
           fecha_cierre?: string | null
           fecha_expiracion?: string
           fecha_inicio?: string
+          fecha_revocacion?: string | null
+          fecha_ultima_actividad?: string | null
           id_sesion?: string
+          id_sesion_proveedor?: string | null
           id_usuario?: string
           ip_origen?: string | null
+          motivo_cierre?: string | null
           recordar_sesion?: boolean
+          revocada_por?: string | null
           token_hash?: string | null
+          user_agent?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "sesion_id_usuario_fkey"
             columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "usuario_sistema"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "sesion_revocada_por_fkey"
+            columns: ["revocada_por"]
             isOneToOne: false
             referencedRelation: "usuario_sistema"
             referencedColumns: ["id_usuario"]
@@ -1052,8 +1061,10 @@ export type Database = {
       }
       usuario_sistema: {
         Row: {
+          bloqueado_hasta: string | null
           correo_electronico: string
           estado_usuario: string
+          fecha_cambio_password_inicial: string | null
           fecha_creacion: string
           fecha_modificacion: string | null
           fecha_ultimo_login: string | null
@@ -1064,8 +1075,10 @@ export type Database = {
           requiere_cambio_password: boolean
         }
         Insert: {
+          bloqueado_hasta?: string | null
           correo_electronico: string
           estado_usuario?: string
+          fecha_cambio_password_inicial?: string | null
           fecha_creacion?: string
           fecha_modificacion?: string | null
           fecha_ultimo_login?: string | null
@@ -1076,8 +1089,10 @@ export type Database = {
           requiere_cambio_password?: boolean
         }
         Update: {
+          bloqueado_hasta?: string | null
           correo_electronico?: string
           estado_usuario?: string
+          fecha_cambio_password_inicial?: string | null
           fecha_creacion?: string
           fecha_modificacion?: string | null
           fecha_ultimo_login?: string | null
@@ -1107,6 +1122,7 @@ export type Database = {
           id_vehiculo: string
           marca: string | null
           modelo: string | null
+          motivo_sin_placa: string | null
           placa: string | null
           tipo_vehiculo: string
         }
@@ -1119,6 +1135,7 @@ export type Database = {
           id_vehiculo?: string
           marca?: string | null
           modelo?: string | null
+          motivo_sin_placa?: string | null
           placa?: string | null
           tipo_vehiculo: string
         }
@@ -1131,6 +1148,7 @@ export type Database = {
           id_vehiculo?: string
           marca?: string | null
           modelo?: string | null
+          motivo_sin_placa?: string | null
           placa?: string | null
           tipo_vehiculo?: string
         }
@@ -1181,6 +1199,43 @@ export type Database = {
       }
     }
     Views: {
+      v_auditoria: {
+        Row: {
+          accion: string | null
+          cambios: Json | null
+          datos: string | null
+          descripcion: string | null
+          ejecutor_correo: string | null
+          ejecutor_nombre: string | null
+          ejecutor_usuario: string | null
+          entidad_afectada: string | null
+          fecha_hora: string | null
+          hora_entrada: string | null
+          hora_salida: string | null
+          id_bitacora: string | null
+          id_entidad_afectada: string | null
+          id_usuario: string | null
+          ip_origen: string | null
+          modulo: string | null
+          motivo_cierre: string | null
+          registro_afectado: string | null
+          resultado: string | null
+          tipo_registro: string | null
+          usuario_accedido: string | null
+          usuario_accedido_correo: string | null
+          valor_anterior: Json | null
+          valor_nuevo: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bitacora_sistema_id_usuario_fkey"
+            columns: ["id_usuario"]
+            isOneToOne: false
+            referencedRelation: "usuario_sistema"
+            referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
       vista_vehiculos_dentro: {
         Row: {
           apellidos_conductor: string | null
@@ -1234,19 +1289,27 @@ export type Database = {
       }
     }
     Functions: {
+      acentuar_texto: { Args: { texto: string }; Returns: string }
       allowed_modules: { Args: never; Returns: string[] }
       cerrar_sesion: {
-        Args: never
+        Args: { p_id_sesion?: string }
         Returns: {
+          dispositivo_nombre: string | null
           estado_sesion: string
           fecha_cierre: string | null
           fecha_expiracion: string
           fecha_inicio: string
+          fecha_revocacion: string | null
+          fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
+          motivo_cierre: string | null
           recordar_sesion: boolean
+          revocada_por: string | null
           token_hash: string | null
+          user_agent: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1255,6 +1318,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cerrar_sesion_admin: { Args: { p_id_sesion: string }; Returns: Json }
+      crear_vehiculo_con_propietario: {
+        Args: {
+          p_color?: string
+          p_fecha_inicio?: string
+          p_id_persona: string
+          p_marca?: string
+          p_modelo?: string
+          p_motivo_sin_placa?: string
+          p_placa?: string
+          p_tipo_relacion?: string
+          p_tipo_vehiculo: string
+        }
+        Returns: Json
+      }
+      desbloquear_intentos_login: {
+        Args: { p_id_usuario: string }
+        Returns: undefined
+      }
+      detalle_cambio: { Args: { anterior: Json; nuevo: Json }; Returns: Json }
       enrolar_biometria: {
         Args: {
           p_descriptor: number[]
@@ -1278,8 +1361,19 @@ export type Database = {
       es_mac: { Args: { p_mac: string }; Returns: boolean }
       es_nombre_persona: { Args: { p_nombre: string }; Returns: boolean }
       es_placa_ec: { Args: { p_placa: string }; Returns: boolean }
+      es_placa_vehiculo: {
+        Args: { p_placa: string; p_tipo: string }
+        Returns: boolean
+      }
+      es_relleno_obvio: { Args: { p_num: string }; Returns: boolean }
       es_ruc_ecuatoriano: { Args: { p_ruc: string }; Returns: boolean }
+      es_ruc_estructural: { Args: { p_ruc: string }; Returns: boolean }
       es_telefono_ec: { Args: { p_telefono: string }; Returns: boolean }
+      esta_en_turno_guardia: {
+        Args: { p_id_usuario: string; p_momento?: string }
+        Returns: boolean
+      }
+      etiqueta_entidad: { Args: { entidad: string }; Returns: string }
       expirar_sesiones_vencidas: { Args: never; Returns: number }
       formatear_placa: { Args: { p_placa: string }; Returns: string }
       guardias_disponibles: {
@@ -1290,6 +1384,10 @@ export type Database = {
           nombre_usuario: string
         }[]
       }
+      hook_password_verification_attempt: {
+        Args: { event: Json }
+        Returns: Json
+      }
       identificar_por_descriptor: {
         Args: { p_descriptor: number[] }
         Returns: {
@@ -1297,23 +1395,44 @@ export type Database = {
           id_persona: string
         }[]
       }
+      marcar_password_cambiada: { Args: never; Returns: undefined }
       normalizar_espacios: { Args: { p_texto: string }; Returns: string }
       normalizar_placa: { Args: { p_placa: string }; Returns: string }
       normalizar_telefono_ec: { Args: { p_telefono: string }; Returns: string }
       permisos_efectivos: { Args: never; Returns: string[] }
       puntos_control_asignados: { Args: never; Returns: string[] }
+      registrar_intento_fuera_de_turno: {
+        Args: { p_detalle?: string }
+        Returns: undefined
+      }
+      registrar_intento_login: {
+        Args: { p_id_usuario: string; p_valido: boolean }
+        Returns: Json
+      }
       registrar_sesion: {
-        Args: { p_ip_origen?: string; p_recordar_sesion?: boolean }
+        Args: {
+          p_dispositivo?: string
+          p_ip_origen?: string
+          p_recordar_sesion?: boolean
+          p_user_agent?: string
+        }
         Returns: {
+          dispositivo_nombre: string | null
           estado_sesion: string
           fecha_cierre: string | null
           fecha_expiracion: string
           fecha_inicio: string
+          fecha_revocacion: string | null
+          fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
+          motivo_cierre: string | null
           recordar_sesion: boolean
+          revocada_por: string | null
           token_hash: string | null
+          user_agent: string | null
         }
         SetofOptions: {
           from: "*"
@@ -1322,14 +1441,29 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      resumir_cambio: { Args: { anterior: Json; nuevo: Json }; Returns: string }
       revisar_permanencia_vehiculos: { Args: never; Returns: undefined }
+      revocar_mis_sesiones: { Args: { p_motivo?: string }; Returns: number }
+      revocar_sesiones_usuario: {
+        Args: {
+          p_id_usuario: string
+          p_motivo?: string
+          p_revocada_por?: string
+        }
+        Returns: number
+      }
+      ruc_pasa_algoritmo_legado: { Args: { p_ruc: string }; Returns: boolean }
+      sesion_vigente: { Args: never; Returns: boolean }
       tiene_acceso_operativo_cac: { Args: never; Returns: boolean }
       tiene_algun_modulo: { Args: never; Returns: boolean }
       tiene_permiso: { Args: { p_codigo: string }; Returns: boolean }
+      tocar_sesion: { Args: { p_id_sesion?: string }; Returns: boolean }
+      uuid_seguro: { Args: { texto: string }; Returns: string }
       valor_parametro_coherente: {
         Args: { p_tipo_dato: string; p_valor: string }
         Returns: boolean
       }
+      verificar_turno_guardia_actual: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never
@@ -1458,9 +1592,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

@@ -177,7 +177,6 @@ export type Database = {
           descripcion: string
           estado: string
           id_categoria: string
-          nombre_categoria: string
         }
         Insert: {
           ambito: string
@@ -185,7 +184,6 @@ export type Database = {
           descripcion: string
           estado?: string
           id_categoria?: string
-          nombre_categoria: string
         }
         Update: {
           ambito?: string
@@ -193,7 +191,6 @@ export type Database = {
           descripcion?: string
           estado?: string
           id_categoria?: string
-          nombre_categoria?: string
         }
         Relationships: []
       }
@@ -1292,6 +1289,7 @@ export type Database = {
       }
     }
     Functions: {
+      acentuar_texto: { Args: { texto: string }; Returns: string }
       allowed_modules: { Args: never; Returns: string[] }
       cerrar_sesion: {
         Args: { p_id_sesion?: string }

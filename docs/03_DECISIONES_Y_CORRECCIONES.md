@@ -633,9 +633,10 @@ que no son una magnitud.
 
 ### D43 — La categoría se explica con una descripción; el ámbito ya existía
 
-`categoria_persona.descripcion`, NOT NULL. `nombre_categoria` se queda en la base como
-etiqueta corta para otras pantallas, pero deja de mostrarse en ADM: repetía el código en
-versión legible ("Docente" para DOCENTE) sin aportar nada.
+`categoria_persona.descripcion`, NOT NULL. `nombre_categoria` **se eliminó** (migración
+`20260718210421`): repetía el código en versión legible ("Docente" para DOCENTE), así que era
+un dato mantenido a mano que podía desincronizarse del código al que describía. Donde hacía
+de etiqueta corta, la interfaz deriva el texto con `humanizar(codigo_categoria)`.
 
 ### D44 — Auditoría se resuelve con una vista, no con columnas nuevas
 
