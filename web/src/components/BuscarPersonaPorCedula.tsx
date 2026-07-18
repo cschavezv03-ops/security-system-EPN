@@ -112,8 +112,7 @@ export function BuscarPersonaPorCedula({
     <Field
       label={label}
       error={error ?? (cedula && errorFormato ? errorFormato : null)}
-      hint="Escriba la cédula (10 dígitos) y presione buscar."
-      ayuda="La búsqueda es exacta por cédula: no se listan todas las personas por privacidad. La cédula se valida antes de consultar."
+      hint="10 dígitos."
     >
       <div className="flex gap-2">
         <Input

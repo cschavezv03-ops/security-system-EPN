@@ -168,7 +168,6 @@ export const cfgSesion: ResourceConfig = {
     <BotonCerrarSesion
       idSesion={r.id_sesion}
       estado={r.estado_sesion}
-      tieneIdProveedor={!!r.id_sesion_proveedor}
       onCerrada={async () => {
         await recargar()
         cerrarPanel()

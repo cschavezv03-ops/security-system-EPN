@@ -233,8 +233,7 @@ export function UsuariosScreen() {
 
             {bloqueoVigente(sel) && (
               <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                Cuenta bloqueada temporalmente por superar el máximo de intentos fallidos. Se desbloquea
-                sola al cumplirse el tiempo, o puede desbloquearla ahora.
+                Cuenta bloqueada por intentos fallidos.
               </p>
             )}
             <div className="space-y-2">
@@ -243,8 +242,7 @@ export function UsuariosScreen() {
                   puede vivir aquí — la API REST está expuesta y no pasa por esta pantalla. */}
               {esMiCuenta && (
                 <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                  Es tu propia cuenta: no puedes bloquearla ni darla de baja. Si necesitas hacerlo, pídeselo a
-                  otro administrador — así el sistema nunca se queda sin nadie que pueda entrar.
+                  Es su propia cuenta: no puede bloquearla ni darla de baja.
                 </p>
               )}
               {tiene('ADM_USUARIO_BLOQUEAR') && sel.estado_usuario === 'ACTIVO' && !esMiCuenta && (

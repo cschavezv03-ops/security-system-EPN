@@ -131,11 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // solo debe ver la pantalla de restablecimiento (req 31).
       if (event === 'PASSWORD_RECOVERY') setRecuperacion(true)
 
-      // La fila de auditoría se registra SOLO en un inicio de sesión real. Antes esto vivía en
-      // el efecto de abajo, que corre en cada montaje con sesión válida: cada recarga de página
-      // insertaba una fila nueva (55 filas de admin en un solo día, todas ACTIVA). Supabase
-      // emite INITIAL_SESSION al restaurar la sesión de localStorage y TOKEN_REFRESHED al
-      // renovar el JWT; ninguno de los dos es un login y ninguno debe registrar sesión.
+      // OJO: supabase-js emite SIGNED_IN no solo al iniciar sesión, sino también cada vez que
+      // la pestaña recupera visibilidad y revalida la sesión. Por eso `registrar_sesion` es
+      // IDEMPOTENTE en la base (una fila ACTIVA por sesión del proveedor): antes, volver a la
+      // pestaña insertaba una fila nueva y el registro mostraba decenas de sesiones abiertas.
+      // Al repetirse, la llamada solo refresca la última actividad y devuelve la misma fila.
       if (event === 'SIGNED_IN' && sess) {
         // La preferencia "recordar sesión" ya decidió el almacén del token (lib/supabase);
         // aquí solo se refleja en la auditoría junto con el dispositivo (reqs 29/30).
@@ -158,6 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (event === 'SIGNED_OUT' || !sess) {
+        // Se olvida la fila de auditoría propia: si entra otra cuenta en este mismo
+        // navegador, no debe reutilizar la sesión de la anterior.
+        setIdSesionActual(null)
         setPerfil(null)
         setRoles([])
         setPermisos(new Set())
@@ -169,18 +172,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  // El contexto se carga cuando cambia el USUARIO, no cuando cambia el objeto
+  // `session`. supabase-js entrega un objeto nuevo cada vez que revalida la sesión
+  // (p. ej. al volver a la pestaña); si se dependiera de él, este efecto volvería
+  // a correr, pondría `cargando` en true y REMONTARÍA toda la aplicación: eso se
+  // veía como una recarga y, de paso, borraba lo escrito en los formularios.
+  const idUsuario = session?.user.id ?? null
   useEffect(() => {
-    if (!session?.user.id) return
+    if (!idUsuario) return
     let vivo = true
     setCargando(true)
     ;(async () => {
-      await cargarContexto(session.user.id)
+      await cargarContexto(idUsuario)
       if (vivo) setCargando(false)
     })()
     return () => {
       vivo = false
     }
-  }, [session, cargarContexto])
+  }, [idUsuario, cargarContexto])
 
   // Latido de actividad: renueva sesion.fecha_ultima_actividad para el timeout
   // de inactividad (req 29). Se limita a una llamada por minuto aunque el usuario

@@ -107,9 +107,6 @@ export function CuentaPage() {
 
         <Card className="p-5">
           <h3 className="mb-3 flex items-center gap-2 text-base font-semibold text-navy"><KeyRound className="h-5 w-5" /> Cambiar contraseña</h3>
-          <p className="mb-3 text-xs text-ink-soft">
-            Al cambiar la contraseña se cerrarán todas sus sesiones y deberá iniciar sesión nuevamente.
-          </p>
           <form onSubmit={cambiar} className="space-y-3">
             <Field label="Contraseña actual" required>
               <Input type="password" value={actual} onChange={(e) => setActual(e.target.value)} autoComplete="current-password" />
@@ -176,9 +173,6 @@ export function CuentaPage() {
               </table>
             </div>
           )}
-          <p className="mt-3 text-xs text-ink-soft">
-            Al cerrar todas las sesiones se revocan también en el servidor y deberá iniciar sesión nuevamente.
-          </p>
         </Card>
       </div>
     </div>

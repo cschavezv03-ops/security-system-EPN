@@ -110,7 +110,6 @@ export function VehiculoPropietarioPage() {
     <div>
       <Breadcrumb items={[{ label: 'Panel Principal', to: '/' }, { label: 'Registrar vehículo' }]} />
       <h1 className="mb-1 flex items-center gap-2 text-xl font-bold text-navy"><Car className="h-6 w-6" /> Registrar vehículo y propietario</h1>
-      <p className="mb-4 text-sm text-ink-soft">El vehículo y su asociación se crean juntos, en una sola operación.</p>
 
       {ofreceBorrador && (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -183,9 +182,6 @@ export function VehiculoPropietarioPage() {
               <Input type="date" value={form.fecha_inicio} onChange={(e) => set('fecha_inicio', e.target.value)} max={new Date().toISOString().slice(0, 10)} />
             </Field>
           </div>
-          <p className="text-xs text-ink-soft">
-            Una persona no puede tener más de dos vehículos activos (PROPIETARIO o CONDUCTOR_AUTORIZADO). El límite lo aplica el sistema.
-          </p>
           <ErrorBanner message={error} />
           <div className="flex gap-2">
             <Button type="submit" loading={guardando}>Registrar vehículo y asociar</Button>
