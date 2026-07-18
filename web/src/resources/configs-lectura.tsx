@@ -3,6 +3,7 @@ import { fmtFecha, fmtFechaHora } from '../lib/format'
 import { formatearPlaca } from '../lib/validacion'
 import { describirDispositivo } from '../lib/dispositivo'
 import { Badge } from '../components/ui'
+import { BotonCerrarSesion } from '../components/BotonCerrarSesion'
 import { opcionesCatalogo } from './opciones'
 import { humanizar } from '../lib/catalogos'
 
@@ -162,6 +163,18 @@ export const cfgSesion: ResourceConfig = {
   ],
   campoTituloDetalle: (r) => r.usuario?.correo_electronico ?? 'Sesión',
   campoSubtituloDetalle: (r) => <Badge value={r.estado_sesion} />,
+  // Cerrar una sesión concreta sin tocar las demás del mismo usuario (req 29).
+  accionDetalle: (r, { recargar, cerrarPanel }) => (
+    <BotonCerrarSesion
+      idSesion={r.id_sesion}
+      estado={r.estado_sesion}
+      tieneIdProveedor={!!r.id_sesion_proveedor}
+      onCerrada={async () => {
+        await recargar()
+        cerrarPanel()
+      }}
+    />
+  ),
   detalle: [
     { label: 'Dispositivo', render: (r) => dispositivoSesion(r) },
     { label: 'Apertura', render: (r) => fmtFechaHora(r.fecha_inicio) },

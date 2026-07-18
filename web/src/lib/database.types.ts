@@ -949,6 +949,7 @@ export type Database = {
           fecha_revocacion: string | null
           fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
           motivo_cierre: string | null
@@ -966,6 +967,7 @@ export type Database = {
           fecha_revocacion?: string | null
           fecha_ultima_actividad?: string | null
           id_sesion?: string
+          id_sesion_proveedor?: string | null
           id_usuario: string
           ip_origen?: string | null
           motivo_cierre?: string | null
@@ -983,6 +985,7 @@ export type Database = {
           fecha_revocacion?: string | null
           fecha_ultima_actividad?: string | null
           id_sesion?: string
+          id_sesion_proveedor?: string | null
           id_usuario?: string
           ip_origen?: string | null
           motivo_cierre?: string | null
@@ -1258,6 +1261,7 @@ export type Database = {
           fecha_revocacion: string | null
           fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
           motivo_cierre: string | null
@@ -1273,6 +1277,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cerrar_sesion_admin: { Args: { p_id_sesion: string }; Returns: Json }
       crear_vehiculo_con_propietario: {
         Args: {
           p_color?: string
@@ -1377,6 +1382,7 @@ export type Database = {
           fecha_revocacion: string | null
           fecha_ultima_actividad: string | null
           id_sesion: string
+          id_sesion_proveedor: string | null
           id_usuario: string
           ip_origen: string | null
           motivo_cierre: string | null

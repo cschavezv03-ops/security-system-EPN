@@ -255,8 +255,14 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
         onClose={() => setSeleccion(null)}
         title={seleccion ? config.campoTituloDetalle(seleccion) : undefined}
         footer={
-          (puedeEditar || config.baja) && seleccion ? (
+          (puedeEditar || config.baja || config.accionDetalle) && seleccion ? (
             <>
+              {/* Acción propia del recurso (ej. cerrar una sesión). Se decide
+                  dentro: puede no renderizar nada según el estado de la fila. */}
+              {config.accionDetalle?.(seleccion, {
+                recargar: cargar,
+                cerrarPanel: () => setSeleccion(null),
+              })}
               {puedeEditar && (
                 <Button
                   variant="secondary"

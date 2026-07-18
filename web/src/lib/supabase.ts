@@ -167,6 +167,30 @@ export async function iniciarSesion(email: string, password: string): Promise<st
 }
 
 /**
+ * Cierra la fila de auditoría de ESTA sesión mientras la página se está cerrando.
+ *
+ * Se usa `keepalive`, que es lo que garantiza que el navegador termine de enviar
+ * la petición aunque la pestaña ya se esté destruyendo; un `await` normal se
+ * cancelaría. No sirve `supabase.rpc` aquí porque no expone esa opción.
+ */
+export function cerrarSesionAlSalir(idSesion: string, accessToken: string): void {
+  try {
+    void fetch(`${url}/rest/v1/rpc/cerrar_sesion`, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ p_id_sesion: idSesion }),
+    }).catch(() => {})
+  } catch {
+    /* la página se está cerrando: no hay nada que reportar */
+  }
+}
+
+/**
  * Acceso a una tabla por nombre dinámico (motor genérico de recursos). El cliente tipado
  * exige un literal de tabla; aquí el nombre viene de la config, así que relajamos el tipo.
  */

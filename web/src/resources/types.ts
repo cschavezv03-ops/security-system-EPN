@@ -112,6 +112,9 @@ export interface ResourceConfig<Row = any> {
   /** Campos de texto sobre los que busca la barra de búsqueda (ilike). */
   buscarEn?: string[]
   detalle: DetailRow<Row>[]
+  /** Acción extra en el pie del panel de detalle (ej. cerrar una sesión concreta).
+   *  Recibe la fila y utilidades para refrescar la lista o cerrar el panel. */
+  accionDetalle?: (row: Row, ctx: { recargar: () => Promise<void>; cerrarPanel: () => void }) => ReactNode
   campoTituloDetalle: (row: Row) => string
   campoSubtituloDetalle?: (row: Row) => ReactNode
   campos: FieldConfig[]

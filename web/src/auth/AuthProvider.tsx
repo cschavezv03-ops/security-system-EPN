@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, getRecordarSesion, setIdSesionActual, getIdSesionActual } from '../lib/supabase'
+import {
+  supabase, getRecordarSesion, setIdSesionActual, getIdSesionActual, cerrarSesionAlSalir,
+} from '../lib/supabase'
 import { ROL_LABEL } from '../lib/catalogos'
 import { dispositivoActual } from '../lib/dispositivo'
 
@@ -203,6 +205,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('keydown', latir)
       document.removeEventListener('visibilitychange', latir)
     }
+  }, [session])
+
+  // Cerrar la pestaña debe cerrar la sesión: si no, la fila queda ACTIVA en el
+  // registro hasta que la barra de inactividad la marque, y la pantalla de
+  // sesiones muestra como vivas sesiones que ya no existen (req 29).
+  //
+  // Solo aplica cuando "recordar sesión" está DESACTIVADO: en ese caso el token
+  // vive en sessionStorage (una sesión por pestaña) y cerrarla realmente la
+  // termina. Con "recordar" activado el usuario espera seguir dentro al volver,
+  // así que la sesión debe sobrevivir.
+  useEffect(() => {
+    if (!session?.access_token) return
+    const alSalir = (e: PageTransitionEvent) => {
+      // e.persisted: la página va a la caché de retroceso y puede reaparecer.
+      if (e.persisted || getRecordarSesion()) return
+      const id = getIdSesionActual()
+      if (id) cerrarSesionAlSalir(id, session.access_token)
+    }
+    window.addEventListener('pagehide', alSalir)
+    return () => window.removeEventListener('pagehide', alSalir)
   }, [session])
 
   const tiene = useCallback((codigo: string) => permisos.has(codigo), [permisos])
