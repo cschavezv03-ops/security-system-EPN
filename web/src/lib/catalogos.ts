@@ -211,6 +211,27 @@ export const ETIQUETA: Record<string, string> = {
   VEHICULO_NO_AUTORIZADO: 'Vehículo no autorizado',
   VEHICULO_PERMANENCIA_EXCEDIDA: 'Vehículo con permanencia excedida',
   VEHICULO_ABANDONADO: 'Vehículo abandonado',
+  // Tipos añadidos en la ronda de CAC (RF-CA-023). Sin estas entradas, el panel de alertas
+  // los pintaba en mayúsculas y sin tildes tal como salen del CHECK.
+  PERSONA_DESCONOCIDA: 'Persona desconocida',
+  GARITA_NO_AUTORIZADA: 'Garita no autorizada',
+  PLACA_NO_RECONOCIDA: 'Placa no reconocida',
+  DOBLE_AUTENTICACION_FALLIDA: 'Doble autenticación fallida',
+  SIN_REGLA_ACCESO: 'Sin regla de acceso',
+  // Códigos de error de reconocimiento (RF-CA-022).
+  CAMARA_NO_DISPONIBLE: 'Cámara no disponible',
+  MODELO_NO_CARGADO: 'Modelo no cargado',
+  ROSTRO_NO_DETECTADO: 'Rostro no detectado',
+  PLACA_NO_LEGIBLE: 'Placa no legible',
+  // SERVICIO_NO_DISPONIBLE ya está más abajo, en los estados de verificación del RUC: es el
+  // mismo texto y sirve para los dos usos.
+  TIEMPO_AGOTADO: 'Tiempo agotado',
+  ERROR_INTERNO: 'Error interno',
+  FACIAL: 'Facial',
+  PLACA: 'Placa',
+  // Tipo de acceso (RF-CA-020/024/025).
+  PEATONAL: 'Peatonal',
+  VEHICULAR: 'Vehicular',
 
   // Acciones de la auditoría (bitacora_sistema.accion). Las tres primeras las escribe el
   // trigger genérico; el resto son acciones con nombre propio del sistema.

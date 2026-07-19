@@ -344,8 +344,11 @@ describe('errores de reconocimiento (RF-CA-022)', () => {
     expect(within(filaPlaca).getByText('Garita Principal')).toBeInTheDocument()
     expect(within(filaPlaca).getByText(/Placa no legible/i)).toBeInTheDocument()
 
+    // Con tilde: el código del catálogo es CAMARA_NO_DISPONIBLE, pero la pantalla lo traduce
+    // por `ETIQUETA`. Sin esa entrada, `humanizar` cae a la conversión automática y escribe
+    // "Camara" — legible, pero mal escrito, y en una pantalla que lee un guardia.
     const filaCamara = (await screen.findByText(/No se pudo abrir la cámara/i)).closest('tr')!
-    expect(within(filaCamara).getByText(/Camara no disponible/i)).toBeInTheDocument()
+    expect(within(filaCamara).getByText('Cámara no disponible')).toBeInTheDocument()
   })
 
   it('es un histórico: no ofrece registrar ni editar', async () => {

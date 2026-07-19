@@ -3,12 +3,16 @@ import { Search, ShieldAlert } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthProvider'
 import { fmtFechaHora } from '../../lib/format'
+import { CAT, humanizar } from '../../lib/catalogos'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Modal, Select, SidePanel, Textarea, useToast,
 } from '../../components/ui'
 
 const OPCIONES_ESTADO = [{ value: 'PENDIENTE', label: 'Pendiente' }, { value: 'ATENDIDA', label: 'Atendida' }]
 const OPCIONES_RIESGO = [{ value: 'BAJO', label: 'Bajo' }, { value: 'MEDIO', label: 'Medio' }, { value: 'ALTO', label: 'Alto' }, { value: 'CRITICO', label: 'Crítico' }]
+// El catálogo pasó de 9 a 14 tipos en la ronda de CAC (RF-CA-023). Sin filtro, encontrar las
+// tres alertas que importan entre cien es cuestión de ir bajando con la rueda del ratón.
+const OPCIONES_TIPO = CAT.alerta_tipo.map((t) => ({ value: t, label: humanizar(t) }))
 
 interface Alerta {
   id_alerta: string
@@ -40,6 +44,7 @@ export function AlertasScreen() {
   const [busqueda, setBusqueda] = useState('')
   const [fEstado, setFEstado] = useState('')
   const [fRiesgo, setFRiesgo] = useState('')
+  const [fTipo, setFTipo] = useState('')
 
   const cargar = async () => {
     setCargando(true)
@@ -90,6 +95,7 @@ export function AlertasScreen() {
     return alertas.filter((a) => {
       if (fEstado && a.estado_alerta !== fEstado) return false
       if (fRiesgo && a.nivel_riesgo !== fRiesgo) return false
+      if (fTipo && a.tipo_alerta !== fTipo) return false
       if (!t) return true
       const campos = [
         a.tipo_alerta, a.nivel_riesgo, a.estado_alerta,
@@ -98,7 +104,7 @@ export function AlertasScreen() {
       ]
       return campos.some((c) => String(c ?? '').toLowerCase().includes(t))
     })
-  }, [alertas, busqueda, fEstado, fRiesgo])
+  }, [alertas, busqueda, fEstado, fRiesgo, fTipo])
 
   return (
     <div>
@@ -114,6 +120,7 @@ export function AlertasScreen() {
         </div>
         <Select value={fEstado} onChange={(e) => setFEstado(e.target.value)} placeholder="Estado" options={OPCIONES_ESTADO} className="w-auto min-w-[150px]" />
         <Select value={fRiesgo} onChange={(e) => setFRiesgo(e.target.value)} placeholder="Nivel de riesgo" options={OPCIONES_RIESGO} className="w-auto min-w-[160px]" />
+        <Select value={fTipo} onChange={(e) => setFTipo(e.target.value)} placeholder="Tipo de alerta" options={OPCIONES_TIPO} className="w-auto min-w-[190px]" />
       </div>
       <Card className="overflow-hidden">
         {cargando ? (
@@ -136,9 +143,13 @@ export function AlertasScreen() {
                 {filtradas.map((a) => (
                   <tr key={a.id_alerta} onClick={() => setSel(a)} className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50">
                     <td className="px-4 py-2.5">{fmtFechaHora(a.fecha_hora)}</td>
-                    <td className="px-4 py-2.5 text-navy">{a.tipo_alerta.replaceAll('_', ' ')}</td>
+                    <td className="px-4 py-2.5 text-navy">{humanizar(a.tipo_alerta)}</td>
                     <td className="px-4 py-2.5"><Badge value={a.nivel_riesgo} /></td>
-                    <td className="px-4 py-2.5">{a.evento?.persona ? `${a.evento.persona.apellidos} ${a.evento.persona.nombres}` : '—'}</td>
+                    <td className="px-4 py-2.5">
+                      {a.evento?.persona
+                        ? `${a.evento.persona.apellidos} ${a.evento.persona.nombres}`
+                        : <span className="text-ink-soft">Persona desconocida</span>}
+                    </td>
                     <td className="px-4 py-2.5"><Badge value={a.estado_alerta} /></td>
                   </tr>
                 ))}
@@ -151,7 +162,7 @@ export function AlertasScreen() {
       <SidePanel
         open={!!sel}
         onClose={() => setSel(null)}
-        title={sel ? sel.tipo_alerta.replaceAll('_', ' ') : undefined}
+        title={sel ? humanizar(sel.tipo_alerta) : undefined}
         footer={
           sel && puedeAtender && sel.estado_alerta === 'PENDIENTE' ? (
             <Button className="flex-1" onClick={() => setAtenderOpen(true)}>Atender alerta</Button>
