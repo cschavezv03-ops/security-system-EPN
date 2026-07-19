@@ -448,3 +448,28 @@ Git instalaba el `package.json` de la raíz (solo la CLI de Supabase) y luego fa
 Corregido con un `vercel.json` en la raíz (ver `docs/DESPLIEGUE.md`), que es lo que se puede
 hacer desde el repositorio. **Lo limpio sería poner el Root Directory en `web` desde el panel**;
 si alguien lo hace, hay que borrar ese `vercel.json`, porque entonces los `cd web` sobrarían.
+
+## V22 — Dos trampas de TestSprite que costaron dos rondas de ejecuciones
+
+Ambas resueltas, anotadas para que no se repitan.
+
+**La credencial del proyecto pisa la del plan.** TestSprite rellena el formulario de login con
+la credencial configurada en el proyecto (`admin@epn.edu.ec`) aunque el plan pida otra cuenta.
+Como esa cuenta solo ve el módulo Administración, las diez pruebas de GPE/GPI fallaban sin
+llegar a la pantalla. El plan tiene que decir explícitamente "BORRAR el correo precargado y
+escribir exactamente X", con la contraseña incluida.
+
+**Una aserción negativa sola no prueba nada.** Tres pruebas dieron `passed` sin comprobar nada:
+afirmaban "no aparece la tarjeta Asociaciones" y se cumplían solas porque el usuario no veía el
+módulo. Toda negativa necesita una positiva delante sobre la misma pantalla.
+
+**Why:** un verde falso es peor que un rojo — el rojo se investiga, el verde se cree.
+
+## V23 — Las variables de entorno de Vercel solo existían para producción
+
+`VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` estaban definidas únicamente para el entorno
+`production`, así que cualquier despliegue de preview se construía sin ellas y la aplicación
+arrancaba en blanco (el cliente de Supabase falla al crearse sin URL).
+
+No se había detectado nunca porque hasta esta ronda ningún preview llegaba a compilar (§V21):
+los dos fallos se tapaban mutuamente. Ya están añadidas al entorno `preview`.

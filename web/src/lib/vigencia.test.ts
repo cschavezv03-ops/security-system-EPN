@@ -33,7 +33,12 @@ describe('estado efectivo del memorando', () => {
     const memorandoDesincronizado = { estado_memorando: 'VIGENTE', fecha_inicio: '2026-07-15', fecha_fin: '2026-07-17' }
 
     expect(estadoMemorandoEfectivo(memorandoDesincronizado, HOY)).toBe('VENCIDO')
+
+    // Igual que arriba: `memorandoPermiteAcceso` mira el reloj real, así que se congela.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(`${HOY}T12:00:00-05:00`))
     expect(memorandoPermiteAcceso(memorandoDesincronizado)).toBe(false)
+    vi.useRealTimers()
   })
 
   it('está PROGRAMADO mientras no llega su fecha de inicio', () => {
@@ -50,7 +55,14 @@ describe('estado efectivo del memorando', () => {
 describe('estado efectivo de la autorización de visita', () => {
   it('vale el día de la visita', () => {
     expect(estadoAutorizacionEfectivo({ estado_autorizacion: 'VIGENTE', fecha_visita: HOY }, HOY)).toBe('VIGENTE')
+
+    // `autorizacionPermiteAcceso` no recibe la fecha: usa `hoyISO()`. Sin congelar el reloj,
+    // esta comprobación solo pasaba el día que se escribió — de hecho empezó a fallar sola al
+    // cambiar la fecha, que es justo el tipo de prueba frágil que no sirve de red de seguridad.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(`${HOY}T12:00:00-05:00`))
     expect(autorizacionPermiteAcceso({ estado_autorizacion: 'VIGENTE', fecha_visita: HOY })).toBe(true)
+    vi.useRealTimers()
   })
 
   it('caduca al día siguiente, sin que nadie tenga que tocarla', () => {
