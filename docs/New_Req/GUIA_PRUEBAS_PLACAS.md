@@ -48,10 +48,45 @@ como variable de entorno **`PLATE_RECOGNIZER_TOKEN`** en el proyecto de Supabase
 
 ---
 
+## Dos relojes que hay que mirar antes de probar
+
+Esto es lo que más tiempo hace perder, porque el sistema responde con toda la razón y parece que
+algo está roto.
+
+**1. El turno del guardia.** `guardia.demo` tiene turno **12:00–23:59** (hora de Ecuador). Fuera
+de esa franja no puede registrar **nada**: el botón responde con "Su turno no se encuentra
+habilitado a esta hora". Es la barrera de turno funcionando (req 34), no un fallo.
+
+Para moverlo a la mañana, una línea en el SQL Editor de Supabase:
+
+```sql
+update public.guardia_punto_control
+   set hora_inicio = '06:00', hora_fin = '18:00'
+ where id_usuario = (select id from auth.users where email = 'guardia.demo@epn.edu.ec')
+   and estado_asignacion = 'ACTIVA';
+```
+
+No se puede cubrir el día entero: la jornada máxima son 12 h (§D59, art. 55 del Código del
+Trabajo), y esa regla se respeta también para las cuentas de demostración.
+
+**2. El horario de la regla de acceso de cada categoría.** Aunque el guardia esté en turno, la
+persona que intenta entrar tiene su propia franja:
+
+| Categoría | Franja | Sirve para probar de noche |
+|---|---|---|
+| **Docente** | 05:30 – 23:00 | **Sí** — es la mejor opción |
+| Estudiante | 06:00 – 21:00 | Hasta las 21:00 |
+| Administrativo | 06:00 – 20:00 | Hasta las 20:00 |
+| Empresa de servicio | 06:00 – 18:00 | No |
+| Visitante / Contratista | horario de oficina | No |
+
+Si pruebas por la noche, **usa a un docente**. Alexander Guerra (cédula `1750000257`) es docente,
+tiene el rostro enrolado **y** es propietario de `PGF593`: es el único caso del sistema que hoy
+permite probar la doble autenticación completa de un tirón.
+
 ## Cómo se usa
 
-Entra con **`guardia.demo@epn.edu.ec` / `admin1234`** (asignado a "Garita Principal (demo)",
-turno 06:00–18:00 — fuera de esa franja el sistema no deja registrar nada, y es correcto).
+Entra con **`guardia.demo@epn.edu.ec` / `admin1234`** (asignado a "Garita Principal (demo)").
 
 Pestaña **Ingreso vehicular**:
 
