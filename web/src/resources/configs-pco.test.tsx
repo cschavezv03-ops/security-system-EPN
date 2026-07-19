@@ -28,10 +28,13 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
   const PARQUE = { id_zona: 'z-parq', nombre_zona: 'Parqueadero Subsuelo', tipo_zona: 'PARQUEADERO', estado_zona: 'INACTIVA', id_zona_padre: 'z-e20' }
 
   const PUNTO_E20 = { id_punto_control: 'p-1', id_zona: 'z-e20', nombre_punto: 'Puerta Norte', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20' } }
+  // Una garita de entrada a la universidad: cuelga del CAMPUS, que es el tipo que se retiró del
+  // formulario de alta. Este caso lo detectó TestSprite, no las pruebas de aquí (§V25).
+  const PUNTO_CAMPUS = { id_punto_control: 'p-2', id_zona: 'z-campus', nombre_punto: 'Acceso A', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Campus EPN' } }
 
   const filasPorTabla: Record<string, Record<string, unknown>[]> = {
     zona: [CAMPUS, EDIF20, EDIF15, PARQUE],
-    punto_control: [PUNTO_E20],
+    punto_control: [PUNTO_E20, PUNTO_CAMPUS],
     dispositivo: [{
       id_dispositivo: 'd-1', id_punto_control: 'p-1', codigo_mac: 'AA:BB:CC:DD:EE:FF',
       direccion_ip: '10.0.0.10', tipo_tecnologia: 'BIOMETRIA_FACIAL', estado_dispositivo: 'OPERATIVO',
@@ -150,6 +153,20 @@ describe('cascada al editar (el bug de los combos vacíos)', () => {
     const zona = screen.getByRole('combobox', { name: /^Zona/i })
     await waitFor(() => expect(zona).toHaveValue('z-e20'))
     expect(within(zona).getAllByRole('option').length).toBeGreaterThan(1)
+  })
+
+  it('al editar una garita que cuelga del campus, el Tipo de zona no se queda vacío', async () => {
+    // Regresión encontrada por TestSprite: al retirar "Campus" del alta, el desplegable se
+    // quedaba en "— Seleccionar —" para las seis garitas que sí cuelgan del campus, y como el
+    // campo es obligatorio no se podían guardar sin moverlas de zona.
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    await abrirEdicion(usuario, /Acceso A/)
+
+    const tipo = await screen.findByRole('combobox', { name: /Tipo de zona/i })
+    await waitFor(() => expect(tipo).toHaveValue('CAMPUS'))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /^Zona/i })).toHaveValue('z-campus'))
   })
 
   it('al editar un dispositivo, el Punto de control viene resuelto y con opciones', async () => {

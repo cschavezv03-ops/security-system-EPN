@@ -1,0 +1,55 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO — el estado no se elige al registrar",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Zonas'."
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón para registrar una zona nueva."
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario de alta está abierto y muestra los campos 'Nombre' y 'Tipo'"
+    },
+    {
+      "type": "assertion",
+      "description": "En este formulario de alta NO existe ningún campo ni desplegable llamado 'Estado'"
+    },
+    {
+      "type": "action",
+      "description": "Cerrar el formulario sin guardar y entrar en la sección 'Puntos de control'. Pulsar el botón para registrar un punto de control nuevo."
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario de alta está abierto y muestra un campo 'Tipo de zona' y un campo 'Nombre'"
+    },
+    {
+      "type": "assertion",
+      "description": "En este formulario de alta NO existe ningún campo ni desplegable llamado 'Estado'"
+    },
+    {
+      "type": "action",
+      "description": "Desplegar el campo 'Tipo de zona' para ver sus opciones."
+    },
+    {
+      "type": "assertion",
+      "description": "El desplegable 'Tipo de zona' contiene las opciones 'Edificio' y 'Parqueadero'"
+    },
+    {
+      "type": "assertion",
+      "description": "El desplegable 'Tipo de zona' NO contiene la opción 'Campus'"
+    }
+  ]
+}

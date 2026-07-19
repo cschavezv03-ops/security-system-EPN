@@ -1,0 +1,51 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO — al editar un punto de control, el combo Zona tiene opciones",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Puntos de control'."
+    },
+    {
+      "type": "assertion",
+      "description": "La lista muestra al menos un punto de control con su nombre y su zona"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar sobre el primer punto de control de la lista para abrir su ficha, y después pulsar el botón 'Editar'."
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario de edición está abierto y muestra un campo 'Tipo de zona' con un valor ya seleccionado (no vacío)"
+    },
+    {
+      "type": "assertion",
+      "description": "El campo 'Zona' tiene un valor seleccionado que NO está vacío y NO dice 'Seleccione'"
+    },
+    {
+      "type": "action",
+      "description": "Desplegar el campo 'Zona' para ver las opciones disponibles."
+    },
+    {
+      "type": "assertion",
+      "description": "El desplegable 'Zona' contiene al menos una opción con el nombre de una zona; no está vacío"
+    },
+    {
+      "type": "action",
+      "description": "Sin cambiar nada, pulsar el botón de guardar del formulario."
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario se guarda correctamente y NO aparece ningún mensaje de error que diga que el campo Zona es obligatorio"
+    }
+  ]
+}

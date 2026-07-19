@@ -1,0 +1,35 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO — la cuenta se anuncia con el nombre de la persona",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "assertion",
+      "description": "En la parte superior de la pantalla se muestra el nombre del usuario junto a su rol"
+    },
+    {
+      "type": "assertion",
+      "description": "El nombre mostrado del usuario es 'Heidy Tenelema'"
+    },
+    {
+      "type": "assertion",
+      "description": "El nombre mostrado NO es 'heidy.tenelema' ni 'Heidy.tenelema' ni contiene un punto entre el nombre y el apellido"
+    },
+    {
+      "type": "action",
+      "description": "Abrir el módulo 'Puntos de Control' desde el Panel Principal."
+    },
+    {
+      "type": "assertion",
+      "description": "El nombre 'Heidy Tenelema' sigue mostrándose correctamente en el encabezado, sin el punto"
+    }
+  ]
+}

@@ -452,7 +452,13 @@ export const cfgPuntoControl: ResourceConfig = {
     // combo Zona sin ninguna opción, con lo que ni siquiera se podía guardar el registro.
     {
       name: '_filtro_tipo_zona', label: 'Tipo de zona', type: 'select', required: true, persistir: false,
-      options: opcionesCatalogo(CAT.zona_tipo).filter((o) => o.value !== 'CAMPUS'),
+      // "Campus" no se ofrece al registrar (feedback PCO: un punto de control está en un sitio
+      // concreto, no en toda la universidad), pero sí tiene que seguir apareciendo cuando el
+      // punto que se está editando ya cuelga del campus — las garitas de entrada, §V25. Sin esta
+      // excepción el desplegable se quedaba en "— Seleccionar —" al abrir una de esas seis filas
+      // y, al ser obligatorio, obligaba a mover el punto a otra zona para poder guardar.
+      opcionesDependientes: (v) =>
+        opcionesCatalogo(CAT.zona_tipo).filter((o) => o.value !== 'CAMPUS' || v._filtro_tipo_zona === 'CAMPUS'),
       alCambiarLimpiar: ['id_zona'],
       derivarDeRegistro: async (registro) => {
         const { data } = await (supabase as any).from('zona').select('tipo_zona').eq('id_zona', registro.id_zona).maybeSingle()

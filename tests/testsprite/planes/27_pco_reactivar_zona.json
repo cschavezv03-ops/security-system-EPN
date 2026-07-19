@@ -1,0 +1,51 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO — una zona inactivada se puede volver a activar",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Zonas'."
+    },
+    {
+      "type": "action",
+      "description": "Pulsar sobre una zona que esté en estado 'Activa' para abrir su ficha."
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha muestra un botón 'Inactivar'"
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha NO muestra ningún botón 'Reactivar' mientras la zona está activa"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Inactivar' y confirmar la acción en la ventana que aparezca."
+    },
+    {
+      "type": "action",
+      "description": "Volver a abrir la ficha de esa misma zona desde la lista."
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha de la zona muestra ahora el estado 'Inactiva' y un botón 'Reactivar'"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Reactivar'."
+    },
+    {
+      "type": "assertion",
+      "description": "La zona vuelve a mostrarse en estado 'Activa' en la lista"
+    }
+  ]
+}

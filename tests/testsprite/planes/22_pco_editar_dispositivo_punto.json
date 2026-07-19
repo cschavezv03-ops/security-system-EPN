@@ -1,0 +1,43 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO — al editar un dispositivo, el combo Punto de control tiene opciones",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Dispositivos'."
+    },
+    {
+      "type": "assertion",
+      "description": "La lista muestra al menos un dispositivo con su dirección MAC"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar sobre el primer dispositivo de la lista para abrir su ficha, y después pulsar el botón 'Editar'."
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario de edición muestra un campo 'Zona' con un valor ya seleccionado que no está vacío"
+    },
+    {
+      "type": "assertion",
+      "description": "El campo 'Punto de control' tiene un valor seleccionado que NO está vacío"
+    },
+    {
+      "type": "action",
+      "description": "Desplegar el campo 'Punto de control' para ver las opciones disponibles."
+    },
+    {
+      "type": "assertion",
+      "description": "El desplegable 'Punto de control' contiene al menos una opción; no está vacío"
+    }
+  ]
+}
