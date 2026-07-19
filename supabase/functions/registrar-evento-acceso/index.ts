@@ -1,12 +1,30 @@
 // registrar-evento-acceso
 //
-// Implementa el "Resumen operativo" completo de docs/04_REGLAS_NEGOCIO.md:
-// las dos vias de validacion (interna/biometria vs externa/cedula, §D20), el
-// acceso vehicular (un evento por ocupante, es_conductor, denegacion atomica
-// del vehiculo, §D22), y las reglas de salida con sus dos valvulas de escape
-// (§D23). Autenticada con service_role para las escrituras; valida
-// codigo_mac/direccion_ip contra `dispositivo` para el camino AUTOMATICA, o
-// el JWT del guardia para el camino MANUAL (docs/01_AUTENTICACION_Y_ROLES.md §4).
+// Unico punto del sistema donde se decide y se escribe un ingreso o una salida. Implementa el
+// "Resumen operativo" de docs/04_REGLAS_NEGOCIO.md y la cadena de validaciones de CAC
+// (RF-CA-005 a RF-CA-021), con la denegacion inmediata que exige RF-CA-019.
+//
+// Autenticada con service_role para las escrituras; valida codigo_mac/direccion_ip contra
+// `dispositivo` para el camino AUTOMATICA, o el JWT del guardia para el camino MANUAL
+// (docs/01_AUTENTICACION_Y_ROLES.md §4).
+//
+// ORDEN DE LA CADENA (RF-CA-019, "sin continuar con las validaciones restantes"):
+//
+//   0. identidad          -> sin persona identificada no hay categoria que consultar
+//   1. estado de la persona    RF-CA-008
+//   2. existe regla            RF-CA-005
+//   3. garita autorizada       RF-CA-007
+//   4. horario permitido       RF-CA-006
+//   5. memorando existe        RF-CA-009
+//   6. memorando vigente       RF-CA-010
+//   7. biometria               RF-CA-014
+//   8. placa                   RF-CA-015
+//   9. doble autenticacion     RF-CA-016 / RNF-CA-005
+//
+// Cada motivo empieza por un CODIGO canonico antes de ':'. Ese prefijo es lo que el trigger
+// generar_alerta_desde_evento_denegado convierte en tipo de alerta, y lo que la pantalla
+// traduce a un mensaje para el guardia (RNF-CA-004). El texto que va detras es para las
+// personas; el codigo, para el sistema.
 
 import { createClient, type SupabaseClient } from 'jsr:@supabase/supabase-js@2';
 import { CORS_HEADERS, errorResponse, jsonResponse } from '../_shared/respuestas.ts';
@@ -15,8 +33,12 @@ interface OcupanteInput {
   id_persona?: string;
   cedula?: string;
   es_conductor?: boolean;
-  // Resultado ya obtenido de validar-biometria; solo aplica a INTERNA (§D20).
+  /** Resultado ya obtenido de validar-biometria; solo aplica a INTERNA (§D20). */
   confidence?: number;
+  /** El guardia confirmo visualmente una coincidencia de la banda de revision (RF-CA-014). */
+  confirmado_por_guardia?: boolean;
+  /** El rostro no coincidio con nadie enrolado: se registra como desconocido (RF-CA-021). */
+  desconocido?: boolean;
 }
 
 interface RegistrarEventoBody {
@@ -26,8 +48,11 @@ interface RegistrarEventoBody {
   codigo_mac?: string;
   direccion_ip?: string;
   id_vehiculo?: string;
+  /** Placa tal como la leyo la camara, aunque no resolviera a ningun vehiculo (RF-CA-015). */
+  placa_detectada?: string;
+  confianza_placa?: number;
   ocupantes: OcupanteInput[];
-  // Valvula 2 (§D23): el guardia siempre puede forzar una salida manual.
+  /** Valvula 2 (§D23): el guardia siempre puede forzar una salida manual. */
   salida_manual_forzada?: boolean;
   motivo_salida_manual?: string;
 }
@@ -38,6 +63,13 @@ interface ResultadoValidacion {
   id_regla_acceso: string | null;
   id_autorizacion_visita: string | null;
   generarAlertaInformativa?: string | null;
+  /** Ingreso al que corresponde esta salida (RF-CA-013). */
+  idEventoIngreso?: string | null;
+}
+
+interface Umbrales {
+  biometria: number;
+  biometriaRevision: number;
 }
 
 async function obtenerParametro(supabase: SupabaseClient, codigo: string): Promise<number> {
@@ -51,9 +83,8 @@ async function obtenerParametro(supabase: SupabaseClient, codigo: string): Promi
   return Number(data.valor_parametro);
 }
 
-// docs/02_MATRIZ_PERMISOS_RLS.md no especifica zona horaria para
-// regla_acceso.horario_inicio/fin (tipo `time`, sin tz). Se asume hora local
-// de Ecuador (America/Guayaquil, UTC-5, sin horario de verano). Ver docs/99.
+// regla_acceso.horario_inicio/fin son `time` sin zona. Se interpretan como hora local de
+// Ecuador (America/Guayaquil, UTC-5, sin horario de verano), igual que el resto del sistema.
 function horaLocalEcuador(fecha: Date): string {
   const partes = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'America/Guayaquil',
@@ -66,32 +97,80 @@ function horaLocalEcuador(fecha: Date): string {
   return `${obtener('hour')}:${obtener('minute')}:${obtener('second')}`;
 }
 
-// §D24: si dos reglas solapan, gana la mas especifica (id_punto_control
-// explicito sobre nulo); si empatan, la mas restrictiva (requiere_memorando).
+/** ¿Cae `hora` dentro de [inicio, fin]?
+ *
+ *  Si fin < inicio, el intervalo cruza la medianoche (22:00–06:00) y hay que partirlo en dos
+ *  tramos. La version anterior comparaba `inicio <= hora <= fin` en la propia consulta a
+ *  PostgREST, asi que una regla nocturna no casaba NUNCA: a las 23:00 fallaba `hora <= 06:00`
+ *  y a las 02:00 fallaba `22:00 <= hora`. Es el mismo error que ya se corrigio en los turnos
+ *  del guardia (§D59); regla_acceso permite el cruce de medianoche a proposito, asi que aqui
+ *  tambien hay que contemplarlo. */
+function horaEnRango(hora: string, inicio: string, fin: string): boolean {
+  if (inicio <= fin) return hora >= inicio && hora <= fin;
+  return hora >= inicio || hora <= fin;
+}
+
+type MotivoRegla = 'SIN_REGLA_ACCESO' | 'GARITA_NO_AUTORIZADA' | 'FUERA_DE_HORARIO';
+
+interface EvaluacionRegla {
+  // deno-lint-ignore no-explicit-any
+  regla: any | null;
+  motivo: MotivoRegla | null;
+}
+
+/** RF-CA-005 / RF-CA-006 / RF-CA-007, en tres pasos separados y en ese orden.
+ *
+ *  Antes esto era una sola consulta que filtraba categoria, punto y horario a la vez: si no
+ *  devolvia nada, era imposible saber cual de las tres condiciones habia fallado y todo se
+ *  reportaba como FUERA_DE_HORARIO. Un guardia leia "fuera de horario" cuando el problema
+ *  real era que su garita no estaba autorizada, y avisaba a la persona equivocada. RNF-CA-004
+ *  pide justo lo contrario: el motivo especifico, sin ambiguedad.
+ *
+ *  §D24: si varias reglas siguen siendo aplicables, gana la mas especifica (la que nombra
+ *  garitas concretas sobre la que vale para todas); si empatan, la mas restrictiva. */
 async function evaluarReglaAcceso(
   supabase: SupabaseClient,
   idCategoria: string,
   idPuntoControl: string,
   ahora: Date,
-) {
-  const horaActual = horaLocalEcuador(ahora);
-
+): Promise<EvaluacionRegla> {
   const { data: reglas, error } = await supabase
     .from('regla_acceso')
-    .select('*')
+    .select('*, garitas:regla_acceso_punto_control(id_punto_control)')
     .eq('id_categoria', idCategoria)
-    .eq('estado_regla', 'ACTIVA')
-    .lte('horario_inicio', horaActual)
-    .gte('horario_fin', horaActual)
-    .or(`id_punto_control.eq.${idPuntoControl},id_punto_control.is.null`);
+    .eq('estado_regla', 'ACTIVA');
 
   if (error) throw new Error(error.message);
-  if (!reglas || reglas.length === 0) return null;
 
-  const especificas = reglas.filter((r) => r.id_punto_control === idPuntoControl);
-  const candidatas = especificas.length > 0 ? especificas : reglas;
+  // 1. ¿Existe alguna regla para la categoria? (RF-CA-005)
+  if (!reglas || reglas.length === 0) {
+    return { regla: null, motivo: 'SIN_REGLA_ACCESO' };
+  }
+
+  // 2. ¿Alguna de ellas autoriza esta garita? (RF-CA-007)
+  //    Sin garitas asociadas, la regla aplica en todas — misma semantica que la columna
+  //    nullable que habia antes.
+  const enEstaGarita = reglas.filter((r) => {
+    const garitas = (r.garitas ?? []) as Array<{ id_punto_control: string }>;
+    return garitas.length === 0 || garitas.some((g) => g.id_punto_control === idPuntoControl);
+  });
+  if (enEstaGarita.length === 0) {
+    return { regla: null, motivo: 'GARITA_NO_AUTORIZADA' };
+  }
+
+  // 3. ¿Alguna esta vigente a esta hora? (RF-CA-006)
+  const horaActual = horaLocalEcuador(ahora);
+  const vigentes = enEstaGarita.filter((r) =>
+    horaEnRango(horaActual, r.horario_inicio, r.horario_fin)
+  );
+  if (vigentes.length === 0) {
+    return { regla: null, motivo: 'FUERA_DE_HORARIO' };
+  }
+
+  const especificas = vigentes.filter((r) => ((r.garitas ?? []) as unknown[]).length > 0);
+  const candidatas = especificas.length > 0 ? especificas : vigentes;
   candidatas.sort((a, b) => Number(b.requiere_memorando) - Number(a.requiere_memorando));
-  return candidatas[0];
+  return { regla: candidatas[0], motivo: null };
 }
 
 async function resolverPersona(supabase: SupabaseClient, ocupante: OcupanteInput) {
@@ -116,7 +195,7 @@ async function resolverPersona(supabase: SupabaseClient, ocupante: OcupanteInput
   return null;
 }
 
-// Prioriza MEMORANDO sobre AUTORIZACION_DIARIA si ambos estan vigentes.
+/** Prioriza MEMORANDO sobre AUTORIZACION_DIARIA si ambos estan vigentes. */
 async function obtenerVigenciaExterna(supabase: SupabaseClient, idPersona: string) {
   const { data, error } = await supabase
     .from('vista_vigencia_acceso')
@@ -128,16 +207,36 @@ async function obtenerVigenciaExterna(supabase: SupabaseClient, idPersona: strin
   return data.find((v) => v.via_vigencia === 'MEMORANDO') ?? data[0];
 }
 
+/** RF-CA-009: ¿esta persona tiene ALGUN memorando registrado, vigente o no?
+ *
+ *  Hace falta distinguirlo de "no esta vigente" (RF-CA-010): son dos requisitos distintos con
+ *  dos mensajes distintos. A quien nunca tuvo memorando hay que tramitarle uno; a quien lo
+ *  tiene vencido, renovarselo. Decirle "memorando vencido" al primero manda al guardia y a la
+ *  persona a buscar un papel que no existe. */
+async function tieneMemorandoRegistrado(supabase: SupabaseClient, idPersona: string) {
+  const { count, error } = await supabase
+    .from('persona_memorando')
+    .select('id_persona_memorando', { count: 'exact', head: true })
+    .eq('id_persona', idPersona);
+  if (error) throw new Error(error.message);
+  return (count ?? 0) > 0;
+}
+
 async function verificarVehiculoActivo(supabase: SupabaseClient, idVehiculo: string) {
   const { data, error } = await supabase
     .from('vehiculo')
-    .select('estado_vehiculo')
+    .select('estado_vehiculo, placa')
     .eq('id_vehiculo', idVehiculo)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!data) return { activo: false, motivo: 'Vehiculo no encontrado' };
+  if (!data) {
+    return { activo: false, motivo: 'VEHICULO_NO_AUTORIZADO: el vehiculo no existe en el sistema' };
+  }
   if (data.estado_vehiculo !== 'ACTIVO') {
-    return { activo: false, motivo: `VEHICULO_NO_AUTORIZADO: vehiculo no ACTIVO (estado=${data.estado_vehiculo}); la placa no autoriza el ingreso` };
+    return {
+      activo: false,
+      motivo: `VEHICULO_NO_AUTORIZADO: el vehiculo ${data.placa ?? ''} esta ${String(data.estado_vehiculo).toLowerCase()}, no autorizado para circular`,
+    };
   }
   return { activo: true, motivo: null as string | null };
 }
@@ -148,61 +247,152 @@ async function validarIngresoOcupante(
   persona: any,
   ocupante: OcupanteInput,
   idPuntoControl: string,
-  umbralBiometria: number,
+  umbrales: Umbrales,
   ahora: Date,
+  contexto: { idVehiculo?: string; esVehicular: boolean },
 ): Promise<ResultadoValidacion> {
-  if (persona.tipo_persona === 'INTERNA') {
-    const confidence = ocupante.confidence ?? 0;
-    if (confidence < umbralBiometria) {
+  const vacio = { id_regla_acceso: null, id_autorizacion_visita: null };
+
+  // --- 1. Estado de la persona (RF-CA-008) -------------------------------------------
+  // Antes esto solo se comprobaba para personas INTERNAS: una persona externa dada de baja o
+  // bloqueada pasaba el control si su memorando seguia vigente. RF-CA-008 no distingue
+  // ambitos — "unicamente los usuarios con estado Activo podran continuar".
+  if (persona.estado !== 'ACTIVO') {
+    // El estado se nombra tal cual figura en el sistema, entre parentesis, en vez de
+    // incrustarlo en la frase: "la persona esta inactivo" no concuerda en genero, y los
+    // catalogos estan en masculino singular por convencion (CLAUDE.md).
+    const estados: Record<string, string> = {
+      INACTIVO: 'no esta activa',
+      BLOQUEADO: 'esta bloqueada',
+      DADO_DE_BAJA: 'esta dada de baja',
+    };
+    return {
+      autorizado: false,
+      motivo: `PERSONA_NO_AUTORIZADA: la persona ${estados[persona.estado] ?? 'no esta activa'} en el sistema`,
+      ...vacio,
+    };
+  }
+
+  // --- 2 a 4. Regla, garita y horario (RF-CA-005 / 007 / 006) ------------------------
+  const { regla, motivo: motivoRegla } = await evaluarReglaAcceso(
+    supabase,
+    persona.id_categoria,
+    idPuntoControl,
+    ahora,
+  );
+
+  if (!regla) {
+    const textos: Record<MotivoRegla, string> = {
+      SIN_REGLA_ACCESO:
+        'no existe ninguna regla de acceso configurada para su categoria; el ingreso no puede autorizarse',
+      GARITA_NO_AUTORIZADA:
+        'su categoria no tiene autorizado el ingreso por esta garita',
+      FUERA_DE_HORARIO:
+        'la hora actual esta fuera del horario permitido para su categoria',
+    };
+    return {
+      autorizado: false,
+      motivo: `${motivoRegla}: ${textos[motivoRegla!]}`,
+      ...vacio,
+    };
+  }
+
+  const conRegla = { id_regla_acceso: regla.id_regla_acceso, id_autorizacion_visita: null };
+
+  // --- 5 y 6. Memorando (RF-CA-009 / RF-CA-010) --------------------------------------
+  // La comprobacion se hace siempre que la REGLA lo exija, no solo a las personas externas.
+  // Antes el flag `requiere_memorando` era decorativo para el personal interno: una regla que
+  // decia exigir memorando dejaba pasar a cualquier interno sin mirar si lo tenia. Es
+  // literalmente lo que pide RF-CA-001: "si requiere memorando hay que validar que realmente
+  // este ligado a un memorando, no tiene que ser un campo de decoracion".
+  if (regla.requiere_memorando) {
+    const vigencia = await obtenerVigenciaExterna(supabase, persona.id_persona);
+    const conMemorandoVigente = vigencia?.via_vigencia === 'MEMORANDO';
+
+    if (!conMemorandoVigente) {
+      const tieneAlguno = await tieneMemorandoRegistrado(supabase, persona.id_persona);
       return {
         autorizado: false,
-        motivo: `BIOMETRIA_FALLIDA: confidence ${confidence} < umbral ${umbralBiometria}`,
-        id_regla_acceso: null,
+        motivo: tieneAlguno
+          ? 'MEMORANDO_VENCIDO: su memorando no esta vigente en este momento'
+          : 'MEMORANDO_VENCIDO: esta regla exige memorando y la persona no tiene ninguno registrado',
+        id_regla_acceso: regla.id_regla_acceso,
+        id_autorizacion_visita: vigencia?.id_autorizacion ?? null,
+      };
+    }
+  }
+
+  // Personas EXTERNAS: ademas del memorando que pueda exigir la regla, necesitan alguna via
+  // de vigencia (memorando o autorizacion de visita diaria) para estar dentro del campus.
+  if (persona.tipo_persona !== 'INTERNA') {
+    const vigencia = await obtenerVigenciaExterna(supabase, persona.id_persona);
+    if (!vigencia) {
+      return {
+        autorizado: false,
+        motivo: 'MEMORANDO_VENCIDO: no tiene memorando vigente ni autorizacion de visita para hoy',
+        id_regla_acceso: regla.id_regla_acceso,
         id_autorizacion_visita: null,
       };
     }
-    if (persona.estado !== 'ACTIVO') {
-      return { autorizado: false, motivo: 'PERSONA_NO_AUTORIZADA: persona interna no ACTIVA', id_regla_acceso: null, id_autorizacion_visita: null };
+    conRegla.id_autorizacion_visita =
+      vigencia.via_vigencia === 'AUTORIZACION_DIARIA' ? vigencia.id_autorizacion : null;
+  }
+
+  // --- 7. Biometria (RF-CA-014) ------------------------------------------------------
+  // Solo el personal interno se identifica por rostro (§D20). Los externos entran por cedula
+  // tecleada, asi que no hay confidence que comprobar.
+  const identificadoPorRostro = typeof ocupante.confidence === 'number';
+  if (persona.tipo_persona === 'INTERNA' && identificadoPorRostro) {
+    const confianza = ocupante.confidence!;
+
+    if (confianza < umbrales.biometriaRevision) {
+      return {
+        autorizado: false,
+        motivo: `BIOMETRIA_FALLIDA: el rostro no coincide con el registro biometrico (confianza ${confianza.toFixed(3)})`,
+        ...conRegla,
+      };
     }
 
-    const regla = await evaluarReglaAcceso(supabase, persona.id_categoria, idPuntoControl, ahora);
-    if (!regla) {
-      return { autorizado: false, motivo: 'FUERA_DE_HORARIO: sin regla de acceso aplicable a la categoria/punto/horario', id_regla_acceso: null, id_autorizacion_visita: null };
+    // Banda de revision: parecido suficiente para proponer un nombre, no para autorizar solo.
+    // Si el guardia no lo ha confirmado mirando a la persona, no pasa.
+    if (confianza < umbrales.biometria && ocupante.confirmado_por_guardia !== true) {
+      return {
+        autorizado: false,
+        motivo: `BIOMETRIA_FALLIDA: coincidencia dudosa (confianza ${confianza.toFixed(3)}); requiere confirmacion visual del guardia`,
+        ...conRegla,
+      };
     }
-    return { autorizado: true, motivo: null, id_regla_acceso: regla.id_regla_acceso, id_autorizacion_visita: null };
   }
 
-  // EXTERNA: nunca se consulta biometria (§D20). Identidad ya resuelta por
-  // cedula en resolverPersona().
-  const vigencia = await obtenerVigenciaExterna(supabase, persona.id_persona);
-  if (!vigencia) {
-    return {
-      autorizado: false,
-      motivo: 'MEMORANDO_VENCIDO: sin memorando vigente ni autorizacion de visita diaria',
-      id_regla_acceso: null,
-      id_autorizacion_visita: null,
-    };
+  // --- 8 y 9. Vehiculo y doble autenticacion (RF-CA-015 / RF-CA-016 / RNF-CA-005) -----
+  if (contexto.esVehicular && contexto.idVehiculo) {
+    const asociada = await supabase.rpc('persona_asociada_a_vehiculo', {
+      p_id_persona: persona.id_persona,
+      p_id_vehiculo: contexto.idVehiculo,
+    });
+    if (asociada.error) throw new Error(asociada.error.message);
+
+    if (asociada.data !== true) {
+      return {
+        autorizado: false,
+        motivo: 'PLACA_NO_RECONOCIDA: la placa no esta asociada a esta persona',
+        ...conRegla,
+      };
+    }
+
+    // RNF-CA-005: al conductor se le exigen LAS DOS validaciones. Un pasajero puede entrar
+    // identificado por cedula, pero quien va al volante tiene que haber pasado por el rostro:
+    // si no, basta con conducir el coche de otro para entrar con su placa.
+    if (ocupante.es_conductor === true && persona.tipo_persona === 'INTERNA' && !identificadoPorRostro) {
+      return {
+        autorizado: false,
+        motivo: 'DOBLE_AUTENTICACION_FALLIDA: el conductor debe identificarse tambien por reconocimiento facial',
+        ...conRegla,
+      };
+    }
   }
 
-  const regla = await evaluarReglaAcceso(supabase, persona.id_categoria, idPuntoControl, ahora);
-  if (!regla) {
-    return { autorizado: false, motivo: 'FUERA_DE_HORARIO: sin regla de acceso aplicable a la categoria/punto/horario', id_regla_acceso: null, id_autorizacion_visita: null };
-  }
-  if (regla.requiere_memorando && vigencia.via_vigencia !== 'MEMORANDO') {
-    return {
-      autorizado: false,
-      motivo: 'MEMORANDO_VENCIDO: la regla exige memorando; la persona solo tiene autorizacion de visita diaria',
-      id_regla_acceso: regla.id_regla_acceso,
-      id_autorizacion_visita: vigencia.id_autorizacion ?? null,
-    };
-  }
-
-  return {
-    autorizado: true,
-    motivo: null,
-    id_regla_acceso: regla.id_regla_acceso,
-    id_autorizacion_visita: vigencia.via_vigencia === 'AUTORIZACION_DIARIA' ? vigencia.id_autorizacion : null,
-  };
+  return { autorizado: true, motivo: null, ...conRegla };
 }
 
 // deno-lint-ignore no-explicit-any
@@ -213,45 +403,63 @@ async function validarSalidaOcupante(
   salidaManualForzada: boolean,
   motivoSalidaManual: string | undefined,
 ): Promise<ResultadoValidacion> {
-  // La vigencia nunca se revalida en la SALIDA (resumen operativo, doc04).
-  const inicioDia = new Date();
-  inicioDia.setUTCHours(0, 0, 0, 0);
+  // La vigencia nunca se revalida en la SALIDA (resumen operativo, doc04): a quien ya esta
+  // dentro se le deja salir.
 
-  const { data: ultimoIngreso, error } = await supabase
+  // RF-CA-013: la salida se asocia al ingreso correspondiente. Se busca el ultimo INGRESO
+  // AUTORIZADO de la persona que no tenga ya una salida colgada, sin acotarlo al dia natural:
+  // quien entra a las 23:00 y sale a las 02:00 tiene su ingreso en la fecha anterior, y
+  // acotar a "hoy" dejaba esa salida huerfana.
+  const { data: ingresos, error } = await supabase
     .from('evento_acceso')
-    .select('id_punto_control, id_autorizacion_visita, fecha_hora')
+    .select('id_evento, id_punto_control, id_autorizacion_visita, fecha_hora')
     .eq('id_persona', persona.id_persona)
     .eq('tipo_movimiento', 'INGRESO')
     .eq('resultado', 'AUTORIZADO')
-    .not('id_autorizacion_visita', 'is', null)
-    .gte('fecha_hora', inicioDia.toISOString())
     .order('fecha_hora', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+    .limit(10);
   if (error) throw new Error(error.message);
+
+  interface IngresoAbierto {
+    id_evento: string;
+    id_punto_control: string;
+    id_autorizacion_visita: string | null;
+    fecha_hora: string;
+  }
+  let ultimoIngreso: IngresoAbierto | null = null;
+  for (const ingreso of ingresos ?? []) {
+    const { count, error: errorSalida } = await supabase
+      .from('evento_acceso')
+      .select('id_evento', { count: 'exact', head: true })
+      .eq('id_evento_ingreso', ingreso.id_evento);
+    if (errorSalida) throw new Error(errorSalida.message);
+    if ((count ?? 0) === 0) {
+      ultimoIngreso = ingreso as IngresoAbierto;
+      break;
+    }
+  }
+
+  const base = {
+    id_regla_acceso: null,
+    id_autorizacion_visita: ultimoIngreso?.id_autorizacion_visita ?? null,
+    idEventoIngreso: ultimoIngreso?.id_evento ?? null,
+  };
 
   if (salidaManualForzada) {
     // Valvula 2 (§D23): siempre disponible, con justificacion.
     return {
       autorizado: true,
       motivo: motivoSalidaManual ?? 'Salida manual forzada por el guardia',
-      id_regla_acceso: null,
-      id_autorizacion_visita: ultimoIngreso?.id_autorizacion_visita ?? null,
+      ...base,
       generarAlertaInformativa: 'PUNTO_SALIDA_INCORRECTO',
     };
   }
 
-  // Sin autorizacion de visita diaria de hoy, o salio por el mismo punto: OK.
-  // (§D23: la regla del mismo punto solo aplica a visitantes con
-  // autorizacion_visita_diaria, no a externos con memorando ni a internos.)
-  if (!ultimoIngreso || ultimoIngreso.id_punto_control === idPuntoControl) {
-    return {
-      autorizado: true,
-      motivo: null,
-      id_regla_acceso: null,
-      id_autorizacion_visita: ultimoIngreso?.id_autorizacion_visita ?? null,
-    };
+  // La regla del "mismo punto" solo aplica a visitantes con autorizacion de visita diaria
+  // (§D23), no a externos con memorando ni a internos.
+  const esVisitaDiaria = Boolean(ultimoIngreso?.id_autorizacion_visita);
+  if (!ultimoIngreso || !esVisitaDiaria || ultimoIngreso.id_punto_control === idPuntoControl) {
+    return { autorizado: true, motivo: null, ...base };
   }
 
   const { data: puntoIngreso, error: puntoError } = await supabase
@@ -262,22 +470,20 @@ async function validarSalidaOcupante(
   if (puntoError) throw new Error(puntoError.message);
 
   if (puntoIngreso && puntoIngreso.estado_punto !== 'ACTIVO') {
-    // Valvula 1 (§D23): el punto de ingreso no esta ACTIVO -> se autoriza la
-    // salida por otro punto, con alerta.
+    // Valvula 1 (§D23): el punto de ingreso no esta operativo -> se autoriza la salida por
+    // otro punto, con alerta.
     return {
       autorizado: true,
-      motivo: 'Salida autorizada por punto alterno: el punto de ingreso no esta ACTIVO',
-      id_regla_acceso: null,
-      id_autorizacion_visita: ultimoIngreso.id_autorizacion_visita,
+      motivo: 'Salida autorizada por punto alterno: el punto de ingreso no esta operativo',
+      ...base,
       generarAlertaInformativa: 'PUNTO_SALIDA_INCORRECTO',
     };
   }
 
   return {
     autorizado: false,
-    motivo: 'PUNTO_SALIDA_INCORRECTO: debe salir por el mismo punto de control por el que ingreso',
-    id_regla_acceso: null,
-    id_autorizacion_visita: ultimoIngreso.id_autorizacion_visita,
+    motivo: 'PUNTO_SALIDA_INCORRECTO: debe salir por la misma garita por la que ingreso',
+    ...base,
   };
 }
 
@@ -329,9 +535,8 @@ Deno.serve(async (req) => {
     if (dispError) return errorResponse(dispError.message, 500);
 
     if (!dispositivo || dispositivo.estado_dispositivo !== 'OPERATIVO') {
-      // Sin evento real que referenciar todavia: se deja constancia en
-      // bitacora_sistema (nunca en alerta_seguridad, que exige id_evento NOT
-      // NULL). Ver docs/99_DUDAS_PARA_EL_EQUIPO.md.
+      // Sin evento real que referenciar todavia: se deja constancia en bitacora_sistema
+      // (nunca en alerta_seguridad, que exige id_evento NOT NULL). Ver docs/99.
       await supabaseService.from('bitacora_sistema').insert({
         accion: 'RECHAZO_DISPOSITIVO_NO_RECONOCIDO',
         modulo: 'CAC',
@@ -361,12 +566,9 @@ Deno.serve(async (req) => {
     }
     idUsuarioGuardia = userData.user.id;
 
-    // Barrera de turno (req 34): un guardia solo registra eventos dentro de su
-    // turno/hora. Se evalua con la hora del SERVIDOR (esta_en_turno_guardia usa
-    // now() y America/Guayaquil), nunca con la del navegador. Solo afecta a los
-    // guardias; otros roles con permiso pasan (verificar_turno_guardia_actual).
-    // Como esta funcion escribe con service_role (auth.uid() nulo), el trigger
-    // de la BD no cubre este camino: la barrera se aplica aqui.
+    // Barrera de turno (req 34): un guardia solo registra eventos dentro de su turno/hora. Se
+    // evalua con la hora del SERVIDOR, nunca con la del navegador. Como esta funcion escribe
+    // con service_role (auth.uid() nulo), el trigger de la BD no cubre este camino.
     const supabaseGuardia = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -375,7 +577,6 @@ Deno.serve(async (req) => {
     const { data: turno, error: turnoError } = await supabaseGuardia.rpc('verificar_turno_guardia_actual');
     if (turnoError) return errorResponse(turnoError.message, 500);
     if (turno && (turno as { permitido: boolean }).permitido === false) {
-      // Registrar el intento denegado en bitacora (transaccion propia, persiste).
       await supabaseGuardia.rpc('registrar_intento_fuera_de_turno', {
         p_detalle: `Intento de registrar ${tipo_movimiento} en punto_control=${id_punto_control} fuera de turno.`,
       });
@@ -386,9 +587,23 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ---- Resolver todos los ocupantes antes de escribir nada (todo o nada) ----
-  const personasResueltas: Array<{ ocupante: OcupanteInput; persona: Record<string, unknown> }> = [];
+  const esVehicular = Boolean(body.id_vehiculo) || Boolean(body.placa_detectada);
+  const tipoAcceso = esVehicular ? 'VEHICULAR' : 'PEATONAL';
+  const placaDetectada = body.placa_detectada
+    ? String(body.placa_detectada).toUpperCase().replace(/[^A-Z0-9]/g, '')
+    : null;
+
+  // ---- Resolver todos los ocupantes antes de escribir nada ----
+  const personasResueltas: Array<{ ocupante: OcupanteInput; persona: Record<string, unknown> | null }> = [];
   for (const ocupante of ocupantes) {
+    // RF-CA-021: un rostro que no coincide con nadie SI genera evento, sin persona asociada.
+    // Antes esto devolvia 404 y el intento no dejaba rastro en ningun sitio — justo el caso
+    // que mas interesa registrar.
+    if (ocupante.desconocido === true) {
+      personasResueltas.push({ ocupante, persona: null });
+      continue;
+    }
+
     const persona = await resolverPersona(supabaseService, ocupante);
     if (!persona) {
       return errorResponse(
@@ -399,7 +614,10 @@ Deno.serve(async (req) => {
     personasResueltas.push({ ocupante, persona });
   }
 
-  const umbralBiometria = await obtenerParametro(supabaseService, 'UMBRAL_BIOMETRIA');
+  const umbrales: Umbrales = {
+    biometria: await obtenerParametro(supabaseService, 'UMBRAL_BIOMETRIA'),
+    biometriaRevision: await obtenerParametro(supabaseService, 'UMBRAL_BIOMETRIA_REVISION'),
+  };
 
   // ---- Vehicular: la placa autoriza al vehiculo, no a las personas (§D22) ----
   let vehiculoActivo = true;
@@ -408,6 +626,10 @@ Deno.serve(async (req) => {
     const chequeo = await verificarVehiculoActivo(supabaseService, body.id_vehiculo);
     vehiculoActivo = chequeo.activo;
     motivoVehiculoInactivo = chequeo.motivo;
+  } else if (placaDetectada) {
+    // Se leyo una placa que no resolvio a ningun vehiculo registrado (RF-CA-015 / RF-CA-023).
+    vehiculoActivo = false;
+    motivoVehiculoInactivo = `PLACA_NO_RECONOCIDA: la placa ${placaDetectada} no corresponde a ningun vehiculo registrado`;
   }
 
   const ahora = new Date();
@@ -418,10 +640,22 @@ Deno.serve(async (req) => {
   for (const { ocupante, persona } of personasResueltas) {
     let resultado: ResultadoValidacion;
 
-    if (!vehiculoActivo) {
+    if (!persona) {
+      // RF-CA-021 — persona desconocida.
+      resultado = {
+        autorizado: false,
+        motivo: 'PERSONA_DESCONOCIDA: el rostro capturado no coincide con ninguna persona registrada',
+        id_regla_acceso: null,
+        id_autorizacion_visita: null,
+      };
+    } else if (!vehiculoActivo) {
+      // RF-CA-019: la denegacion del vehiculo corta la cadena para todos sus ocupantes.
       resultado = { autorizado: false, motivo: motivoVehiculoInactivo, id_regla_acceso: null, id_autorizacion_visita: null };
     } else if (tipo_movimiento === 'INGRESO') {
-      resultado = await validarIngresoOcupante(supabaseService, persona, ocupante, id_punto_control, umbralBiometria, ahora);
+      resultado = await validarIngresoOcupante(
+        supabaseService, persona, ocupante, id_punto_control, umbrales, ahora,
+        { idVehiculo: body.id_vehiculo, esVehicular },
+      );
     } else {
       resultado = await validarSalidaOcupante(
         supabaseService,
@@ -435,17 +669,22 @@ Deno.serve(async (req) => {
     const { data: eventoInsertado, error: insertError } = await supabaseService
       .from('evento_acceso')
       .insert({
-        id_persona: persona.id_persona,
+        id_persona: persona?.id_persona ?? null,
         id_vehiculo: body.id_vehiculo ?? null,
         id_punto_control,
         tipo_movimiento,
+        tipo_acceso: tipoAcceso,
         fecha_hora: fechaHora,
         resultado: resultado.autorizado ? 'AUTORIZADO' : 'DENEGADO',
         motivo_resultado: resultado.motivo,
         origen_registro,
         id_regla_acceso: resultado.id_regla_acceso,
         id_autorizacion_visita: resultado.id_autorizacion_visita,
+        id_evento_ingreso: resultado.idEventoIngreso ?? null,
         es_conductor: ocupante.es_conductor === true,
+        placa_detectada: placaDetectada,
+        confianza_placa: typeof body.confianza_placa === 'number' ? body.confianza_placa : null,
+        confianza_biometria: typeof ocupante.confidence === 'number' ? ocupante.confidence : null,
       })
       .select('id_evento')
       .single();
@@ -460,7 +699,7 @@ Deno.serve(async (req) => {
 
     resultadosEventos.push({
       id_evento: eventoInsertado.id_evento,
-      id_persona: persona.id_persona,
+      id_persona: persona?.id_persona ?? null,
       cedula: ocupante.cedula ?? null,
       es_conductor: ocupante.es_conductor === true,
       autorizado: resultado.autorizado,
@@ -468,9 +707,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Alertas informativas de las valvulas de escape (§D23): el evento queda
-  // AUTORIZADO pero igual se genera alerta. El trigger del bloque 5 solo
-  // dispara sobre eventos DENEGADO (§D4), por eso se insertan aqui.
+  // Alertas informativas de las valvulas de escape (§D23): el evento queda AUTORIZADO pero
+  // igual se genera alerta. El trigger solo dispara sobre eventos DENEGADO (§D4).
   for (const alerta of alertasInformativas) {
     await supabaseService.from('alerta_seguridad').insert({
       id_evento: alerta.id_evento,
@@ -480,10 +718,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // El trigger automatico de bitacora_sistema (bloque 5) lee auth.uid() al
-  // nivel de sesion de Postgres, que aqui es NULL (esta funcion escribe con
-  // service_role, no con el JWT del guardia). Se deja una fila explicita con
-  // la atribucion correcta para el camino MANUAL. Ver docs/99 (E11).
+  // El trigger automatico de bitacora lee auth.uid(), que aqui es NULL (service_role). Se deja
+  // una fila explicita con la atribucion correcta para el camino MANUAL. Ver docs/99 (E11).
   if (origen_registro === 'MANUAL' && idUsuarioGuardia) {
     await supabaseService.from('bitacora_sistema').insert({
       id_usuario: idUsuarioGuardia,
@@ -501,9 +737,11 @@ Deno.serve(async (req) => {
   return jsonResponse({
     id_punto_control,
     tipo_movimiento,
+    tipo_acceso: tipoAcceso,
     origen_registro,
     id_vehiculo: body.id_vehiculo ?? null,
-    vehiculo_autorizado: body.id_vehiculo ? vehiculoAutorizado : undefined,
+    placa_detectada: placaDetectada,
+    vehiculo_autorizado: esVehicular ? vehiculoAutorizado : undefined,
     ocupantes: resultadosEventos,
   });
 });
