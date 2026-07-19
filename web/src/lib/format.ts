@@ -30,8 +30,25 @@ export function iniciales(nombres?: string | null, apellidos?: string | null): s
 }
 
 /** Fecha de hoy en formato YYYY-MM-DD (para inputs date / autorizaciones). */
+/**
+ * Fecha de hoy **en Ecuador**, como AAAA-MM-DD.
+ *
+ * Usaba `toISOString()`, que da la fecha en UTC. Como Ecuador va cinco horas por detrás, a
+ * partir de las 19:00 hora local devolvía ya el día siguiente, y eso llegaba a decisiones de
+ * acceso: una autorización de visita para hoy se mostraba como "Caducada" durante las últimas
+ * cinco horas de cada jornada, y el valor por defecto al registrar una visita era mañana.
+ *
+ * Espejo de `public.hoy_ecuador()`. Se usa el nombre de la zona y no un desplazamiento fijo:
+ * Ecuador continental no aplica horario de verano hoy, pero eso puede cambiar.
+ */
 export function hoyISO(): string {
-  return new Date().toISOString().slice(0, 10)
+  // en-CA formatea como AAAA-MM-DD, que es justo lo que espera un <input type="date">.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guayaquil',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 /** Autoformatea una MAC mientras se escribe: agrega ":" cada 2 hex y fuerza mayúsculas

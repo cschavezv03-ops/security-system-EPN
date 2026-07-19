@@ -297,6 +297,27 @@ export const validarFechaNacimiento: Validador = (v) => {
 }
 
 // ---------------------------------------------------------------------------
+// Número de memorando
+// ---------------------------------------------------------------------------
+
+/** Espejo de `public.es_numero_memorando`.
+ *
+ *  No hay un patrón institucional único (§V3: cada dependencia numera a su manera), así que
+ *  solo se comprueba la forma mínima. El requisito de llevar al menos un dígito es lo que
+ *  distingue un número de oficio de una palabra suelta. */
+export const validarNumeroMemorando: Validador = (v) => {
+  if (!v) return null
+  const t = v.trim()
+  if (t.length < 3) return 'El número de memorando debe tener al menos 3 caracteres.'
+  if (t.length > 50) return `El número de memorando no puede pasar de 50 caracteres (tiene ${t.length}).`
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ./-]*[A-Za-z0-9]$/.test(t)) {
+    return 'Solo se permiten letras, dígitos, guiones, puntos, barras y espacios; debe empezar y terminar en letra o dígito.'
+  }
+  if (!/[0-9]/.test(t)) return 'El número de memorando debe incluir al menos un dígito.'
+  return null
+}
+
+// ---------------------------------------------------------------------------
 // Identidad de dispositivos
 // ---------------------------------------------------------------------------
 

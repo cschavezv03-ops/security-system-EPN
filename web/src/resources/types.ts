@@ -16,6 +16,14 @@ export interface FieldConfig {
   options?: Opcion[] | (() => Promise<Opcion[]>)
   /** Si es false, el campo NO se puede editar en el formulario de edición (Patrón C). */
   editable?: boolean
+  /** El campo se muestra siempre deshabilitado y NO se envía en el payload. Para datos que el
+   *  usuario debe ver pero que el sistema calcula, no elige (ej. el estado del memorando, que
+   *  depende solo de sus fechas — GPE §6: "hay dos opciones: borrarlo o ponerle como campos en
+   *  gris"). Distinto de `editable: false`, que sí persiste el valor en el alta. */
+  soloLectura?: boolean
+  /** Texto a mostrar en un campo `soloLectura`, derivado del resto del formulario. Sin esto un
+   *  campo de estado enseñaría el valor guardado, que es justo lo que no cuadra con la realidad. */
+  valorCalculado?: (valores: Record<string, any>) => string
   /** Solo se envía en INSERT, no en UPDATE. */
   insertOnly?: boolean
   /** No se muestra en el formulario de alta — solo aparece al editar. Útil para campos como
@@ -140,4 +148,9 @@ export interface ResourceConfig<Row = any> {
   /** Si el usuario tiene alguno de estos permisos, se muestra un botón "Exportar CSV" que
    *  exporta las filas actualmente filtradas/buscadas (feedback ADM: ADM_BITACORA_EXPORTAR). */
   exportarConPermiso?: string[]
+  /** Campos cuyo cambio se confirma con una ventana antes de guardar (GPE §5: "agregar las
+   *  ventanas o advertencias a la hora de modificar o agregar algún atributo sensible").
+   *  Son los datos que cambian quién puede entrar al campus o cómo se identifica a alguien:
+   *  tocarlos por error tiene consecuencias fuera del sistema. */
+  camposSensibles?: string[]
 }

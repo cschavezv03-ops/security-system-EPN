@@ -1,0 +1,47 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Ingresos — registrar una visita ya no pregunta por el estado",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente joel.velastegui@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Externo. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a joel.velastegui@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Externo'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Externo'"
+    },
+    {
+      "type": "assertion",
+      "description": "Existe una tarjeta titulada 'Ingresos (visitas sin memorando)'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir la tarjeta 'Ingresos (visitas sin memorando)'"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar Autorización'"
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario muestra los campos 'Visitante (persona externa)', 'Fecha de visita' y 'Motivo de la visita'"
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario NO muestra ningún campo desplegable 'Estado' con la opción 'Vigente' seleccionable"
+    },
+    {
+      "type": "action",
+      "description": "Volver al panel y observar la columna 'Estado' del listado de autorizaciones"
+    },
+    {
+      "type": "assertion",
+      "description": "Las autorizaciones cuya fecha de visita es anterior a hoy aparecen con el estado 'Caducada', no 'Vigente'"
+    }
+  ]
+}

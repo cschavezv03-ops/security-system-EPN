@@ -6,6 +6,7 @@ import { validarCedula } from '../lib/validacion'
 import { fmtFechaHora } from '../lib/format'
 import { humanizar } from '../lib/catalogos'
 import { CameraPanel, type CameraHandle } from '../components/Camera'
+import { AutorizarVisita } from '../components/AutorizarVisita'
 import { TopBar, PageContainer } from '../components/layout/Shell'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Select, useToast,
@@ -106,6 +107,9 @@ function GuardiaInner() {
           <div className="grid gap-6 lg:grid-cols-2">
             <BuscarPorCedula idPunto={idPunto!} uid={session!.user.id} enTurno={enTurno} onDone={() => toast('ok', 'Evento registrado.')} />
             <BiometriaGuardia idPunto={idPunto!} enTurno={enTurno} onDone={() => toast('ok', 'Evento registrado.')} />
+            {/* GPE §13: el guardia ya tenía permiso para emitir autorizaciones de visita, pero
+                ninguna pantalla donde hacerlo. Va aquí, en la garita, que es donde ocurre. */}
+            <AutorizarVisita />
             <div className="lg:col-span-2">
               <EventosDelPunto idPunto={idPunto!} />
             </div>

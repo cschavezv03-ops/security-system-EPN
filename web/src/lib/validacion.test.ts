@@ -12,6 +12,7 @@ import {
   normalizarPlaca,
   validarNombre,
   validarCorreo,
+  validarNumeroMemorando,
   normalizarTelefono,
   esTelefonoEc,
   validarFechaNacimiento,
@@ -156,5 +157,33 @@ describe('fecha de nacimiento', () => {
   })
   it('acepta una fecha pasada razonable', () => {
     expect(validarFechaNacimiento('2000-05-15')).toBeNull()
+  })
+})
+
+describe('número de memorando', () => {
+  // GPE §3: el número pasa a teclearse a mano, así que la validación que antes garantizaba el
+  // generador ahora tiene que hacerla el formulario (y el CHECK es_numero_memorando en la base).
+  it('acepta el formato institucional de la Politécnica', () => {
+    expect(validarNumeroMemorando('EPN-DA-2026-0001-M')).toBeNull()
+    expect(validarNumeroMemorando('EPN-VRA-2026-0123')).toBeNull()
+    expect(validarNumeroMemorando('MEM 045/2026')).toBeNull()
+  })
+
+  it('exige al menos un dígito: una palabra suelta no identifica un documento', () => {
+    expect(validarNumeroMemorando('MEMORANDO')).toMatch(/dígito/)
+  })
+
+  it('rechaza lo que es demasiado corto o demasiado largo', () => {
+    expect(validarNumeroMemorando('M1')).toMatch(/al menos 3/)
+    expect(validarNumeroMemorando('M' + '1'.repeat(60))).toMatch(/50 caracteres/)
+  })
+
+  it('rechaza caracteres que no aparecen en un número de oficio', () => {
+    expect(validarNumeroMemorando('MEM#2026*01')).toMatch(/Solo se permiten/)
+    expect(validarNumeroMemorando('-MEM-2026-')).toMatch(/Solo se permiten/)
+  })
+
+  it('deja pasar el vacío: de la obligatoriedad se encarga `required`', () => {
+    expect(validarNumeroMemorando('')).toBeNull()
   })
 })

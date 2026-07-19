@@ -1,11 +1,17 @@
+import { Link } from 'react-router-dom'
 import type { ResourceConfig } from './types'
 import { CAT, humanizar } from '../lib/catalogos'
 import { fmtFecha, fmtFechaHora, fmtHora, formatearMac, formatearIp } from '../lib/format'
+import {
+  diasDeVigencia, estadoAutorizacionEfectivo, estadoMemorandoEfectivo, vigenteHastaTexto,
+} from '../lib/vigencia'
 import { Badge } from '../components/ui'
 import { AsociacionesVehiculo } from '../components/AsociacionesVehiculo'
+import { AnularMemorando } from '../components/AnularMemorando'
 import {
-  opcionesCatalogo, optCategorias, optEmpresas, optPuntosControl, optZonas, optRoles,
+  opcionesCatalogo, optCategorias, optEmpresas, optPuntosControl, optZonas,
   opcionesTabla, optZonasPorTipo, optPuntosPorZona, optGuardiasDisponibles,
+  optPersonasExternasConEmpresa, optMemorandosVigentes,
 } from './opciones'
 import { supabase } from '../lib/supabase'
 import { hoyISO } from '../lib/format'
@@ -13,7 +19,7 @@ import {
   formatearPlaca, formatearPlacaInput, normalizarPlaca, normalizarTelefono,
   validarCedula, validarCodigoParametro, validarCodigoPermiso, validarCorreo,
   validarFechaNacimiento, validarIp, validarMac, validarNoVacio, validarNombre,
-  validarPlaca, validarRuc, validarTelefono, validarValorParametro,
+  validarNumeroMemorando, validarPlaca, validarRuc, validarTelefono, validarValorParametro,
 } from '../lib/validacion'
 
 const d = (v: any) => (v == null || v === '' ? '—' : String(v))
@@ -282,13 +288,14 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
       },
       { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
     ],
-    // Feedback ADM: las asociaciones persona-vehículo se gestionan desde la propia ficha
-    // del vehículo. Solo en ADM: GPI y GPE conservan su pantalla de asociaciones, donde el
-    // alta de vínculos forma parte de su flujo diario.
-    detalleExtra:
-      modulo === 'ADM'
-        ? (r, { recargar }) => <AsociacionesVehiculo idVehiculo={r.id_vehiculo} onCambio={recargar} />
-        : undefined,
+    // Las asociaciones persona-vehículo se gestionan desde la propia ficha del vehículo, en
+    // los tres módulos. En la ronda anterior esto era exclusivo de ADM y GPI/GPE conservaban
+    // su tarjeta "Asociaciones" aparte; ambos equipos pidieron en esta ronda lo mismo que
+    // tiene ADM ("debe implementarse de la misma manera en este apartado"), así que la tarjeta
+    // suelta desaparece también de ellos. Cada módulo solo ofrece personas de su ámbito.
+    detalleExtra: (r, { recargar }) => (
+      <AsociacionesVehiculo idVehiculo={r.id_vehiculo} onCambio={recargar} modulo={modulo} />
+    ),
     campos: [
       // Se teclea con guion (ABC-1234) pero se guarda canónica sin guion: es la clave con la
       // que el OCR de placas comparará contra la BD.
@@ -308,53 +315,11 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
   }
 }
 
-export function cfgPersonaVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
-  return {
-    tabla: 'persona_vehiculo',
-    titulo: 'Asociaciones persona–vehículo',
-    singular: 'Asociación',
-    idField: 'id_persona_vehiculo',
-    select: '*, persona:persona(nombres, apellidos, cedula), vehiculo:vehiculo(placa, tipo_vehiculo)',
-    permisos: {
-      select: [`${modulo}_PERSONA_VEHICULO_SELECT`],
-      insert: [`${modulo}_PERSONA_VEHICULO_INSERT`],
-      update: [`${modulo}_PERSONA_VEHICULO_UPDATE`],
-    },
-    autoUsuarioRegistro: ['id_usuario_registro'],
-    buscarEn: ['persona.cedula', 'persona.apellidos', 'vehiculo.placa'],
-    columnas: [
-      { key: 'persona', label: 'Persona', render: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : '—') },
-      { key: 'vehiculo', label: 'Vehículo', render: (r) => (r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—') },
-      { key: 'tipo_relacion', label: 'Relación' },
-      { key: 'estado_relacion', label: 'Estado', badge: true },
-    ],
-    campoTituloDetalle: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : 'Asociación'),
-    campoSubtituloDetalle: (r) => <>Vehículo {r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—'} · <Badge value={r.tipo_relacion} /></>,
-    detalle: [
-      { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
-      { label: 'Vehículo', render: (r) => `${r.vehiculo?.placa ? formatearPlaca(r.vehiculo.placa) : '—'} (${d(r.vehiculo?.tipo_vehiculo)})` },
-      { label: 'Responsable de trámite', render: (r) => (r.es_responsable_tramite ? 'Sí' : 'No') },
-      { label: 'Vigencia', render: (r) => `${fmtFecha(r.fecha_inicio)} → ${r.fecha_fin ? fmtFecha(r.fecha_fin) : 'indefinida'}` },
-    ],
-    campos: [
-      // Filtrado por ámbito del módulo (feedback GPE): GPI solo ve INTERNA, GPE solo EXTERNA —
-      // evita vincular por error una persona que no es responsabilidad de ese módulo.
-      {
-        name: 'id_persona', label: 'Persona', type: 'select', required: true, editable: false,
-        options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`,
-          modulo === 'GPI' ? { tipo_persona: 'INTERNA' } : modulo === 'GPE' ? { tipo_persona: 'EXTERNA' } : undefined),
-      },
-      { name: 'id_vehiculo', label: 'Vehículo', type: 'select', required: true, editable: false, options: opcionesTabla('vehiculo', 'id_vehiculo', (v) => `${v.placa ? formatearPlaca(v.placa) : v.id_vehiculo} · ${v.tipo_vehiculo}`) },
-      { name: 'tipo_relacion', label: 'Tipo de relación', type: 'select', required: true, options: opcionesCatalogo(CAT.persona_vehiculo_tipo) },
-      { name: 'es_responsable_tramite', label: '¿Responsable del trámite?', type: 'checkbox' },
-      { name: 'fecha_inicio', label: 'Inicio', type: 'date', required: true },
-      { name: 'fecha_fin', label: 'Fin (opcional)', type: 'date' },
-      { name: 'estado_relacion', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.persona_vehiculo_estado), default: 'ACTIVA' },
-    ],
-    campoEstado: 'estado_relacion',
-    baja: { campoEstado: 'estado_relacion', valorBaja: 'REVOCADA', campoMotivo: 'motivo_revocacion', etiqueta: 'Revocar' },
-  }
-}
+// `cfgPersonaVehiculo` se eliminó. Era la pantalla suelta "Asociaciones" que GPI y GPE
+// mantenían aparte; ahora los vínculos persona-vehículo se gestionan desde la ficha del
+// vehículo con `AsociacionesVehiculo`, igual que en ADM, que es lo que pidieron los dos
+// equipos en esta ronda. Los permisos GPI/GPE_PERSONA_VEHICULO_* siguen existiendo y son
+// los que ese componente comprueba.
 
 /* =========================================================================
    PCO — infraestructura física
@@ -535,17 +500,153 @@ export const cfgAsignacionGuardia: ResourceConfig = {
    GPE — personal externo, memorandos, autorizaciones
    ========================================================================= */
 
-/** "Ingreso por días" (feedback GPE): null hasta vincularse a un memorando; 1 día para
- *  visitantes sin memorando (solo autorización diaria); multi-día calculado de las fechas
- *  del memorando vigente al que esté vinculada. */
-function diasIngreso(r: { vinculos?: { memorando?: { fecha_inicio: string; fecha_fin: string } | null }[]; visitas?: unknown[] }): string {
-  const memo = r.vinculos?.[0]?.memorando
-  if (memo) {
-    const dias = Math.round((+new Date(memo.fecha_fin) - +new Date(memo.fecha_inicio)) / 86400000) + 1
-    return dias <= 1 ? '1 día' : `${dias} días`
+/* -------------------------------------------------------------------------
+   Cómo está autorizada una persona externa a entrar.
+
+   GPE §10: "en Personal externo existe un apartado INGRESO donde se especifican el número de
+   días que puede ingresar, pero eso depende del memorando como tal, no es una característica
+   de la persona. Entonces este apartado tiene que ser mucho más claro: si es una persona
+   asociada a un memorando, debe aparecer el memorando al que está asociado y puede haber una
+   redirección a este para saber si todavía puede entrar o no."
+
+   Lo que se mostraba antes ("3 días") era engañoso por partida doble: era un dato del
+   memorando presentado como si fuera de la persona, y seguía diciendo "3 días" cuando el
+   memorando ya había vencido y esa persona ya no podía entrar.
+   ------------------------------------------------------------------------- */
+
+interface VinculoMemorando {
+  id_memorando?: string
+  estado_acceso?: string
+  memorando?: {
+    id_memorando: string
+    numero_memorando: string
+    fecha_inicio: string
+    fecha_fin: string
+    estado_memorando: string
+  } | null
+}
+
+interface PersonaExternaRow {
+  vinculos?: VinculoMemorando[]
+  visitas?: { fecha_visita: string; estado_autorizacion: string }[]
+}
+
+type ViaAcceso =
+  | { tipo: 'MEMORANDO'; vinculo: VinculoMemorando; estado: string; bloqueado: boolean }
+  | { tipo: 'VISITA'; fecha: string; estado: string }
+  | { tipo: 'NINGUNA' }
+
+/** La vía por la que esta persona puede entrar hoy, o la más reciente si ninguna sirve ya.
+ *  El memorando manda sobre la autorización diaria, igual que en la Edge Function. */
+function viaDeAcceso(r: PersonaExternaRow): ViaAcceso {
+  const vinculos = r.vinculos ?? []
+  const vigente = vinculos.find(
+    (v) => v.memorando && estadoMemorandoEfectivo(v.memorando) === 'VIGENTE' && v.estado_acceso === 'ACTIVO',
+  )
+  const elegido = vigente ?? vinculos.find((v) => v.memorando)
+  if (elegido?.memorando) {
+    return {
+      tipo: 'MEMORANDO',
+      vinculo: elegido,
+      estado: estadoMemorandoEfectivo(elegido.memorando),
+      bloqueado: elegido.estado_acceso === 'BLOQUEADO',
+    }
   }
-  if (r.visitas?.length) return '1 día'
-  return '—'
+
+  const visitas = r.visitas ?? []
+  const hoy = hoyISO()
+  const visitaHoy = visitas.find((v) => v.fecha_visita === hoy && v.estado_autorizacion !== 'REVOCADA')
+  const ultima = visitaHoy ?? [...visitas].sort((a, b) => b.fecha_visita.localeCompare(a.fecha_visita))[0]
+  if (ultima) {
+    return { tipo: 'VISITA', fecha: ultima.fecha_visita, estado: estadoAutorizacionEfectivo(ultima) }
+  }
+  return { tipo: 'NINGUNA' }
+}
+
+/** Resumen de una línea para la columna del listado. */
+function resumenAcceso(r: PersonaExternaRow): string {
+  const via = viaDeAcceso(r)
+  if (via.tipo === 'MEMORANDO') {
+    if (via.bloqueado) return 'Acceso bloqueado en el memorando'
+    const dias = diasDeVigencia(via.vinculo.memorando!.fecha_inicio, via.vinculo.memorando!.fecha_fin)
+    const etiqueta = `Memorando ${via.vinculo.memorando!.numero_memorando}`
+    return via.estado === 'VIGENTE'
+      ? `${etiqueta} · ${dias === 1 ? '1 día' : `${dias} días`}`
+      : `${etiqueta} · ${humanizar(via.estado).toLowerCase()}`
+  }
+  if (via.tipo === 'VISITA') {
+    return via.estado === 'VIGENTE'
+      ? 'Visita autorizada solo por hoy'
+      : `Visita del ${fmtFecha(via.fecha)} · ${humanizar(via.estado).toLowerCase()}`
+  }
+  return 'Sin autorización de ingreso'
+}
+
+/** Bloque del panel de detalle: dice si puede entrar, por qué, y enlaza al memorando. */
+function DetalleAcceso({ r }: { r: PersonaExternaRow }) {
+  const via = viaDeAcceso(r)
+
+  if (via.tipo === 'MEMORANDO') {
+    const m = via.vinculo.memorando!
+    const puedeEntrar = via.estado === 'VIGENTE' && !via.bloqueado
+    return (
+      <div className="space-y-1.5">
+        <p className="flex flex-wrap items-center gap-1.5">
+          <span className={puedeEntrar ? 'font-medium text-emerald-700' : 'font-medium text-red'}>
+            {puedeEntrar ? 'Puede ingresar' : 'No puede ingresar'}
+          </span>
+          <Badge value={via.estado} />
+          {via.bloqueado && <Badge value="BLOQUEADO" />}
+        </p>
+        <p className="text-xs text-ink-soft">
+          Autorizada por el memorando{' '}
+          {/* Enlace a la ficha del memorando (GPE §10: "puede haber una redirección a este
+              para saber si todavía puede entrar o no"). */}
+          <Link
+            to={`/m/GPE/memorandos?buscar=${encodeURIComponent(m.numero_memorando)}`}
+            className="font-medium text-navy underline underline-offset-2 hover:text-blue-700"
+          >
+            {m.numero_memorando}
+          </Link>
+          , vigente del {fmtFecha(m.fecha_inicio)} al {fmtFecha(m.fecha_fin)}.
+        </p>
+        {via.bloqueado && (
+          <p className="text-xs text-ink-soft">
+            El memorando sigue vigente, pero a esta persona se le bloqueó el acceso en
+            "Personas por memorando".
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  if (via.tipo === 'VISITA') {
+    const puedeEntrar = via.estado === 'VIGENTE'
+    return (
+      <div className="space-y-1.5">
+        <p className="flex flex-wrap items-center gap-1.5">
+          <span className={puedeEntrar ? 'font-medium text-emerald-700' : 'font-medium text-red'}>
+            {puedeEntrar ? 'Puede ingresar hoy' : 'No puede ingresar'}
+          </span>
+          <Badge value={via.estado} />
+        </p>
+        <p className="text-xs text-ink-soft">
+          Sin memorando. Tiene una autorización de visita para el {fmtFecha(via.fecha)}, válida
+          solo ese día. Para que pueda entrar más de un día hay que vincularla a un memorando.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="font-medium text-red">No puede ingresar</p>
+      <p className="text-xs text-ink-soft">
+        No está vinculada a ningún memorando ni tiene una autorización de visita. Registra una
+        de las dos cosas para que pueda entrar al campus.
+      </p>
+    </div>
+  )
 }
 
 export const cfgPersonaExterna: ResourceConfig = {
@@ -553,18 +654,21 @@ export const cfgPersonaExterna: ResourceConfig = {
   titulo: 'Personal externo',
   singular: 'Persona externa',
   idField: 'id_persona',
-  select: '*, categoria:categoria_persona(codigo_categoria), empresa:empresa(nombre), vinculos:persona_memorando(memorando:memorando(fecha_inicio, fecha_fin)), visitas:autorizacion_visita_diaria(fecha_visita)',
+  select: '*, categoria:categoria_persona(codigo_categoria), empresa:empresa(nombre), vinculos:persona_memorando(estado_acceso, memorando:memorando(id_memorando, numero_memorando, fecha_inicio, fecha_fin, estado_memorando)), visitas:autorizacion_visita_diaria(fecha_visita, estado_autorizacion)',
   orderBy: { columna: 'apellidos' },
   filtroFijo: { tipo_persona: 'EXTERNA' },
   permisos: { select: ['GPE_PERSONA_SELECT'], insert: ['GPE_PERSONA_INSERT'], update: ['GPE_PERSONA_UPDATE'] },
   defaultsInsert: { tipo_persona: 'EXTERNA', estado: 'ACTIVO' },
-  buscarEn: ['cedula', 'nombres', 'apellidos', 'correo'],
+  buscarEn: ['cedula', 'nombres', 'apellidos', 'correo', 'empresa.nombre', 'vinculos.memorando.numero_memorando'],
+  camposSensibles: ['id_categoria', 'id_empresa'],
   columnas: [
     { key: 'cedula', label: 'Cédula' },
     { key: 'nombres', label: 'Nombres', render: (r) => `${r.apellidos} ${r.nombres}` },
-    { key: 'categoria', label: 'Categoría', render: (r) => r.categoria?.codigo_categoria ?? '—' },
+    { key: 'categoria', label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria), valorExport: (r) => humanizar(r.categoria?.codigo_categoria) },
     { key: 'empresa', label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
-    { key: 'dias', label: 'Ingreso', render: diasIngreso },
+    // Antes: "Ingreso" con un número de días que era del memorando, no de la persona, y que
+    // seguía mostrándose aunque el memorando estuviera vencido (GPE §10).
+    { key: 'acceso', label: 'Autorización de ingreso', render: (r) => resumenAcceso(r), valorExport: (r) => resumenAcceso(r) },
     { key: 'estado', label: 'Estado', badge: true },
   ],
   campoTituloDetalle: (r) => `${r.nombres} ${r.apellidos}`,
@@ -575,7 +679,7 @@ export const cfgPersonaExterna: ResourceConfig = {
     { label: 'Teléfono', render: (r) => d(r.telefono_contacto) },
     { label: 'Categoría', render: (r) => humanizar(r.categoria?.codigo_categoria) },
     { label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
-    { label: 'Ingreso por días', render: diasIngreso },
+    { label: 'Autorización de ingreso', render: (r) => <DetalleAcceso r={r} /> },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
@@ -596,14 +700,6 @@ export const cfgPersonaExterna: ResourceConfig = {
   campoEstado: 'estado',
   // Brecha §6.1: baja de persona = INACTIVO (sin "temporal con duración"). Ver 99_DUDAS_FRONTEND.md.
   baja: { campoEstado: 'estado', valorBaja: 'INACTIVO', campoMotivo: 'detalle_estado', etiqueta: 'Dar de baja' },
-}
-
-/** Estado mostrado en pantalla: si la fecha_fin ya pasó, se muestra VENCIDO aunque el campo
- *  guardado siga en VIGENTE (feedback GPE: no hay proceso automático que actualice el estado
- *  almacenado, así que el frontend no debe confiar ciegamente en él para decidir qué mostrar). */
-function estadoMemorandoEfectivo(r: { estado_memorando: string; fecha_fin: string }): string {
-  if (r.estado_memorando === 'VIGENTE' && r.fecha_fin < hoyISO()) return 'VENCIDO'
-  return r.estado_memorando
 }
 
 export const cfgMemorando: ResourceConfig = {
@@ -629,21 +725,63 @@ export const cfgMemorando: ResourceConfig = {
     { label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
     { label: 'Dependencia autorizada', render: (r) => d(r.dependencia_autorizada) },
     { label: 'Vigencia', render: (r) => `${fmtFecha(r.fecha_inicio)} → ${fmtFecha(r.fecha_fin)}` },
+    {
+      label: 'Situación',
+      render: (r) => {
+        const estado = estadoMemorandoEfectivo(r)
+        if (estado === 'ANULADO') {
+          return (
+            <span>
+              Anulado{r.fecha_anulacion ? ` el ${fmtFecha(r.fecha_anulacion)}` : ''}.
+              {r.motivo_anulacion ? ` Motivo: ${r.motivo_anulacion}` : ''}
+            </span>
+          )
+        }
+        if (estado === 'VENCIDO') return <span className="text-red">Venció el {fmtFecha(r.fecha_fin)}. Ya no autoriza el ingreso.</span>
+        if (estado === 'PROGRAMADO') return <span>Todavía no empieza: autoriza el ingreso desde el {fmtFecha(r.fecha_inicio)}.</span>
+        return <span className="text-emerald-700">Autoriza el ingreso hasta el {vigenteHastaTexto(r.fecha_fin)} inclusive.</span>
+      },
+    },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    // Autogenerado (feedback GPE): evita problemas de validación/formato manual del número.
-    { name: 'numero_memorando', label: 'Número de memorando', required: true, editable: false, hideOnInsert: true, default: () => `MEM-${Date.now().toString(36).toUpperCase()}` },
+    // GPE §3: "El atributo numero_memorando ahora deberá ser un varchar para poder agregarlo a
+    // mano, es decir que no puede ser automático". Antes se generaba solo (MEM-MRQUHXKD) y no
+    // se parecía en nada al número del oficio real que la dependencia emite.
+    // Sigue sin poder cambiarse una vez registrado: es la referencia del documento en papel.
+    {
+      name: 'numero_memorando', label: 'Número de memorando', required: true, editable: false,
+      colSpan: 2, validar: validarNumeroMemorando,
+      hint: 'Cópialo del oficio. No se puede cambiar después.',
+      ayuda: 'El número tal como aparece en el memorando emitido por la dependencia. Entre 3 y 50 caracteres, con al menos un dígito. Se admiten letras, números, guiones, puntos y barras. No puede repetirse.',
+      placeholder: 'EPN-DA-2026-0001-M',
+    },
     { name: 'id_empresa', label: 'Empresa', type: 'select', required: true, options: optEmpresas },
     // Ya no obligatoria (feedback GPE): una persona puede acudir a más de una dependencia.
     { name: 'dependencia_autorizada', label: 'Dependencia autorizada (opcional)', colSpan: 2 },
     { name: 'fecha_inicio', label: 'Inicio de vigencia', type: 'date', required: true },
-    { name: 'fecha_fin', label: 'Fin de vigencia', type: 'date', required: true, hint: 'fecha_fin inclusiva (§D24)' },
-    // Oculto en el alta (feedback GPE): no tiene sentido crear un memorando ya vencido; el
-    // estado nace VIGENTE (default de la BD) y "VENCIDO" se calcula en pantalla desde la fecha.
-    { name: 'estado_memorando', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.memorando_estado), default: 'VIGENTE', hideOnInsert: true },
+    {
+      name: 'fecha_fin', label: 'Fin de vigencia', type: 'date', required: true,
+      hint: 'El último día cuenta: se puede ingresar hasta esa fecha inclusive.',
+      validar: (v, vals) => (vals.fecha_inicio && v < String(vals.fecha_inicio)
+        ? 'El fin de vigencia no puede ser anterior al inicio.'
+        : null),
+    },
+    // GPE §6: "Al momento de editar un memorando aparece un combo box Estado que realmente no
+    // tiene sentido. El memorando realmente ya no está vigente pero el combo box aparece como
+    // vigente." El estado no es una elección: sale de las fechas. Se muestra en gris con el
+    // valor real, y para anularlo antes de tiempo está el botón del pie de la ficha.
+    {
+      name: 'estado_memorando', label: 'Estado', soloLectura: true, hideOnInsert: true,
+      valorCalculado: (v) => humanizar(estadoMemorandoEfectivo(v as any)),
+      hint: 'Lo calculan las fechas de vigencia. Para retirar la autorización antes de tiempo, usa "Anular memorando".',
+    },
   ],
   campoEstado: 'estado_memorando',
+  // Cambiar las fechas de vigencia o la empresa altera quién puede entrar al campus y hasta
+  // cuándo (GPE §5).
+  camposSensibles: ['fecha_inicio', 'fecha_fin', 'id_empresa'],
+  accionDetalle: (r, ctx) => <AnularMemorando memorando={r} {...ctx} />,
 }
 
 export const cfgPersonaMemorando: ResourceConfig = {
@@ -651,26 +789,61 @@ export const cfgPersonaMemorando: ResourceConfig = {
   titulo: 'Personas por memorando',
   singular: 'Vínculo persona–memorando',
   idField: 'id_persona_memorando',
-  select: '*, persona:persona(nombres, apellidos, cedula), memorando:memorando(numero_memorando)',
+  select: '*, persona:persona(nombres, apellidos, cedula, empresa:empresa(nombre)), memorando:memorando(id_memorando, numero_memorando, fecha_inicio, fecha_fin, estado_memorando)',
   permisos: { select: ['GPE_PERSONA_MEMORANDO_SELECT'], insert: ['GPE_PERSONA_MEMORANDO_INSERT'], update: ['GPE_PERSONA_MEMORANDO_UPDATE'] },
-  buscarEn: ['persona.cedula', 'persona.apellidos', 'memorando.numero_memorando'],
+  buscarEn: ['persona.cedula', 'persona.apellidos', 'persona.empresa.nombre', 'memorando.numero_memorando'],
   columnas: [
     { key: 'persona', label: 'Persona', render: (r) => (r.persona ? `${r.persona.apellidos} ${r.persona.nombres}` : '—') },
     { key: 'cedula', label: 'Cédula', render: (r) => d(r.persona?.cedula) },
+    { key: 'empresa', label: 'Empresa', render: (r) => d(r.persona?.empresa?.nombre) },
     { key: 'memorando', label: 'Memorando', render: (r) => r.memorando?.numero_memorando ?? '—' },
-    { key: 'estado_acceso', label: 'Acceso', badge: true },
+    // GPE §10: el vínculo por sí solo no dice si la persona puede entrar. Lo que decide es si
+    // el memorando sigue vigente, y eso no se veía en ninguna parte de esta pantalla.
+    {
+      key: 'vigencia', label: '¿Puede entrar?',
+      render: (r) => {
+        if (r.estado_acceso === 'BLOQUEADO') return <><Badge value="BLOQUEADO" /> <span className="text-xs text-ink-soft">acceso retirado</span></>
+        const estado = estadoMemorandoEfectivo(r.memorando ?? {})
+        return estado === 'VIGENTE'
+          ? <span className="text-emerald-700">Sí, hasta el {fmtFecha(r.memorando?.fecha_fin)}</span>
+          : <><span className="text-red">No</span> <Badge value={estado} /></>
+      },
+      valorExport: (r) => (r.estado_acceso === 'BLOQUEADO' ? 'No, acceso bloqueado' : estadoMemorandoEfectivo(r.memorando ?? {}) === 'VIGENTE' ? `Sí, hasta ${r.memorando?.fecha_fin}` : `No, memorando ${humanizar(estadoMemorandoEfectivo(r.memorando ?? {})).toLowerCase()}`),
+    },
   ],
   campoTituloDetalle: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : 'Vínculo'),
+  campoSubtituloDetalle: (r) => <>Memorando {r.memorando?.numero_memorando ?? '—'} · <Badge value={estadoMemorandoEfectivo(r.memorando ?? {})} /></>,
   detalle: [
     { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
-    { label: 'Memorando', render: (r) => r.memorando?.numero_memorando ?? '—' },
+    { label: 'Empresa', render: (r) => d(r.persona?.empresa?.nombre) },
+    {
+      label: 'Memorando',
+      render: (r) => (r.memorando ? (
+        <Link
+          to={`/m/GPE/memorandos?buscar=${encodeURIComponent(r.memorando.numero_memorando)}`}
+          className="font-medium text-navy underline underline-offset-2 hover:text-blue-700"
+        >
+          {r.memorando.numero_memorando}
+        </Link>
+      ) : '—'),
+    },
+    { label: 'Vigencia del memorando', render: (r) => (r.memorando ? `${fmtFecha(r.memorando.fecha_inicio)} → ${fmtFecha(r.memorando.fecha_fin)}` : '—') },
     { label: 'Estado de acceso', render: (r) => <Badge value={r.estado_acceso} /> },
   ],
   campos: [
-    // Selección múltiple (feedback GPE): vincular varias personas al mismo memorando de una vez.
-    { name: 'id_persona', label: 'Personas externas', type: 'select', required: true, editable: false, multiSelect: true, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'EXTERNA' }) },
-    { name: 'id_memorando', label: 'Memorando', type: 'select', required: true, editable: false, options: opcionesTabla('memorando', 'id_memorando', (m) => m.numero_memorando) },
-    { name: 'estado_acceso', label: 'Estado de acceso', type: 'select', options: opcionesCatalogo(CAT.persona_memorando_estado), default: 'ACTIVO' },
+    // El memorando va primero: es el documento que se está tramitando, y saber cuál es ayuda a
+    // decidir a quién vincular. Solo se ofrecen los que todavía autorizan algo — vincular a
+    // alguien a un memorando vencido no le permite entrar, y era fácil hacerlo sin darse cuenta.
+    { name: 'id_memorando', label: 'Memorando', type: 'select', required: true, editable: false, options: optMemorandosVigentes, hint: 'Solo se listan los memorandos vigentes o por empezar.' },
+    // Selección múltiple con buscador (GPE §12): la etiqueta lleva cédula y empresa, que es
+    // justo por lo que el equipo pidió poder buscar.
+    {
+      name: 'id_persona', label: 'Personas externas', type: 'select', required: true, editable: false,
+      multiSelect: true, colSpan: 2, options: optPersonasExternasConEmpresa,
+      placeholder: 'Buscar por apellido, cédula o empresa...',
+      hint: 'Puedes vincular varias personas al mismo memorando de una vez.',
+    },
+    { name: 'estado_acceso', label: 'Estado de acceso', type: 'select', options: opcionesCatalogo(CAT.persona_memorando_estado), default: 'ACTIVO', hideOnInsert: true, hint: 'Bloquear impide entrar a esta persona sin afectar al resto del memorando.' },
   ],
   campoEstado: 'estado_acceso',
   baja: { campoEstado: 'estado_acceso', valorBaja: 'BLOQUEADO', etiqueta: 'Bloquear acceso' },
@@ -735,22 +908,61 @@ export const cfgAutorizacion: ResourceConfig = {
     { key: 'persona', label: 'Visitante', render: (r) => (r.persona ? `${r.persona.apellidos} ${r.persona.nombres}` : '—') },
     { key: 'cedula', label: 'Cédula', render: (r) => d(r.persona?.cedula) },
     { key: 'fecha_visita', label: 'Fecha de visita', render: (r) => fmtFecha(r.fecha_visita) },
-    { key: 'estado_autorizacion', label: 'Estado', badge: true },
+    // El estado guardado solo distingue vigente de revocada; que la visita ya pasó lo dice la
+    // fecha (GPE §8).
+    { key: 'estado_autorizacion', label: 'Estado', render: (r) => <Badge value={estadoAutorizacionEfectivo(r)} />, valorExport: (r) => humanizar(estadoAutorizacionEfectivo(r)) },
+  ],
+  filtros: [
+    { campo: 'fecha_visita', label: 'Fecha de visita', opciones: async () => {
+      const { data } = await (supabase as any).from('autorizacion_visita_diaria').select('fecha_visita').order('fecha_visita', { ascending: false })
+      const fechas = [...new Set(((data as { fecha_visita: string }[]) ?? []).map((a) => a.fecha_visita))]
+      return fechas.map((f) => ({ value: f, label: fmtFecha(f) }))
+    } },
   ],
   campoTituloDetalle: (r) => (r.persona ? `${r.persona.nombres} ${r.persona.apellidos}` : 'Autorización'),
-  campoSubtituloDetalle: (r) => <><Badge value={r.estado_autorizacion} /> · {fmtFecha(r.fecha_visita)}</>,
+  campoSubtituloDetalle: (r) => <><Badge value={estadoAutorizacionEfectivo(r)} /> · {fmtFecha(r.fecha_visita)}</>,
   detalle: [
     { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
     { label: 'Fecha de visita', render: (r) => fmtFecha(r.fecha_visita) },
-    { label: 'Motivo', render: (r) => d(r.motivo) },
+    {
+      label: 'Situación',
+      render: (r) => {
+        const estado = estadoAutorizacionEfectivo(r)
+        if (estado === 'REVOCADA') {
+          return <span>Revocada.{r.motivo_revocacion ? ` Motivo: ${r.motivo_revocacion}` : ''}</span>
+        }
+        if (estado === 'CADUCADA') return <span className="text-red">La fecha de visita ya pasó. No autoriza el ingreso.</span>
+        if (estado === 'PROGRAMADA') return <span>Autoriza el ingreso el {fmtFecha(r.fecha_visita)}, no antes.</span>
+        return <span className="text-emerald-700">Autoriza el ingreso hoy, solo por hoy.</span>
+      },
+    },
+    { label: 'Motivo de la visita', render: (r) => d(r.motivo) },
     { label: 'Registrada', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
     { name: 'id_persona', label: 'Visitante (persona externa)', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'EXTERNA' }), colSpan: 2 },
-    { name: 'fecha_visita', label: 'Fecha de visita', type: 'date', required: true, default: hoyISO() },
-    { name: 'motivo', label: 'Motivo', type: 'textarea', required: true, colSpan: 3, validar: validarNoVacio },
-    { name: 'estado_autorizacion', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.autorizacion_estado), default: 'VIGENTE' },
+    {
+      name: 'fecha_visita', label: 'Fecha de visita', type: 'date', required: true, default: hoyISO(),
+      hint: 'La autorización vale solo ese día.',
+      validar: (v) => (v && v < hoyISO() ? 'La fecha de visita no puede ser anterior a hoy: la autorización nacería caducada.' : null),
+    },
+    { name: 'motivo', label: 'Motivo de la visita', type: 'textarea', required: true, colSpan: 3, validar: validarNoVacio, placeholder: 'Por ejemplo: entrega de documentos en Secretaría General.' },
+    // GPE §8: "Al igual que Editar Memorando, Ingresos (visitas sin memorando) tiene el combo
+    // box de Estado al querer registrar una autorización. No le veo mucho el sentido a esto."
+    // No lo tiene: una autorización recién creada solo puede nacer vigente. El estado pasa a
+    // calcularse desde la fecha y solo se muestra al editar, en gris. Para retirarla está el
+    // botón "Revocar autorización" del pie de la ficha.
+    {
+      name: 'estado_autorizacion', label: 'Estado', soloLectura: true, hideOnInsert: true,
+      valorCalculado: (v) => humanizar(estadoAutorizacionEfectivo(v as any)),
+      hint: 'Lo calcula la fecha de visita. Para retirarla antes, usa "Revocar autorización".',
+    },
   ],
   campoEstado: 'estado_autorizacion',
-  baja: { campoEstado: 'estado_autorizacion', valorBaja: 'REVOCADA', etiqueta: 'Revocar autorización' },
+  camposSensibles: ['fecha_visita'],
+  baja: {
+    campoEstado: 'estado_autorizacion', valorBaja: 'REVOCADA',
+    // El motivo se pedía en el modal y se tiraba a la basura: no había columna donde ponerlo.
+    campoMotivo: 'motivo_revocacion', etiqueta: 'Revocar autorización',
+  },
 }

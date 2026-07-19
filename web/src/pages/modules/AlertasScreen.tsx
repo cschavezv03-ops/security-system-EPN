@@ -81,7 +81,7 @@ export function AlertasScreen() {
     await cargar()
   }
 
-  if (!puedeLeer) return <EmptyState title="No tienes acceso a alertas" hint="Requiere CAC_ALERTA_SELECT." />
+  if (!puedeLeer) return <EmptyState title="No tienes acceso a las alertas" hint="Pide acceso al administrador del sistema." />
 
   const pendientes = alertas.filter((a) => a.estado_alerta === 'PENDIENTE')
 

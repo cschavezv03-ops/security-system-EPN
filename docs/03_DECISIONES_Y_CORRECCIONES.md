@@ -667,3 +667,107 @@ que es un botón del pie.
 "Referencia del rostro" (id corto + nombre del archivo) y "Lugar de almacenamiento" (bucket
 de Storage, y si hay descriptor también el vector en la base). Ambas se derivan de
 `path_storage`; la consulta no pide el archivo ni firma ninguna URL. Doc 02 nota ⁴ intacta.
+
+---
+
+## Ronda GPE + GPI (`Requerimientos_GPE.docx`, `Requerimientos_GPI.docx`)
+
+### D47 — El estado de un memorando lo calculan sus fechas, no una columna editable
+
+GPE reportó el síntoma con precisión: *"El memorando realmente ya no está vigente pero el combo
+box aparece como vigente. Si le pongo guardar cambios no se pone vigente porque la regla está
+ligada exclusivamente a las fechas de vigencia, sin embargo, ese apartado sigue ahí."*
+
+El acceso **sí** se denegaba correctamente: `vista_vigencia_acceso` filtra por
+`current_date between fecha_inicio and fecha_fin` desde el principio. Lo que fallaba era lo que
+se mostraba: `estado_memorando` se quedaba en VIGENTE para siempre porque nada lo actualizaba.
+Los tres memorandos sembrados vencieron el 17/07 y seguían anunciándose como vigentes.
+
+El reparto queda así, y es el mismo criterio para las autorizaciones de visita:
+
+| | Dónde vive | Quién lo decide |
+|---|---|---|
+| VIGENTE / VENCIDO / PROGRAMADO / CADUCADA | Se calcula al mostrar | El calendario |
+| ANULADO / REVOCADA | Columna almacenada | Una persona, con motivo obligatorio |
+
+`estado_memorando_efectivo()` y `estado_autorizacion_efectivo()` en la base;
+`web/src/lib/vigencia.ts` como espejo, para no consultar la base por cada fila de un listado.
+Una tarea de `pg_cron` sincroniza el valor almacenado cada día a las 00:05 de Ecuador, para que
+la columna no vuelva a divergir; entre ejecución y ejecución manda el cálculo.
+
+De las dos opciones que ofrecía el documento ("borrarlo o ponerle como campos en gris") se
+eligió la segunda, y se añadió aparte una acción **Anular memorando**: el combo cubría un caso
+legítimo —retirar la autorización antes de que venza— que borrarlo sin más habría eliminado. La
+alternativa que se usaba hasta ahora, acortar la `fecha_fin`, falsea las fechas del documento
+en papel.
+
+### D48 — El número de memorando se teclea; la base garantiza lo que garantizaba el generador
+
+GPE §3: *"El atributo numero_memorando ahora deberá ser un varchar para poder agregarlo a mano,
+es decir que no puede ser automático."* El generador producía `MEM-MRQUHXKD`, que no se parece
+a ningún memorando real de la Politécnica.
+
+Sin patrón institucional obligatorio (§V3: cada dependencia numera a su manera), pero sí una
+forma mínima en `es_numero_memorando()`: 3 a 50 caracteres, con al menos un dígito, y único.
+Los tres números autogenerados se renumeraron a `EPN-DA-2026-000N-M`.
+
+### D49 — Los campos del alta dependen de la categoría, y la categoría va primero
+
+GPI: *"los campos de la interfaz deben ser dinámicos ... dependiendo del tipo de persona que se
+elija habrá campos en la interfaz que serán bloqueados"*. El código único es solo del
+estudiante (con trigger en la base, no solo en el formulario) y la empresa solo del personal de
+empresa de servicio. `contrato` pasa de texto libre a catálogo FIJO/TEMPORAL — el dato sembrado
+demostraba por qué: un docente con contrato "Si".
+
+La empresa se pide en el **alta de la persona**, no en "Datos internos" como sugería el
+documento: la columna `persona.id_empresa` ya existía y duplicarla en
+`persona_interna_detalle` habría creado dos sitios donde guardar el mismo dato.
+
+### D50 — GPI y GPE también gestionan las asociaciones desde la ficha del vehículo
+
+Revierte la excepción de §D45. Ambos equipos pidieron en esta ronda lo mismo que tiene ADM, así
+que los tres módulos se comportan igual y la tarjeta "Asociaciones" desaparece de los tres.
+`AsociacionesVehiculo` pasa a estar parametrizado por módulo: comprueba
+`{MODULO}_PERSONA_VEHICULO_*` y solo ofrece personas de su ámbito (GPI internas, GPE externas).
+
+### D51 — El guardia autoriza visitas desde la garita, sin permisos nuevos
+
+GPE §13 preguntaba si el caso de uso de "Ingresos (visitas sin memorando)" debía presentarse en
+el rol de guardia, y cómo registraría el guardia a la persona externa.
+
+Resultó que **el guardia ya podía hacerlo**: tiene `CAC_AUTORIZACION_INSERT` y
+`CAC_PERSONA_EXTERNA_INSERT`, y las políticas RLS `autorizacion_visita_insert_guardia` y
+`persona_insert_guardia` ya lo contemplaban. Lo que faltaba era la pantalla. Por eso esta ronda
+**no toca la matriz de permisos** (doc 02 intacto): se añadió el componente `AutorizarVisita`
+a la vista de garita, con el orden de la garita —cédula primero, alta solo si no existe— y
+siempre para el día de hoy, porque un guardia autoriza a quien tiene delante.
+
+### D52 — La fecha de referencia del sistema es la de Ecuador, no la de UTC
+
+**Bug encontrado durante esta ronda, ajeno a lo que pedían los documentos.** Apareció porque
+una prueba de vigencia empezó a fallar sola a las 19:00; no era la prueba.
+
+El servidor corre en UTC y todo el sistema usaba `current_date` (base) y `toISOString()`
+(interfaz). Ecuador va cinco horas por detrás, así que **desde las 19:00 hora local ambos
+devolvían ya el día siguiente**. Efectos:
+
+- `vista_vigencia_acceso` dejaba de reconocer las autorizaciones de visita del día. Un
+  visitante con permiso válido era **denegado en la garita** durante las últimas cinco horas de
+  cada jornada.
+- Un memorando cuyo último día era hoy dejaba de autorizar cinco horas antes, contradiciendo
+  §D24 ("`fecha_fin` inclusiva").
+- Al registrar una visita, la fecha propuesta por defecto era mañana.
+- `es_fecha_nacimiento_valida` aceptaba como pasada una fecha que en Ecuador todavía es futura.
+
+Lo llamativo es que la Edge Function `registrar-evento-acceso` **ya lo hacía bien**: evalúa los
+horarios de CAC con `America/Guayaquil` explícito. La base se había quedado atrás, así que en
+un mismo ingreso la comprobación de horario usaba la hora de Ecuador y la de vigencia la de
+UTC. Nadie lo notó porque las pruebas manuales se hacen de día.
+
+Ahora hay una sola fuente para esto: `public.hoy_ecuador()` en la base y `hoyISO()` en
+`web/src/lib/format.ts`, ambas sobre `America/Guayaquil`. Se usa el nombre de la zona y no un
+desplazamiento fijo de -5: Ecuador continental no aplica horario de verano hoy, pero eso es una
+decisión política, no una constante.
+
+De paso, `vista_vigencia_acceso` pasa a excluir los memorandos **anulados** (§D47): sin eso, un
+memorando anulado seguiría autorizando el ingreso mientras sus fechas siguieran corriendo.

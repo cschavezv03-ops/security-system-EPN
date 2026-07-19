@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Pencil, Plus, Search, Ban, ArrowLeft, Download } from 'lucide-react'
 import { fromTable, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
+import { useBorrador } from '../lib/useBorrador'
 import type { FieldConfig, Opcion, ResourceConfig } from '../resources/types'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Modal,
@@ -77,10 +79,14 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
   const puedeEditar = !!config.permisos.update?.some(tiene)
   const puedeExportar = !!config.exportarConPermiso?.some(tiene)
 
+  // Un enlace puede llegar con la búsqueda ya puesta (?buscar=EPN-DA-2026-0001-M), que es como
+  // la ficha de una persona externa lleva a "su" memorando sin obligar a teclearlo otra vez.
+  const [searchParams] = useSearchParams()
+
   const [rows, setRows] = useState<Row[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [busqueda, setBusqueda] = useState('')
+  const [busqueda, setBusqueda] = useState(() => searchParams.get('buscar') ?? '')
   const [seleccion, setSeleccion] = useState<Row | null>(null)
   const [vista, setVista] = useState<'lista' | 'form'>('lista')
   const [editando, setEditando] = useState<Row | null>(null)
@@ -328,6 +334,84 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
   )
 }
 
+/* -------------------- Lista de selección múltiple con búsqueda -------------------- */
+/**
+ * GPE §12: "A la hora de vincular persona-memorando o persona-vehículo se podría tener un icono
+ * de búsqueda para buscar por empresa o por cédula o por placa, para facilidad del registro."
+ *
+ * Antes era una lista de casillas con todas las personas externas del sistema, y encontrar a
+ * alguien concreto era cuestión de bajar con la rueda del ratón. El filtro busca sobre la misma
+ * etiqueta que se ve, que ya incluye apellidos, cédula y empresa; e ignora los separadores, para
+ * que una cédula tecleada con guiones encuentre igual.
+ */
+function ListaSeleccionMultiple({
+  opciones, seleccionados, onChange, placeholderBusqueda, id,
+}: {
+  opciones: Opcion[]
+  seleccionados: string[]
+  onChange: (valores: string[]) => void
+  placeholderBusqueda?: string
+  /** Va al campo de búsqueda: es el control que recibe el foco al pulsar la etiqueta. */
+  id?: string
+}) {
+  const [filtro, setFiltro] = useState('')
+
+  const visibles = useMemo(() => {
+    const t = filtro.trim().toLowerCase()
+    if (!t) return opciones
+    // Sin quitar las tildes, buscar "amangandi" no encontraría a "Amangandí", que es justo lo
+    // que se teclea cuando se copia una cédula de un papel y el apellido de memoria.
+    const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+    const tPlano = plano(t)
+    return opciones.filter((o) => {
+      const l = o.label.toLowerCase()
+      return l.includes(t) || (tPlano.length > 0 && plano(l).includes(tPlano))
+    })
+  }, [opciones, filtro])
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+        <Input
+          id={id}
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder={placeholderBusqueda ?? 'Buscar por nombre, cédula o empresa...'}
+          className="pl-9"
+        />
+      </div>
+      <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
+        {opciones.length === 0 ? (
+          <p className="p-1 text-xs text-slate-400">Sin opciones disponibles.</p>
+        ) : visibles.length === 0 ? (
+          <p className="p-1 text-xs text-slate-400">Ningún resultado para "{filtro}".</p>
+        ) : (
+          visibles.map((o) => {
+            const marcado = seleccionados.includes(o.value)
+            return (
+              <label key={o.value} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={marcado}
+                  onChange={(e) => onChange(e.target.checked ? [...seleccionados, o.value] : seleccionados.filter((v) => v !== o.value))}
+                  className="h-4 w-4"
+                />
+                {o.label}
+              </label>
+            )
+          })
+        )}
+      </div>
+      {/* Las seleccionadas pueden quedar fuera del filtro actual: sin este recuento, marcar a
+          tres personas y luego buscar a una cuarta daría la sensación de haberlas perdido. */}
+      {seleccionados.length > 0 && (
+        <p className="text-xs text-ink-soft">{seleccionados.length} seleccionada(s).</p>
+      )}
+    </div>
+  )
+}
+
 /* -------------------- Formulario de registro / edición (Patrón B / C) -------------------- */
 function RecordForm({
   config, opciones, registro, onCancel, onSaved,
@@ -340,6 +424,7 @@ function RecordForm({
 }) {
   const { session } = useAuth()
   const esEdicion = !!registro
+  const valoresIniciales = useRef<Row | null>(null)
   const [valores, setValores] = useState<Row>(() => {
     const init: Row = {}
     for (const c of config.campos) {
@@ -350,11 +435,30 @@ function RecordForm({
       const def = typeof c.default === 'function' ? c.default() : c.default
       init[c.name] = registro ? registro[c.name] ?? '' : def ?? (c.type === 'checkbox' ? false : '')
     }
+    valoresIniciales.current = init
     return init
   })
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dinamicas, setDinamicas] = useState<Record<string, Opcion[]>>({})
+  /** Cambios en campos sensibles pendientes de confirmar (GPE §5). */
+  const [confirmacion, setConfirmacion] = useState<{ campo: string; antes: string; despues: string }[] | null>(null)
+
+  // Borrador del alta. `useBorrador` existía desde la ronda de validaciones pero solo lo usaba
+  // el alta de usuarios: en el resto de formularios, cambiar de pestaña a mitad de un registro
+  // largo (una persona tiene once campos) obligaba a empezar de cero. Solo en el alta: restaurar
+  // sobre una edición pisaría el registro real con datos que quizá ya cambió otra persona.
+  const claveBorrador = !esEdicion && session?.user.id ? `${session.user.id}:${config.tabla}:nuevo` : null
+  // Solo se guarda si el usuario ha escrito algo. Sin esta condición bastaba con abrir el
+  // formulario y esperar un segundo para dejar un borrador con los valores por defecto, y a
+  // partir de ahí el aviso "tienes un registro sin terminar" salía siempre, aunque nunca se
+  // hubiera escrito nada. Un aviso que aparece siempre deja de significar algo.
+  const hayCambios = useMemo(
+    () => JSON.stringify(valores) !== JSON.stringify(valoresIniciales.current),
+    [valores],
+  )
+  const borrador = useBorrador(claveBorrador, valores, { activo: hayCambios })
+  const [avisoBorrador, setAvisoBorrador] = useState(borrador.hayBorrador)
 
   /** Error de formato por campo, mostrado bajo el input mientras se escribe. */
   const [erroresCampo, setErroresCampo] = useState<Record<string, string | null>>({})
@@ -431,6 +535,28 @@ function RecordForm({
   }, [...config.campos.filter((c) => c.derivarSiempreDesde).map((c) => valores[c.derivarSiempreDesde!.campo])])
 
   const bloqueadoEnEdicion = (c: FieldConfig) => esEdicion && c.editable === false
+  /** Deshabilitado en pantalla: por política de edición o por ser un valor que calcula el sistema. */
+  const deshabilitado = (c: FieldConfig) => bloqueadoEnEdicion(c) || c.soloLectura === true
+
+  /** Campos sensibles que el usuario acaba de cambiar (GPE §5). Vacío si no hay ninguno. */
+  const cambiosSensibles = () => {
+    if (!esEdicion || !config.camposSensibles?.length) return []
+    return config.campos
+      .filter((c) => config.camposSensibles!.includes(c.name) && !deshabilitado(c))
+      .map((c) => {
+        const antes = registro?.[c.name]
+        const despues = valores[c.name]
+        const norm = (v: unknown) => (v == null || v === '' ? '' : String(v))
+        if (norm(antes) === norm(despues)) return null
+        const etiquetaValor = (v: unknown) => {
+          if (norm(v) === '') return '(vacío)'
+          const opcion = (opciones[c.name] ?? []).find((o) => o.value === String(v))
+          return opcion?.label ?? String(v)
+        }
+        return { campo: c.label, antes: etiquetaValor(antes), despues: etiquetaValor(despues) }
+      })
+      .filter((x): x is { campo: string; antes: string; despues: string } => x !== null)
+  }
 
   const guardar = async () => {
     setError(null)
@@ -461,6 +587,16 @@ function RecordForm({
       }
     }
 
+    // Antes de escribir nada: si el usuario tocó un campo sensible, se le enseña exactamente
+    // qué va a cambiar y de qué a qué (GPE §5). Confirmar vuelve a entrar aquí con la lista ya
+    // resuelta, así que la comprobación no se repite en bucle.
+    const sensibles = cambiosSensibles()
+    if (sensibles.length > 0 && confirmacion === null) {
+      setConfirmacion(sensibles)
+      return
+    }
+    setConfirmacion(null)
+
     // Selección múltiple (feedback GPE): un INSERT por cada valor elegido, mismo resto de campos.
     const campoMulti = !esEdicion ? config.campos.find((c) => c.multiSelect) : undefined
     if (campoMulti) {
@@ -468,7 +604,7 @@ function RecordForm({
       const seleccionados = valores[campoMulti.name] as string[]
       const base: Row = {}
       for (const c of config.campos) {
-        if (c === campoMulti || c.persistir === false) continue
+        if (c === campoMulti || c.persistir === false || c.soloLectura) continue
         let v = valores[c.name]
         if (c.normalizar && typeof v === 'string' && v !== '') v = c.normalizar(v)
         if (v === '') v = null
@@ -485,6 +621,7 @@ function RecordForm({
         setError(mensajeError(res.error))
         return
       }
+      borrador.descartar()
       onSaved()
       return
     }
@@ -492,7 +629,7 @@ function RecordForm({
     setGuardando(true)
     const payload: Row = {}
     for (const c of config.campos) {
-      if (c.persistir === false) continue
+      if (c.persistir === false || c.soloLectura) continue
       if (esEdicion && (c.insertOnly || bloqueadoEnEdicion(c))) continue
       let v = valores[c.name]
       if (c.normalizar && typeof v === 'string' && v !== '') v = c.normalizar(v)
@@ -514,6 +651,7 @@ function RecordForm({
       setError(mensajeError(res.error))
       return
     }
+    borrador.descartar()
     onSaved()
   }
 
@@ -525,10 +663,36 @@ function RecordForm({
       <h2 className="mb-1 text-lg font-bold text-navy">
         {esEdicion ? `Editar ${config.singular}` : `Registrar ${config.singular}`}
       </h2>
-      {esEdicion && (
-        <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Los campos en gris no son editables por diseño (identidad del registro o política de permisos).
-        </p>
+      {/* GPE §7: el aviso "Los campos en gris no son editables por diseño (identidad del
+          registro o política de permisos)" explicaba una decisión de diseño a quien solo
+          quiere rellenar un formulario. Cada campo bloqueado dice ahora por sí mismo por qué
+          lo está, en su propio `hint`. */}
+
+      {avisoBorrador && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-navy">
+          <span>Tienes un registro sin terminar de la última vez.</span>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const previo = borrador.restaurar()
+                if (previo) setValores((s) => ({ ...s, ...previo }))
+                setAvisoBorrador(false)
+              }}
+            >
+              Recuperarlo
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                borrador.descartar()
+                setAvisoBorrador(false)
+              }}
+            >
+              Empezar de cero
+            </Button>
+          </div>
+        </div>
       )}
 
       <div className="mb-5"><ErrorBanner message={error} /></div>
@@ -538,13 +702,18 @@ function RecordForm({
           .filter((c) => esEdicion || !c.hideOnInsert)
           .filter((c) => !c.visibleSi || c.visibleSi(valores))
           .map((c) => {
-          const disabled = bloqueadoEnEdicion(c)
+          const disabled = deshabilitado(c)
           const span = c.colSpan === 3 ? 'lg:col-span-3' : c.colSpan === 2 ? 'sm:col-span-2' : ''
+          // Sin `id` en el control y `htmlFor` en la etiqueta, un lector de pantalla no anuncia
+          // de qué campo se trata: lee "cuadro de texto" y nada más. Ningún campo del formulario
+          // genérico los tenía, así que ninguna de estas pantallas era navegable a ciegas.
+          const campoId = `campo-${config.tabla}-${c.name}`
           return (
             <div key={c.name} className={span}>
               {c.type === 'checkbox' ? (
                 <label className="flex items-center gap-2 pt-6 text-sm text-navy">
                   <input
+                    id={campoId}
                     type="checkbox"
                     checked={!!valores[c.name]}
                     disabled={disabled}
@@ -556,32 +725,28 @@ function RecordForm({
               ) : (
                 <Field
                   label={c.label}
+                  htmlFor={campoId}
                   required={c.required && !disabled}
                   hint={c.hint}
                   ayuda={c.ayuda}
                   error={erroresCampo[c.name]}
                 >
                   {c.multiSelect && !esEdicion ? (
-                    <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-slate-200 p-2">
-                      {(opciones[c.name] ?? []).length === 0 && <p className="p-1 text-xs text-slate-400">Sin opciones disponibles.</p>}
-                      {(opciones[c.name] ?? []).map((o) => {
-                        const seleccionados = (valores[c.name] as string[]) ?? []
-                        const marcado = seleccionados.includes(o.value)
-                        return (
-                          <label key={o.value} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={marcado}
-                              onChange={(e) => set(c.name, e.target.checked ? [...seleccionados, o.value] : seleccionados.filter((v) => v !== o.value))}
-                              className="h-4 w-4"
-                            />
-                            {o.label}
-                          </label>
-                        )
-                      })}
-                    </div>
+                    <ListaSeleccionMultiple
+                      id={campoId}
+                      opciones={opciones[c.name] ?? []}
+                      seleccionados={(valores[c.name] as string[]) ?? []}
+                      onChange={(v) => set(c.name, v)}
+                      placeholderBusqueda={c.placeholder}
+                    />
+                  ) : c.soloLectura ? (
+                    // Campo en gris con el valor que el sistema calcula (GPE §6). Se pinta como
+                    // texto y no como <select>: ofrecer un desplegable que no se puede abrir
+                    // era justo lo que confundía en "Editar Memorando".
+                    <Input id={campoId} value={c.valorCalculado ? c.valorCalculado(valores) : String(valores[c.name] ?? '')} disabled readOnly />
                   ) : c.type === 'select' ? (
                     <Select
+                      id={campoId}
                       value={valores[c.name] ?? ''}
                       disabled={disabled}
                       onChange={(e) => set(c.name, e.target.value)}
@@ -590,6 +755,7 @@ function RecordForm({
                     />
                   ) : c.type === 'textarea' ? (
                     <Textarea
+                      id={campoId}
                       value={valores[c.name] ?? ''}
                       disabled={disabled}
                       placeholder={c.placeholder}
@@ -598,6 +764,7 @@ function RecordForm({
                   ) : c.type === 'timerange' ? (
                     <div className="flex items-center gap-2">
                       <Input
+                        id={campoId}
                         type="time"
                         disabled={disabled}
                         value={String(valores[c.name] ?? '').split('–')[0] ?? ''}
@@ -619,6 +786,7 @@ function RecordForm({
                     </div>
                   ) : (
                     <Input
+                      id={campoId}
                       type={c.type === 'number' ? 'number' : c.type === 'date' ? 'date' : c.type === 'time' ? 'time' : c.type === 'email' ? 'email' : 'text'}
                       value={valores[c.name] ?? ''}
                       disabled={disabled}
@@ -637,6 +805,39 @@ function RecordForm({
         <Button variant="secondary" onClick={onCancel}>Volver al panel</Button>
         <Button onClick={guardar} loading={guardando}>{esEdicion ? 'Guardar cambios' : 'Registrar'}</Button>
       </div>
+
+      {/* GPE §5: confirmación antes de tocar un dato sensible. Enseña el valor de antes y el
+          de después de cada campo, para que quien confirma sepa qué está aprobando. */}
+      <Modal
+        open={confirmacion !== null}
+        onClose={() => setConfirmacion(null)}
+        title="Confirmar cambios en datos sensibles"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmacion(null)}>Cancelar</Button>
+            <Button onClick={guardar} loading={guardando}>Sí, guardar los cambios</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-ink-soft">
+            Vas a modificar {confirmacion?.length === 1 ? 'un dato que afecta' : 'datos que afectan'} al
+            control de acceso de esta persona o a su identificación. Revisa antes de continuar:
+          </p>
+          <ul className="space-y-2">
+            {confirmacion?.map((c) => (
+              <li key={c.campo} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+                <p className="font-medium text-navy">{c.campo}</p>
+                <p className="text-ink-soft">
+                  <span className="line-through">{c.antes}</span>
+                  {' → '}
+                  <span className="font-medium text-navy">{c.despues}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Modal>
     </Card>
   )
 }

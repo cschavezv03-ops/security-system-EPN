@@ -28,19 +28,29 @@ interface Relacion {
  *
  * La persona se elige por cédula (`BuscarPersonaPorCedula`) en vez de con un combo con
  * todas las personas del sistema, por la misma razón que en el alta de usuarios.
+ *
+ * GPI y GPE pidieron lo mismo en esta ronda ("Revisar cómo está implementado el campo de
+ * Vehículo y Asociaciones en ADM, debe implementarse de la misma manera en este apartado"),
+ * así que el componente pasó a estar parametrizado por módulo: cada uno comprueba sus propios
+ * permisos y solo ofrece personas de su ámbito.
  */
 export function AsociacionesVehiculo({
   idVehiculo,
   onCambio,
+  modulo = 'ADM',
 }: {
   idVehiculo: string
   /** Refresca el listado de vehículos: la columna Propietario depende de estas filas. */
   onCambio: () => Promise<void>
+  /** Módulo desde el que se gestiona: decide los permisos y el ámbito de las personas. */
+  modulo?: 'ADM' | 'GPI' | 'GPE'
 }) {
   const { tiene } = useAuth()
   const toast = useToast()
-  const puedeVincular = tiene('ADM_PERSONA_VEHICULO_INSERT')
-  const puedeRevocar = tiene('ADM_PERSONA_VEHICULO_UPDATE')
+  const puedeVincular = tiene(`${modulo}_PERSONA_VEHICULO_INSERT`)
+  const puedeRevocar = tiene(`${modulo}_PERSONA_VEHICULO_UPDATE`)
+  // GPI gestiona personal interno y GPE externo. ADM ve a todos: es la maestra.
+  const soloTipo = modulo === 'GPI' ? 'INTERNA' : modulo === 'GPE' ? 'EXTERNA' : undefined
 
   const [relaciones, setRelaciones] = useState<Relacion[]>([])
   const [cargando, setCargando] = useState(true)
@@ -126,7 +136,12 @@ export function AsociacionesVehiculo({
 
       {anadiendo && (
         <div className="mb-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-          <BuscarPersonaPorCedula onSelect={setPersona} soloActivas label="Cédula de la persona" />
+          <BuscarPersonaPorCedula
+            onSelect={setPersona}
+            soloActivas
+            soloTipo={soloTipo}
+            label={soloTipo === 'INTERNA' ? 'Cédula de la persona interna' : soloTipo === 'EXTERNA' ? 'Cédula de la persona externa' : 'Cédula de la persona'}
+          />
           <Field label="Tipo de relación" htmlFor="tipo-relacion">
             <Select
               id="tipo-relacion"

@@ -75,7 +75,7 @@ export function RolPermisoScreen() {
     await cargar()
   }
 
-  if (!puedeLeer) return <EmptyState title="No tienes acceso a la matriz rol-permiso" hint="Requiere ADM_ROL_PERMISO_SELECT." />
+  if (!puedeLeer) return <EmptyState title="No tienes acceso a los permisos por rol" hint="Pide acceso al administrador del sistema." />
   if (cargando) return <CenterSpinner label="Cargando matriz rol-permiso..." />
 
   return (

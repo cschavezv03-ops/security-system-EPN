@@ -68,9 +68,25 @@ describe('Módulo de Administración', () => {
     expect(screen.queryByRole('heading', { name: 'Asociaciones' })).not.toBeInTheDocument()
   })
 
-  it('GPI y GPE conservan su propia pantalla de asociaciones', () => {
-    // Ahí el alta de vínculos es parte del trabajo diario, no una excepción administrativa.
+  // GPI y GPE tenían su propia tarjeta "Asociaciones", a propósito: se había decidido que ahí
+  // el alta de vínculos era trabajo diario y no una excepción administrativa. En esta ronda
+  // ambos equipos pidieron lo contrario ("Revisar cómo está implementado el campo de Vehículo
+  // y Asociaciones en ADM, debe implementarse de la misma manera en este apartado"), así que
+  // la excepción desaparece y los tres módulos se comportan igual.
+  it.each(['GPI', 'GPE'])('en %s las asociaciones se gestionan desde la ficha del vehículo', (modulo) => {
+    montarModulo(modulo)
+
+    expect(screen.getByRole('heading', { name: 'Vehículos' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Asociaciones' })).not.toBeInTheDocument()
+  })
+
+  it('las tarjetas describen la tarea, no cómo está construida', () => {
+    // GPE §7: "Revisar que en todo este módulo no haya descripciones que no le interesan al
+    // usuario final". A un guardia "Enrolamiento facial 1:N" no le dice nada.
     montarModulo('GPI')
-    expect(screen.getByRole('heading', { name: 'Asociaciones' })).toBeInTheDocument()
+    expect(screen.queryByText(/1:N/)).not.toBeInTheDocument()
+
+    montarModulo('CAC')
+    expect(screen.queryByText(/Categoría × punto × horario/)).not.toBeInTheDocument()
   })
 })

@@ -1,0 +1,59 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Datos internos — contrato Fijo o Temporal y unidad para el estudiante",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente lenin.amangandi@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Interno. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a lenin.amangandi@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Interno'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo muestra una tarjeta titulada 'Datos internos'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir la tarjeta 'Datos internos'"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar Detalle interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario muestra un desplegable etiquetado 'Persona interna'"
+    },
+    {
+      "type": "action",
+      "description": "Elegir en 'Persona interna' una persona cuya categoría sea Docente"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un campo 'Contrato' que es un desplegable con exactamente las opciones 'Fijo' y 'Temporal', y NO un campo de texto libre"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparecen también los campos 'Unidad', 'Cargo' y 'Categoría / escalafón'"
+    },
+    {
+      "type": "action",
+      "description": "Cambiar la selección de 'Persona interna' por una persona cuya categoría sea Estudiante"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un campo 'Unidad' con las opciones 'EPN' y 'CEC'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparecen los campos 'Carrera' y 'Curso', y ya NO aparece el campo 'Cargo'"
+    }
+  ]
+}

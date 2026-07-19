@@ -1,0 +1,67 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Personal interno — los campos cambian según la categoría",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente lenin.amangandi@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Interno. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a lenin.amangandi@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Interno'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo muestra una tarjeta titulada 'Personal interno'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir la tarjeta 'Personal interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "Existe un botón para registrar una persona interna"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar Persona interna'"
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario muestra como primer campo un desplegable etiquetado 'Categoría'"
+    },
+    {
+      "type": "action",
+      "description": "Seleccionar la categoría 'Estudiante'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un campo etiquetado 'Código único' y NO aparece ningún campo 'Empresa a la que pertenece'"
+    },
+    {
+      "type": "action",
+      "description": "Cambiar la categoría a 'Docente'"
+    },
+    {
+      "type": "assertion",
+      "description": "El campo 'Código único' ya no aparece en el formulario"
+    },
+    {
+      "type": "action",
+      "description": "Cambiar la categoría a 'Empresa de servicio'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un campo 'Empresa a la que pertenece' y sigue sin aparecer 'Código único'"
+    },
+    {
+      "type": "assertion",
+      "description": "Con cualquiera de las categorías anteriores están presentes los campos 'Cédula', 'Nombres', 'Apellidos', 'Correo', 'Sexo' y 'Fecha de nacimiento'"
+    }
+  ]
+}

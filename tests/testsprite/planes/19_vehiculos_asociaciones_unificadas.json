@@ -1,0 +1,59 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Vehículos — las asociaciones se gestionan desde la ficha, en GPI y GPE",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente lenin.amangandi@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Interno. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a lenin.amangandi@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Interno'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo Personal Interno muestra una tarjeta titulada 'Vehículos'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo Personal Interno NO muestra ninguna tarjeta titulada 'Asociaciones'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir la tarjeta 'Vehículos' y pulsar sobre la fila de un vehículo para abrir su ficha de detalle"
+    },
+    {
+      "type": "assertion",
+      "description": "Dentro de la ficha del vehículo aparece un bloque titulado 'Personas asociadas'"
+    },
+    {
+      "type": "assertion",
+      "description": "Ese bloque incluye un botón 'Vincular persona'"
+    },
+    {
+      "type": "action",
+      "description": "Cerrar la sesión actual desde el menú de la cuenta. En la pantalla de inicio de sesión, BORRAR el correo precargado y escribir exactamente joel.velastegui@epn.edu.ec con la contraseña admin1234, que es la única cuenta con acceso al módulo Personal Externo. Pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a joel.velastegui@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Externo'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Externo'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo Personal Externo muestra una tarjeta titulada 'Vehículos'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo Personal Externo NO muestra ninguna tarjeta titulada 'Asociaciones'"
+    }
+  ]
+}

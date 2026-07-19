@@ -1,0 +1,51 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Personal interno — campos obligatorios y fecha de nacimiento no futura",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente lenin.amangandi@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Interno. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a lenin.amangandi@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Interno'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Interno' y abrir la tarjeta 'Personal interno'"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar Persona interna'"
+    },
+    {
+      "type": "assertion",
+      "description": "El formulario de registro está visible con el campo 'Categoría'"
+    },
+    {
+      "type": "action",
+      "description": "Seleccionar la categoría 'Docente', escribir la cédula 1710034065, los nombres 'Prueba', los apellidos 'Automatica' y el correo prueba.automatica@epn.edu.ec, dejando el campo 'Sexo' sin elegir"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un mensaje indicando que el campo 'Sexo' es obligatorio y la persona NO se registra"
+    },
+    {
+      "type": "action",
+      "description": "Elegir el sexo 'Femenino' y escribir en 'Fecha de nacimiento' la fecha 01/01/2030"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar el botón 'Registrar'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparece un mensaje indicando que la fecha de nacimiento no puede ser futura y la persona NO se registra"
+    }
+  ]
+}

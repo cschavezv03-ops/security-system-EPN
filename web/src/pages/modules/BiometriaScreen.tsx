@@ -97,7 +97,7 @@ export function BiometriaScreen() {
   }
 
   if (!puedeLeer) {
-    return <EmptyState title="No tienes acceso a biometría" hint="Requiere el permiso GPI_BIOMETRIA_SELECT." />
+    return <EmptyState title="No tienes acceso a biometría" hint="Pide acceso al administrador del sistema." />
   }
 
   const enroladas = personas.filter((p) => p.registro_biometrico?.some((b) => b.vigente))
@@ -152,7 +152,7 @@ export function BiometriaScreen() {
           Solo personal interno. El descriptor se calcula en el navegador; la comparación ocurre en el backend (pgvector).
         </p>
         {!puedeEnrolar ? (
-          <EmptyState title="Sin permiso de enrolamiento" hint="Requiere GPI_BIOMETRIA_INSERT." />
+          <EmptyState title="No puedes registrar rostros" hint="Puedes consultar los registros, pero no añadir ninguno. Pide acceso al administrador del sistema." />
         ) : (
           <div className="space-y-3">
             <Field label="Persona interna" required>

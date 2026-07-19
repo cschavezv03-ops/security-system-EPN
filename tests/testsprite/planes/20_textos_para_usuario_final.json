@@ -1,0 +1,59 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Textos — nada de códigos de permiso ni jerga interna en pantalla",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente lenin.amangandi@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Interno. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a lenin.amangandi@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Interno'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Personal Interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo muestra una tarjeta titulada 'Biometría' con un texto descriptivo debajo"
+    },
+    {
+      "type": "assertion",
+      "description": "La descripción de la tarjeta 'Biometría' NO contiene '1:N' ni la palabra 'Enrolamiento'"
+    },
+    {
+      "type": "assertion",
+      "description": "En esta pantalla no aparece ningún código de permiso en mayúsculas con guiones bajos como 'GPI_BIOMETRIA_SELECT' o 'GPI_PERSONA_INSERT'"
+    },
+    {
+      "type": "action",
+      "description": "Recorrer las tarjetas del módulo Personal Interno y abrir la de 'Personal interno'"
+    },
+    {
+      "type": "assertion",
+      "description": "En ningún texto visible de estas pantallas aparecen las palabras en inglés 'banned', 'delete', 'create', 'insert' o 'update'"
+    },
+    {
+      "type": "action",
+      "description": "Cerrar la sesión actual desde el menú de la cuenta. En la pantalla de inicio de sesión, BORRAR el correo precargado y escribir exactamente carlos.chavez03@epn.edu.ec con la contraseña admin1234, que es la única cuenta con acceso al módulo Control de Accesos. Pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a carlos.chavez03@epn.edu.ec y el Panel Principal muestra el módulo 'Control de Accesos'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Control de Accesos'"
+    },
+    {
+      "type": "assertion",
+      "description": "El módulo muestra una tarjeta titulada 'Reglas de acceso' con un texto descriptivo debajo"
+    },
+    {
+      "type": "assertion",
+      "description": "La descripción de la tarjeta 'Reglas de acceso' NO es 'Categoría × punto × horario'"
+    }
+  ]
+}

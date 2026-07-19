@@ -188,7 +188,7 @@ export function UsuariosScreen() {
 
   const esMiCuenta = !!sel && sel.id_usuario === perfil?.id_usuario
 
-  if (!puedeLeer) return <EmptyState title="No tienes acceso a usuarios" hint="Requiere ADM_USUARIO_SELECT." />
+  if (!puedeLeer) return <EmptyState title="No tienes acceso a los usuarios" hint="Pide acceso al administrador del sistema." />
 
   return (
     <div>

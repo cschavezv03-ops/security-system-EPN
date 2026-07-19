@@ -19,6 +19,9 @@ export const CAT = {
   ],
   categoria_estado: ['ACTIVO', 'INACTIVO'],
   unidad: ['EPN', 'CEC'],
+  // GPI: "un docente puede estar por un contrato Fijo o Temporal". Antes era texto libre y
+  // había un docente con contrato "Si". Espejo de persona_interna_detalle_contrato_check.
+  contrato_tipo: ['FIJO', 'TEMPORAL'],
   empresa_estado: ['ACTIVO', 'INACTIVO'],
   vehiculo_tipo: ['AUTOMOVIL', 'MOTOCICLETA', 'CAMIONETA', 'BICICLETA', 'OTRO'],
   vehiculo_estado: ['ACTIVO', 'SUSPENDIDO', 'DADO_DE_BAJA'],
@@ -31,8 +34,12 @@ export const CAT = {
   dispositivo_estado: ['OPERATIVO', 'FALLA_DE_RED', 'DANO_FISICO'],
   asignacion_estado: ['ACTIVA', 'FINALIZADA'],
   regla_estado: ['ACTIVA', 'INACTIVA'],
-  memorando_estado: ['VIGENTE', 'VENCIDO'],
+  // Espejo de memorando_estado_memorando_check. PROGRAMADO no está aquí a propósito: no se
+  // almacena nunca, lo calcula estado_memorando_efectivo() cuando la vigencia aún no empieza.
+  memorando_estado: ['VIGENTE', 'VENCIDO', 'ANULADO'],
   persona_memorando_estado: ['ACTIVO', 'BLOQUEADO'],
+  // Igual que el memorando: solo VIGENTE y REVOCADA se guardan; PROGRAMADA y CADUCADA salen
+  // de la fecha de visita (estado_autorizacion_efectivo).
   autorizacion_estado: ['VIGENTE', 'REVOCADA'],
   evento_movimiento: ['INGRESO', 'SALIDA'],
   evento_origen: ['AUTOMATICA', 'MANUAL'],
@@ -60,11 +67,16 @@ export const CAT = {
   ],
 } as const
 
-/** Categorías por ámbito (EMPRESA_SERVICIO es EXTERNA en el backend real, §D20 / brecha §6.2). */
-export const CATEGORIAS_INTERNAS = ['DOCENTE', 'ESTUDIANTE', 'ADMINISTRATIVO', 'TRABAJADOR']
-export const CATEGORIAS_EXTERNAS = [
-  'VISITANTE', 'PROVEEDOR', 'CONTRATISTA', 'CONDUCTOR', 'EMPRESA_SERVICIO',
+/** Categorías por ámbito.
+ *
+ *  EMPRESA_SERVICIO es INTERNA, no externa: la migración `empresa_servicio_a_interna` la movió
+ *  de ámbito y `categoria_persona.ambito` lo confirma en la base. Estas dos listas se habían
+ *  quedado con el reparto antiguo, y el documento de GPI lo señala al enumerar las categorías
+ *  internas: "Docente, Estudiante, Administrativo, Trabajador, Empresa de Servicio". */
+export const CATEGORIAS_INTERNAS = [
+  'DOCENTE', 'ESTUDIANTE', 'ADMINISTRATIVO', 'TRABAJADOR', 'EMPRESA_SERVICIO',
 ]
+export const CATEGORIAS_EXTERNAS = ['VISITANTE', 'PROVEEDOR', 'CONTRATISTA', 'CONDUCTOR']
 
 /** Etiqueta legible para roles del sistema. */
 export const ROL_LABEL: Record<string, string> = {
@@ -106,6 +118,14 @@ export const ETIQUETA: Record<string, string> = {
   VENCIDO: 'Vencido',
   VENCIDA: 'Vencida',
   VIGENTE: 'Vigente',
+  // Estados calculados desde la fecha (GPE §2 y §8): no existen como valor almacenado, los
+  // devuelven estado_memorando_efectivo() y estado_autorizacion_efectivo().
+  ANULADO: 'Anulado',
+  PROGRAMADO: 'Programado',
+  PROGRAMADA: 'Programada',
+  CADUCADA: 'Caducada',
+  // Tipo de contrato del personal interno (GPI).
+  FIJO: 'Fijo',
   REVOCADO: 'Revocado',
   REVOCADA: 'Revocada',
   FINALIZADA: 'Finalizada',
@@ -257,6 +277,23 @@ export const ETIQUETA: Record<string, string> = {
 export const ETIQUETA_CAMPO: Record<string, string> = {
   ambito: 'Ámbito',
   apellidos: 'Apellidos',
+  cargo: 'Cargo',
+  carrera: 'Carrera',
+  categoria_escalafon: 'Categoría / escalafón',
+  contrato: 'Contrato',
+  curso: 'Curso',
+  dependencia_autorizada: 'Dependencia autorizada',
+  estado_acceso: 'Estado de acceso',
+  estado_autorizacion: 'Estado de la autorización',
+  estado_memorando: 'Estado del memorando',
+  fecha_anulacion: 'Fecha de anulación',
+  fecha_visita: 'Fecha de visita',
+  id_empresa: 'Empresa',
+  motivo: 'Motivo',
+  motivo_anulacion: 'Motivo de anulación',
+  nombramiento: 'Nombramiento',
+  numero_memorando: 'Número de memorando',
+  unidad: 'Unidad',
   bloqueado_hasta: 'Bloqueada hasta',
   cedula: 'Cédula',
   codigo_categoria: 'Código de categoría',

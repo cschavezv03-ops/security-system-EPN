@@ -11,7 +11,7 @@ import { AlertasScreen } from '../pages/modules/AlertasScreen'
 import { MonitoreoView } from '../pages/modules/MonitoreoView'
 import {
   cfgEmpresa, cfgCategoria, cfgParametro, cfgRol, cfgPermiso,
-  cfgVehiculo, cfgPersonaVehiculo, cfgZona, cfgPuntoControl, cfgDispositivo, cfgAsignacionGuardia,
+  cfgVehiculo, cfgZona, cfgPuntoControl, cfgDispositivo, cfgAsignacionGuardia,
   cfgPersonaExterna, cfgMemorando, cfgPersonaMemorando, cfgReglaAcceso, cfgAutorizacion,
 } from './configs'
 import { cfgBitacora, cfgSesion, cfgEventoAcceso, cfgBiometriaADM } from './configs-lectura'
@@ -52,9 +52,12 @@ export const MODULOS: ModuloDef[] = [
     submodulos: [
       sub('personas', 'Personal interno', 'Registro y consulta de personas internas.', <Users className="h-6 w-6" />, cfgPersonaInterna),
       sub('detalle', 'Datos internos', 'Cargo, unidad, carrera, escalafón.', <Contact className="h-6 w-6" />, cfgPersonaInternaDetalle),
-      { key: 'biometria', titulo: 'Biometría', descripcion: 'Enrolamiento facial 1:N del personal interno.', icono: <Fingerprint className="h-6 w-6" />, permisoVer: ['GPI_BIOMETRIA_SELECT'], render: () => <BiometriaScreen /> },
-      sub('vehiculos', 'Vehículos', 'Alta de vehículos.', <Car className="h-6 w-6" />, cfgVehiculo('GPI')),
-      sub('asociaciones', 'Asociaciones', 'Vínculos persona–vehículo.', <Link2 className="h-6 w-6" />, cfgPersonaVehiculo('GPI')),
+      // GPE §7 / GPI: las descripciones nombraban el algoritmo ("Enrolamiento facial 1:N") en
+      // vez de la tarea. A quien registra una cara no le sirve saber que la búsqueda es 1:N.
+      { key: 'biometria', titulo: 'Biometría', descripcion: 'Registrar el rostro del personal interno.', icono: <Fingerprint className="h-6 w-6" />, permisoVer: ['GPI_BIOMETRIA_SELECT'], render: () => <BiometriaScreen /> },
+      // La tarjeta "Asociaciones" desaparece: las personas de cada vehículo se gestionan desde
+      // su ficha, como en ADM.
+      sub('vehiculos', 'Vehículos', 'Vehículos del personal interno y quién los conduce.', <Car className="h-6 w-6" />, cfgVehiculo('GPI')),
     ],
   },
   {
@@ -67,10 +70,9 @@ export const MODULOS: ModuloDef[] = [
     submodulos: [
       sub('memorandos', 'Memorandos', 'Memorandos de acceso por empresa.', <FileText className="h-6 w-6" />, cfgMemorando),
       sub('personas', 'Personal externo', 'Registro y consulta de personas externas.', <UserPlus className="h-6 w-6" />, cfgPersonaExterna),
-      sub('autorizaciones', 'Ingresos (visitas sin memorando)', 'Visitas diarias sin memorando.', <ClipboardCheck className="h-6 w-6" />, cfgAutorizacion),
-      sub('vehiculos', 'Vehículos', 'Alta de vehículos externos.', <Car className="h-6 w-6" />, cfgVehiculo('GPE')),
-      sub('persona-memorando', 'Personas por memorando', 'Vínculo persona–memorando.', <ClipboardList className="h-6 w-6" />, cfgPersonaMemorando),
-      sub('asociaciones', 'Asociaciones', 'Vínculos persona–vehículo.', <Link2 className="h-6 w-6" />, cfgPersonaVehiculo('GPE')),
+      sub('autorizaciones', 'Ingresos (visitas sin memorando)', 'Autorizar una visita de un solo día.', <ClipboardCheck className="h-6 w-6" />, cfgAutorizacion),
+      sub('vehiculos', 'Vehículos', 'Vehículos del personal externo y quién los conduce.', <Car className="h-6 w-6" />, cfgVehiculo('GPE')),
+      sub('persona-memorando', 'Personas por memorando', 'Quién puede entrar con cada memorando.', <ClipboardList className="h-6 w-6" />, cfgPersonaMemorando),
       sub('empresas', 'Empresas', 'Registrar la empresa del personal externo.', <Building2 className="h-6 w-6" />, cfgEmpresa),
     ],
   },
@@ -92,7 +94,7 @@ export const MODULOS: ModuloDef[] = [
     descripcion: 'Reglas de acceso, eventos y alertas de seguridad.',
     icono: <Lock className="h-7 w-7" />,
     submodulos: [
-      sub('reglas', 'Reglas de acceso', 'Categoría × punto × horario.', <ListChecks className="h-6 w-6" />, cfgReglaAcceso),
+      sub('reglas', 'Reglas de acceso', 'Quién puede entrar, por dónde y en qué horario.', <ListChecks className="h-6 w-6" />, cfgReglaAcceso),
       sub('eventos', 'Eventos de acceso', 'Histórico de ingresos y salidas.', <History className="h-6 w-6" />, cfgEventoAcceso()),
       { key: 'alertas', titulo: 'Alertas de seguridad', descripcion: 'Atención de alertas automáticas.', icono: <ShieldAlert className="h-6 w-6" />, permisoVer: ['CAC_ALERTA_SELECT'], render: () => <AlertasScreen /> },
       // "Asignaciones de guardia" queda exclusivamente en PCO (feedback CAC: "Quitar asignación
@@ -122,7 +124,7 @@ export const MODULOS: ModuloDef[] = [
       // Feedback ADM: una sola tabla mezclaba internos y externos. La pantalla monta dos
       // listados separados, uno por ámbito.
       { key: 'personas', titulo: 'Personal interno y externo', descripcion: 'Todas las personas, separadas por ámbito.', icono: <Contact className="h-6 w-6" />, permisoVer: ['ADM_PERSONA_SELECT'], render: () => <PersonasADMScreen /> },
-      sub('biometria', 'Biometría', 'Metadatos de registros biométricos (sin acceso al archivo).', <Fingerprint className="h-6 w-6" />, cfgBiometriaADM),
+      sub('biometria', 'Biometría', 'Quién tiene el rostro registrado y desde cuándo.', <Fingerprint className="h-6 w-6" />, cfgBiometriaADM),
       // Feedback ADM: "unificar o enlazar claramente las asociaciones persona-vehículo
       // desde la misma vista". Las asociaciones se gestionan dentro del detalle del
       // vehículo, así que ADM ya no necesita una tarjeta aparte (GPI y GPE mantienen la
