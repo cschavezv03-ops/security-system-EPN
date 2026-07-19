@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   autorizacionPermiteAcceso, diasDeVigencia, estadoAutorizacionEfectivo,
   estadoMemorandoEfectivo, memorandoPermiteAcceso, vigenteHastaTexto,
 } from './vigencia'
+import { hoyISO } from './format'
 
 /**
  * Estado real de memorandos y autorizaciones.
@@ -82,5 +83,49 @@ describe('hasta cuándo se puede entrar', () => {
 
   it('con la hora de cierre de CAC, la fecha y la hora (GPE §2)', () => {
     expect(vigenteHastaTexto('2026-07-17', '18:00:00')).toBe('17/07/2026 a las 18:00')
+  })
+})
+
+describe('la fecha de referencia es la de Ecuador, no la de UTC', () => {
+  // Este bloque nació de un fallo real: la prueba de "vale el día de la visita" empezó a fallar
+  // a las 19:00 hora de Ecuador, porque `hoyISO()` usaba toISOString() y ya devolvía el día
+  // siguiente. No era un problema de la prueba: `vista_vigencia_acceso` hacía lo mismo con
+  // CURRENT_DATE, así que un visitante con autorización válida era DENEGADO en la garita
+  // durante las últimas cinco horas de cada jornada.
+  it('a las 19:30 de Ecuador todavía es el mismo día, no el siguiente', () => {
+    vi.useFakeTimers()
+    // 2026-07-19T00:30:00Z son las 19:30 del 18 de julio en Ecuador (UTC-5).
+    vi.setSystemTime(new Date('2026-07-19T00:30:00Z'))
+
+    expect(hoyISO()).toBe('2026-07-18')
+    // Y por tanto la visita de ese día sigue autorizando el ingreso.
+    expect(autorizacionPermiteAcceso({ estado_autorizacion: 'VIGENTE', fecha_visita: '2026-07-18' }))
+      .toBe(true)
+    expect(estadoAutorizacionEfectivo({ estado_autorizacion: 'VIGENTE', fecha_visita: '2026-07-18' }))
+      .toBe('VIGENTE')
+
+    vi.useRealTimers()
+  })
+
+  it('un memorando que vence hoy no caduca a media tarde (§D24)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-19T00:30:00Z'))
+
+    expect(memorandoPermiteAcceso({ estado_memorando: 'VIGENTE', fecha_inicio: '2026-07-10', fecha_fin: '2026-07-18' }))
+      .toBe(true)
+
+    vi.useRealTimers()
+  })
+
+  it('pasada la medianoche de Ecuador sí cambia el día', () => {
+    vi.useFakeTimers()
+    // 05:30Z = 00:30 del 19 en Ecuador.
+    vi.setSystemTime(new Date('2026-07-19T05:30:00Z'))
+
+    expect(hoyISO()).toBe('2026-07-19')
+    expect(estadoAutorizacionEfectivo({ estado_autorizacion: 'VIGENTE', fecha_visita: '2026-07-18' }))
+      .toBe('CADUCADA')
+
+    vi.useRealTimers()
   })
 })

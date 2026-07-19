@@ -741,3 +741,33 @@ Resultó que **el guardia ya podía hacerlo**: tiene `CAC_AUTORIZACION_INSERT` y
 **no toca la matriz de permisos** (doc 02 intacto): se añadió el componente `AutorizarVisita`
 a la vista de garita, con el orden de la garita —cédula primero, alta solo si no existe— y
 siempre para el día de hoy, porque un guardia autoriza a quien tiene delante.
+
+### D52 — La fecha de referencia del sistema es la de Ecuador, no la de UTC
+
+**Bug encontrado durante esta ronda, ajeno a lo que pedían los documentos.** Apareció porque
+una prueba de vigencia empezó a fallar sola a las 19:00; no era la prueba.
+
+El servidor corre en UTC y todo el sistema usaba `current_date` (base) y `toISOString()`
+(interfaz). Ecuador va cinco horas por detrás, así que **desde las 19:00 hora local ambos
+devolvían ya el día siguiente**. Efectos:
+
+- `vista_vigencia_acceso` dejaba de reconocer las autorizaciones de visita del día. Un
+  visitante con permiso válido era **denegado en la garita** durante las últimas cinco horas de
+  cada jornada.
+- Un memorando cuyo último día era hoy dejaba de autorizar cinco horas antes, contradiciendo
+  §D24 ("`fecha_fin` inclusiva").
+- Al registrar una visita, la fecha propuesta por defecto era mañana.
+- `es_fecha_nacimiento_valida` aceptaba como pasada una fecha que en Ecuador todavía es futura.
+
+Lo llamativo es que la Edge Function `registrar-evento-acceso` **ya lo hacía bien**: evalúa los
+horarios de CAC con `America/Guayaquil` explícito. La base se había quedado atrás, así que en
+un mismo ingreso la comprobación de horario usaba la hora de Ecuador y la de vigencia la de
+UTC. Nadie lo notó porque las pruebas manuales se hacen de día.
+
+Ahora hay una sola fuente para esto: `public.hoy_ecuador()` en la base y `hoyISO()` en
+`web/src/lib/format.ts`, ambas sobre `America/Guayaquil`. Se usa el nombre de la zona y no un
+desplazamiento fijo de -5: Ecuador continental no aplica horario de verano hoy, pero eso es una
+decisión política, no una constante.
+
+De paso, `vista_vigencia_acceso` pasa a excluir los memorandos **anulados** (§D47): sin eso, un
+memorando anulado seguiría autorizando el ingreso mientras sus fechas siguieran corriendo.
