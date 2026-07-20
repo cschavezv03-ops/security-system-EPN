@@ -1,3 +1,7 @@
 node_modules/
 # Se genera compilando web/src/lib/placas.ts: el codigo real, no una copia.
 placas.build.mjs
+# Lo descarga tesseract.js la primera vez que se ejecuta; son 30 MB de modelo.
+eng.traineddata
+# Ayuda puntual de diagnostico, no forma parte del flujo.
+inspeccionar.mjs
