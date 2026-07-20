@@ -285,15 +285,28 @@ se aceptan documentos no ecuatorianos; hoy no.
 turno que no se pueda interpretar **no habilita** el acceso (conservador). **Pendiente del equipo:**
 decidir si `turno` pasa a catálogo cerrado (`MATUTINO/VESPERTINO/NOCTURNO`) y migrar los rangos.
 
-## V11 — 18 cédulas ficticias siguen pendientes (arrastre de §V1)
+## V11 — 18 cédulas ficticias siguen pendientes (arrastre de §V1) ✅ DECIDIDO
 El endurecimiento de la cédula no cambia esto: las 18 cédulas sintéticas de §V1 siguen siendo
 válidas por estructura pero no corresponden a personas reales. **Pendiente del equipo:** sustituir
 por las cédulas reales desde ADM. (Las nuevas reglas no las rechazan: no son relleno.)
 
-## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
+**✅ Cerrado en la sesión final (20/07/2026):** se **aceptan como datos de demostración**. Al
+mirarlas una a una, esas 18 no son relleno anónimo: son las cuentas y personas del propio sistema
+—el administrador, el guardia_demo, las **seis cuentas del equipo que usan todos los planes de
+TestSprite** (lenin, joel, heidy, carlos, frank, gary) y las personas de calibración biométrica
+(Impostor Uno/Dos, TuRostro)—. Sustituirlas rompería la batería de integración y el enrolamiento
+biométrico, y no hay personas reales detrás a las que apuntar. Se quedan.
+
+## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO ✅ DECIDIDO
 No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
 `VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
 SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
+
+**✅ Cerrado en la sesión final (20/07/2026):** se **acepta** que no habrá SRI en el prototipo, y
+la pantalla de empresas ahora **lo dice en vez de callarlo**: junto al RUC aparece "· sin
+verificar" mientras el estado sea NO_VERIFICADO (`rucConVerificacion` en `configs.tsx`, prueba en
+`configs-adm.test.tsx`). Cuando exista el servicio del SRI, poblar la columna basta para que la
+pantalla muestre el estado real.
 
 ---
 
@@ -495,6 +508,12 @@ puede seguir editando con normalidad.
 acepta que un parqueadero pueda colgar del campus (y entonces hay que relajar el trigger). No es
 una decisión de implementación: depende de cómo esté organizado el campus de verdad.
 
+**✅ Cerrado en la sesión final (20/07/2026):** se **crea el edificio** y se reasigna el
+parqueadero, sin relajar el trigger. EARME es un edificio real de la EPN (Aulas y Relación con el
+Medio Externo), así que "Campus → Edificio EARME → Parqueadero Subsuelo EARME" es la jerarquía
+correcta. Aplicado en `scripts/ajustes_datos_demo_prototipo3.sql`; el contador de "parqueaderos
+colgando del campus" quedó en 0.
+
 ## V25 — Los puntos de control que cuelgan del campus
 
 PCO pidió que al registrar un punto de control **no se ofrezca "Campus" como tipo de zona**,
@@ -593,6 +612,12 @@ accesos físicos de verdad, y eso no es una decisión que deba tomarse de paso.
 La segunda asignación de esa cuenta (turno `MATUTINO`, sin horas) está FINALIZADA y tampoco
 habilita; es la fila cuyo turno en texto libre no se pudo migrar (§D57).
 
+**✅ Cerrado en la sesión final (20/07/2026):** ya no bloquea. La ronda de CAC reasignó al
+guardia_demo a **"Garita Principal (demo)", que está ACTIVA**, así que puede demostrar la garita
+sin tocar el punto en mantenimiento. "Puerta - Laboratorio de Suelos" **se deja en MANTENIMIENTO**
+—el comportamiento del sistema es el correcto (§V29) y cambiar el estado de un punto habilita
+accesos físicos de verdad—. No hay nada que tocar.
+
 ## V30 — El descanso entre jornadas no se comprueba con turnos nocturnos
 
 `validar_jornada_guardia()` (§D59) comprueba el descanso mínimo midiendo la ventana que ocupan
@@ -634,6 +659,12 @@ acceso es que la persona esté asociada al vehículo (RF-CA-015); que el vehícu
 es integridad del maestro. Denegarle el paso a un conductor legítimo porque a su coche le falta
 el papeleo sería castigarle por un hueco administrativo que no le corresponde. Si el equipo
 prefiere que sí bloquee, es un cambio de una línea en la Edge Function.
+
+**✅ Cerrado en la sesión final (20/07/2026):** se les asigna un **propietario de demostración**
+coherente entre el personal interno, ya que no hay forma de saber de quién son de verdad: `PDF7777`
+(Mazda) → Hernán Avellaneda; `PDF1234` (Hyundai, que conduce Joel) → Cecilia Jaramillo, dejando a
+Joel como conductor autorizado (dueño y conductor distintos, que es el caso realista). Aplicado en
+`scripts/ajustes_datos_demo_prototipo3.sql`; `vista_vehiculo_sin_propietario` quedó vacía.
 
 ## V32 — Umbrales biométricos ✅ MEDIDOS (y una decisión nueva sobre el detector)
 
@@ -793,6 +824,13 @@ el Alan Turing es el aula 004 del piso 4 del edificio 20 — pero es un ejemplo 
 no un dato confirmado, y renombrar un punto de control cambia lo que ve el guardia en la garita.
 No se ha tocado por eso.
 
+**✅ Cerrado en la sesión final (20/07/2026):** el equipo confirmó aplicar el estándar al Alan
+Turing → **`E20/P4/E004 – Laboratorio Alan Turing`** (renombrado en
+`scripts/ajustes_datos_demo_prototipo3.sql`, con el mismo separador que compone la pantalla). El
+**"Laboratorio de Suelos" se deja con su nombre descriptivo** hasta conocer su piso y aula; no urge
+porque está en MANTENIMIENTO y ningún guardia lo usa. Cuando se sepa su ubicación, se renombra
+igual desde PCO.
+
 ## V42 — Una asignación de guardia activa sin fecha de fin
 
 La asignación `46a99012` (guardia.demo, 12:00–23:59:59, desde el 19/07) está **ACTIVA y sin fecha
@@ -806,3 +844,7 @@ en cualquier update y dejaba la fila congelada.
 **Qué hace falta decidir:** hasta cuándo dura esa asignación. No se puede completar por nuestra
 cuenta sin inventarse el dato. Mientras tanto es la única asignación activa incompleta del
 sistema, y cualquier edición que le toque las horas o el estado ya obligará a rellenarla.
+
+**✅ Cerrado en la sesión final (20/07/2026):** se fija `fecha_fin = 2026-12-31`, que cubre con
+holgura el periodo de la defensa del prototipo. Aplicado en
+`scripts/ajustes_datos_demo_prototipo3.sql`; ya no hay ninguna asignación activa sin fecha de fin.
