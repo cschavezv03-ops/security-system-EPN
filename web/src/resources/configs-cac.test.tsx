@@ -114,6 +114,16 @@ const { supabase, insertsHechos, borradosHechos } = vi.hoisted(() => {
         fecha_hora: '2026-07-20T09:00:00Z',
         punto: { nombre_punto: 'Acceso Sur' }, dispositivo: null,
       },
+      {
+        // Un error con dispositivo asociado: se identifica por su MAC y su tecnología, porque
+        // la tabla dispositivo NO tiene nombre. Pedir un nombre inexistente tumbaba la pantalla
+        // entera con un 400 de PostgREST (INT-11); esta fila fija que se lea por MAC.
+        id_error: 'x-3', tipo_reconocimiento: 'PLACA', codigo_error: 'LECTOR_SIN_RESPUESTA',
+        descripcion: 'El lector de placas no respondió a tiempo.',
+        fecha_hora: '2026-07-20T10:30:00Z',
+        punto: { nombre_punto: 'Acceso Sur' },
+        dispositivo: { codigo_mac: 'AA:BB:CC:DD:EE:FF', tipo_tecnologia: 'LPR_PLACAS' },
+      },
     ],
   }
 
@@ -349,6 +359,18 @@ describe('errores de reconocimiento (RF-CA-022)', () => {
     // "Camara" — legible, pero mal escrito, y en una pantalla que lee un guardia.
     const filaCamara = (await screen.findByText(/No se pudo abrir la cámara/i)).closest('tr')!
     expect(within(filaCamara).getByText('Cámara no disponible')).toBeInTheDocument()
+  })
+
+  it('la ficha identifica el dispositivo por su MAC, no por un nombre inexistente (INT-11)', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgErrorReconocimiento())
+
+    await usuario.click(await screen.findByText(/El lector de placas no respondió/i))
+
+    // La ficha del error muestra el dispositivo por su MAC y su tecnología. Antes la pantalla
+    // pedía dispositivo(nombre_dispositivo), una columna que no existe, y PostgREST devolvía
+    // 400: el listado entero se quedaba vacío con un banner de error.
+    expect(await screen.findByText(/AA:BB:CC:DD:EE:FF/)).toBeInTheDocument()
   })
 
   it('es un histórico: no ofrece registrar ni editar', async () => {

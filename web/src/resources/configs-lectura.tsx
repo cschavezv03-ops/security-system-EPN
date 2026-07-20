@@ -458,7 +458,10 @@ export function cfgErrorReconocimiento(): ResourceConfig {
     titulo: 'Errores de reconocimiento',
     singular: 'Error de reconocimiento',
     idField: 'id_error',
-    select: '*, punto:punto_control(nombre_punto), dispositivo:dispositivo(nombre_dispositivo)',
+    // Un dispositivo no tiene nombre: se identifica por su MAC y su tecnología (igual que en
+    // el módulo de dispositivos). Pedir la columna inexistente nombre_dispositivo hacía que
+    // PostgREST devolviera 400 y la pantalla entera no cargara (lo detectó INT-11).
+    select: '*, punto:punto_control(nombre_punto), dispositivo:dispositivo(codigo_mac, tipo_tecnologia)',
     orderBy: { columna: 'fecha_hora', ascendente: false },
     permisos: { select: ['CAC_EVENTO_SELECT', 'CAC_EVENTO_SELECT_PUNTO_ASIGNADO'] },
     buscarEn: ['descripcion', 'punto.nombre_punto'],
@@ -480,7 +483,7 @@ export function cfgErrorReconocimiento(): ResourceConfig {
       { label: 'Reconocimiento', render: (r) => humanizar(r.tipo_reconocimiento) },
       { label: 'Tipo de fallo', render: (r) => humanizar(r.codigo_error) },
       { label: 'Garita', render: (r) => r.punto?.nombre_punto ?? '—' },
-      { label: 'Dispositivo', render: (r) => r.dispositivo?.nombre_dispositivo ?? '—' },
+      { label: 'Dispositivo', render: (r) => (r.dispositivo ? `${r.dispositivo.codigo_mac}${r.dispositivo.tipo_tecnologia ? ` · ${humanizar(r.dispositivo.tipo_tecnologia)}` : ''}` : '—') },
       { label: 'Detalle', render: (r) => d(r.descripcion) },
     ],
     campos: [],
