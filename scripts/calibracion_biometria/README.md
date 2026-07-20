@@ -43,9 +43,22 @@ npm install
 #    la mitad de personas distintas). Fuera del repositorio.
 node descargar_pares.mjs /tmp/pares-lfw 1200
 
-# 2. Medir y proponer umbrales.
+# 2. Medir y proponer umbrales. Reparte el trabajo entre los núcleos disponibles.
 node calibrar.mjs /tmp/pares-lfw
 ```
+
+### Por qué CPU en paralelo y no GPU
+
+Calcular un descriptor son unos cientos de milisegundos, y hay dos fotos por par: en secuencial,
+1200 pares se van a cerca de una hora. La salida obvia sería la GPU, pero no compensa:
+`@tensorflow/tfjs-node-gpu` se compila contra CUDA 11.8 y una tarjeta Blackwell (RTX 50xx)
+necesita CUDA 12.8 o superior — varios GB de toolkit para acabar, con bastante probabilidad, en
+un binario que no arranca.
+
+El trabajo, en cambio, es **paralelo puro**: cada par es independiente de los demás y no hay
+nada que coordinar. Repartirlo entre los núcleos da el mismo resultado sin instalar nada.
+`calibrar.mjs` lanza un proceso por núcleo (dejando dos libres para que la máquina siga usable),
+cada uno con su franja del índice, y agrega los resultados al final.
 
 Los pesos del modelo están en `modelos/` y son **los mismos que descarga el navegador** desde
 el CDN. El detector también es el mismo (`TinyFaceDetector`): calibrar con otro detector daría

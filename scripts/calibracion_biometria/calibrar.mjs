@@ -26,11 +26,10 @@
  * Uso:  node calibrar.mjs <carpeta-con-pares>
  */
 
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, rm, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
-import jpeg from 'jpeg-js';
-import * as tf from '@tensorflow/tfjs';
-import * as faceapi from '@vladmandic/face-api/dist/face-api.node-wasm.js';
+import { tmpdir, cpus } from 'node:os';
+import { fork } from 'node:child_process';
 
 const carpeta = process.argv[2];
 if (!carpeta) {
@@ -38,80 +37,48 @@ if (!carpeta) {
   process.exit(1);
 }
 
-// Los pesos se cargan del paquete instalado en el frontend, que son exactamente los mismos
-// que descarga el navegador: calibrar con otro modelo daría un número que no aplica.
-const RUTA_MODELOS = new URL('./modelos', import.meta.url).pathname;
-
-await faceapi.tf.setBackend('cpu');
-await faceapi.tf.ready();
-
-console.log('Cargando modelos...');
-// TinyFaceDetector, el mismo que usa `web/src/lib/faceapi.ts` en la garita. Calibrar con otro
-// detector daría un número que no aplica: el recorte que hace cada uno es distinto y el
-// descriptor sale del recorte.
-await faceapi.nets.tinyFaceDetector.loadFromDisk(RUTA_MODELOS);
-await faceapi.nets.faceLandmark68Net.loadFromDisk(RUTA_MODELOS);
-await faceapi.nets.faceRecognitionNet.loadFromDisk(RUTA_MODELOS);
-
-/** Convierte un JPEG en el tensor que espera face-api, sin dependencias nativas. */
-async function tensorDesdeJpeg(ruta) {
-  const crudo = await readFile(ruta);
-  const { data, width, height } = jpeg.decode(crudo, { useTArray: true });
-  // jpeg-js devuelve RGBA; el modelo espera RGB.
-  const rgb = new Uint8Array((data.length / 4) * 3);
-  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-    rgb[j] = data[i];
-    rgb[j + 1] = data[i + 1];
-    rgb[j + 2] = data[i + 2];
-  }
-  return tf.tensor3d(rgb, [height, width, 3]);
-}
-
-const descriptores = new Map();
-
-async function descriptorDe(nombre) {
-  if (descriptores.has(nombre)) return descriptores.get(nombre);
-  const tensor = await tensorDesdeJpeg(join(carpeta, nombre));
-  try {
-    const deteccion = await faceapi
-      .detectSingleFace(tensor, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks()
-      .withFaceDescriptor();
-    const valor = deteccion ? deteccion.descriptor : null;
-    descriptores.set(nombre, valor);
-    return valor;
-  } finally {
-    tensor.dispose();
-  }
-}
-
-const distanciaL2 = (a, b) => {
-  let suma = 0;
-  for (let i = 0; i < a.length; i++) suma += (a[i] - b[i]) ** 2;
-  return Math.sqrt(suma);
-};
-
 // ---------------------------------------------------------------------------
-// Medición
+// Medición, repartida entre los núcleos disponibles
 // ---------------------------------------------------------------------------
+// Calcular un descriptor facial son unos cientos de milisegundos de CPU, y hay 2400 fotos que
+// medir. En secuencial eso es cerca de una hora; repartido entre los núcleos, unos minutos.
+// Cada par es independiente de los demás, así que no hace falta coordinar nada: cada proceso
+// se queda con una franja del índice y escribe su resultado.
+//
+// Se dejan dos núcleos libres para que la máquina siga usable mientras corre.
+const nucleos = Math.max(1, Math.min(10, cpus().length - 2));
+
 const indice = JSON.parse(await readFile(join(carpeta, 'indice.json'), 'utf8'));
-console.log(`Midiendo ${indice.length} pares...`);
+console.log(`Midiendo ${indice.length} pares con ${nucleos} procesos en paralelo...`);
+
+const temporal = await mkdtemp(join(tmpdir(), 'calib-'));
+const guion = new URL('./calcular_descriptores.mjs', import.meta.url).pathname;
+
+const trabajos = Array.from({ length: nucleos }, (_, i) => {
+  const salida = join(temporal, `parte-${i}.json`);
+  return new Promise((resolver, rechazar) => {
+    const hijo = fork(guion, [carpeta, String(i), String(nucleos), salida], {
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    });
+    hijo.on('exit', (codigo) => (codigo === 0 ? resolver(salida) : rechazar(new Error(`proceso ${i} salió con ${codigo}`))));
+    hijo.on('error', rechazar);
+  });
+});
+
+const archivos = await Promise.all(trabajos);
+console.log('');
 
 const mismas = [];
 const distintas = [];
 let sinRostro = 0;
 
-for (const [i, par] of indice.entries()) {
-  const [a, b] = await Promise.all([descriptorDe(par.a), descriptorDe(par.b)]);
-  if (!a || !b) {
-    sinRostro++;
-  } else {
-    const d = distanciaL2(a, b);
-    (par.mismaPersona ? mismas : distintas).push(d);
+for (const archivo of archivos) {
+  for (const r of JSON.parse(await readFile(archivo, 'utf8'))) {
+    if (r.distancia === null) sinRostro++;
+    else (r.mismaPersona ? mismas : distintas).push(r.distancia);
   }
-  if ((i + 1) % 25 === 0) process.stdout.write(`\r  ${i + 1}/${indice.length}`);
 }
-console.log('');
+await rm(temporal, { recursive: true, force: true });
 
 // ---------------------------------------------------------------------------
 // Estadística
