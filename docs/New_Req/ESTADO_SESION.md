@@ -4,24 +4,31 @@ La ronda de **CAC** está cerrada. Sustituye al documento de la ronda de PCO.
 
 ---
 
-## ⚠️ Cuatro cosas que hacer ANTES de empezar
+## ✅ La ronda de CAC está fusionada y desplegada
 
-**1. Fusionar los PR pendientes.** Hay **dos** sin fusionar: `feat/pco-mejoras` y
-`feat/cac-mejoras` (esta última sale de la anterior, así que fusionarlas en ese orden). Mientras
-no se fusionen, `main` y producción no tienen los cambios, **pero la base de datos sí** — las
-migraciones se aplican por MCP, no por el PR.
+PR **#6** fusionado el 20/07/2026. Trajo también los commits de PCO, porque `feat/cac-mejoras`
+salía de `feat/pco-mejoras`: **las dos rondas están en `main` y en producción**.
 
-**2. Volver a proteger los previews.** Panel de Vercel → proyecto `security-system-epn` →
+Verificado tras el despliegue: bundle nuevo servido en producción (`registry-BUKOHAkY.js`),
+lector de placas corrigiendo erratas, doble autenticación del conductor, persona desconocida
+registrándose y el embed de garitas por regla devolviendo el dato correcto.
+
+Por primera vez en varias rondas, **el esquema y el frontend desplegado van a la par**. No hay
+ninguna ventana abierta entre la base y lo que ve el usuario.
+
+## ⚠️ Dos cosas que hacer ANTES de empezar
+
+**1. Volver a proteger los previews.** Panel de Vercel → proyecto `security-system-epn` →
 **Settings → Deployment Protection** → **Vercel Authentication** → **Enabled**. Sigue desactivado
 para que TestSprite pueda entrar; mientras siga así, cualquier URL de preview es accesible para
 quien la tenga.
 
-**3. `guardia.demo@epn.edu.ec` ahora usa `admin1234`.** Se le repuso la contraseña en esta ronda
+**2. `guardia.demo@epn.edu.ec` ahora usa `admin1234`.** Se le repuso la contraseña en esta ronda
 (estaba sin documentar y bloqueaba toda prueba de la Garita). Y se le **reasignó** a la "Garita
 Principal (demo)", turno 06:00–18:00: su punto anterior estaba en MANTENIMIENTO y no podía
 registrar ni un evento. Fuera de esa franja horaria no puede operar, y es correcto.
 
-**4. El token del lector de placas.** `PLATE_RECOGNIZER_TOKEN` **no está configurado**. Sin él el
+**3. El token del lector de placas.** `PLATE_RECOGNIZER_TOKEN` **no está configurado**. Sin él el
 sistema funciona con el lector local (Tesseract), que acierta bastante menos con placas reales.
 Se pone en Supabase → *Edge Functions → Secrets*; no hay que redesplegar nada.
 
@@ -32,8 +39,9 @@ Se pone en Supabase → *Edge Functions → Secrets*; no hay que redesplegar nad
 | Qué | Dónde |
 |---|---|
 | Producción | https://security-system-epn.vercel.app (rama `main`) |
-| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D62-D69 son de la ronda de CAC |
+| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D62-D71 son de la ronda de CAC |
 | Dudas y pendientes | `docs/99_DUDAS_PARA_EL_EQUIPO.md` — §V31-V36 son de la ronda de CAC |
+| Calibrar los umbrales | `scripts/calibracion_biometria` y `scripts/calibracion_placas` |
 | **Cómo probar las placas y el rostro** | `docs/New_Req/GUIA_PRUEBAS_PLACAS.md` |
 | Despliegue | `docs/DESPLIEGUE.md` |
 | Feedback de CAC | `docs/New_Req/Requerimientos_CAC.docx` |
@@ -212,7 +220,10 @@ python3 scripts/prueba_multisesion.py
 
 ## Pendientes que no bloquean
 
-1. **§V32**: los umbrales biométricos se calibraron con **tres rostros**. Volver a medir con 15-20.
+1. **§V32**: los umbrales están medidos (862 pares de LFW y 200 imágenes de placas). Lo que
+   queda abierto es el **detector facial**: `TinyFaceDetector` no encuentra rostro en el 28 % de
+   las fotos de LFW, que son fáciles. `SsdMobilenetv1` detecta mejor, pero cambiarlo invalida la
+   calibración — hay que volver a medir con él, y ahora eso cuesta diez minutos.
 2. **§V33**: el lector de placas en la nube depende de un tercero; el plan gratuito son 2500
    lecturas/mes.
 3. **§V34**: las cinco reglas de acceso sembradas llevan horarios plausibles pero **no acordados**.
