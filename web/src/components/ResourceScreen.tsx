@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Pencil, Plus, Search, Ban, ArrowLeft, Download, RotateCcw } from 'lucide-react'
-import { fromTable, mensajeError } from '../lib/supabase'
+import { fromTable, mensajeError, supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { useBorrador } from '../lib/useBorrador'
+import { validarCedula } from '../lib/validacion'
+import { hoyISO } from '../lib/format'
 import type { FieldConfig, Opcion, ResourceConfig } from '../resources/types'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Modal,
@@ -625,9 +627,34 @@ function RecordForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...config.campos.filter((c) => c.derivarSiempreDesde).map((c) => valores[c.derivarSiempreDesde!.campo])])
 
+  // Campos que el sistema arma a partir de otros y que SÍ se guardan (ej. el nombre de un punto
+  // de control, "E20/P4/E004 – Laboratorio Alan Turing", compuesto de tres números y un texto).
+  // Se recalculan en cuanto cambia cualquiera de sus piezas, para que lo que se ve en gris sea
+  // exactamente lo que se va a guardar.
+  useEffect(() => {
+    for (const c of config.campos) {
+      if (!c.componerDesde) continue
+      // Un campo oculto no escribe en el formulario. Sin esto, al editar una garita del campus
+      // —donde el nombre se teclea a mano— el campo compuesto, que solo aplica a los edificios,
+      // borraba el nombre real: sus piezas estaban vacías y componía "".
+      if (c.visibleSi && !c.visibleSi(valores)) continue
+      const compuesto = c.componerDesde.componer(valores)
+      if (compuesto !== (valores[c.name] ?? '')) set(c.name, compuesto)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    JSON.stringify(
+      config.campos
+        .filter((c) => c.componerDesde)
+        .flatMap((c) => c.componerDesde!.campos.map((n) => valores[n])),
+    ),
+  ])
+
   const bloqueadoEnEdicion = (c: FieldConfig) => esEdicion && c.editable === false
-  /** Deshabilitado en pantalla: por política de edición o por ser un valor que calcula el sistema. */
-  const deshabilitado = (c: FieldConfig) => bloqueadoEnEdicion(c) || c.soloLectura === true
+  /** Deshabilitado en pantalla: por política de edición o por ser un valor que calcula el sistema.
+   *  `componerDesde` también se deshabilita, pero a diferencia de `soloLectura` sí se guarda. */
+  const deshabilitado = (c: FieldConfig) =>
+    bloqueadoEnEdicion(c) || c.soloLectura === true || !!c.componerDesde
 
   /** Campos sensibles que el usuario acaba de cambiar (GPE §5). Vacío si no hay ninguno. */
   const cambiosSensibles = () => {
@@ -837,6 +864,15 @@ function RecordForm({
                     // texto y no como <select>: ofrecer un desplegable que no se puede abrir
                     // era justo lo que confundía en "Editar Memorando".
                     <Input id={campoId} value={c.valorCalculado ? c.valorCalculado(valores) : String(valores[c.name] ?? '')} disabled readOnly />
+                  ) : c.type === 'cedula-busqueda' ? (
+                    <BuscarPorCedula
+                      id={campoId}
+                      campo={c}
+                      idSeleccionado={valores[c.name] ?? ''}
+                      disabled={disabled}
+                      onSeleccion={(id) => set(c.name, id)}
+                      registro={registro}
+                    />
                   ) : c.type === 'select' ? (
                     <Select
                       id={campoId}
@@ -884,6 +920,11 @@ function RecordForm({
                       value={valores[c.name] ?? ''}
                       disabled={disabled}
                       placeholder={c.placeholder}
+                      // El calendario no ofrece días pasados. La base también lo rechaza, pero
+                      // que no se pueda elegir es distinto de que salte un error al guardar.
+                      // Al EDITAR no se aplica: una asignación que empezó en el pasado tiene que
+                      // poder abrirse sin obligar a cambiarle la fecha de inicio.
+                      min={c.minHoy && c.type === 'date' && !esEdicion ? hoyISO() : undefined}
                       onChange={(e) => set(c.name, c.formatear ? c.formatear(e.target.value) : e.target.value)}
                     />
                   )}
@@ -936,6 +977,98 @@ function RecordForm({
 }
 
 /* -------------------- Modal "Dar de baja" (Patrón D) -------------------- */
+/**
+ * Campo que busca a una persona por su cédula y guarda su id (`type: 'cedula-busqueda'`).
+ *
+ * PCO v2 pidió que al asignar un guardia se le identifique por cédula y que la pantalla diga si
+ * está registrado o no, enseñando el nombre completo al lado. Sustituye al desplegable de
+ * guardias, que obligaba a reconocer a alguien por su correo.
+ *
+ * La búsqueda se lanza sola al completar los diez dígitos: no hace falta un botón, y así no se
+ * puede dejar una cédula a medias creyendo que ya se ha buscado.
+ */
+function BuscarPorCedula({
+  id, campo, idSeleccionado, disabled, onSeleccion, registro,
+}: {
+  id: string
+  campo: FieldConfig
+  idSeleccionado: string
+  disabled?: boolean
+  onSeleccion: (id: string) => void
+  registro: Row | null
+}) {
+  const [cedula, setCedula] = useState('')
+  const [estado, setEstado] = useState<'vacio' | 'buscando' | 'encontrado' | 'no-encontrado'>('vacio')
+  const [encontrado, setEncontrado] = useState<{ nombre: string; yaAsignado: boolean } | null>(null)
+
+  // Al editar, el registro ya trae a la persona: se muestra su cédula y su nombre sin obligar a
+  // volver a buscarla.
+  useEffect(() => {
+    const p = registro?.guardia?.persona
+    if (!p?.cedula) return
+    setCedula(p.cedula)
+    setEncontrado({ nombre: `${p.nombres ?? ''} ${p.apellidos ?? ''}`.trim(), yaAsignado: false })
+    setEstado('encontrado')
+  }, [registro])
+
+  const buscar = useCallback(async (valor: string) => {
+    setEstado('buscando')
+    const { data } = await (supabase as any).rpc(campo.buscarPorCedula!.rpc, { p_cedula: valor })
+    const fila = ((data as any[]) ?? [])[0]
+    if (!fila) {
+      setEncontrado(null)
+      setEstado('no-encontrado')
+      onSeleccion('')
+      return
+    }
+    setEncontrado({ nombre: fila.nombre_completo, yaAsignado: !!fila.ya_asignado })
+    setEstado('encontrado')
+    onSeleccion(fila.id_usuario)
+  }, [campo.buscarPorCedula, onSeleccion])
+
+  const alEscribir = (v: string) => {
+    // Solo dígitos y como mucho diez: es una cédula, no un texto libre.
+    const limpio = v.replace(/\D/g, '').slice(0, 10)
+    setCedula(limpio)
+    if (idSeleccionado) onSeleccion('')
+    setEncontrado(null)
+    if (limpio.length === 10) void buscar(limpio)
+    else setEstado(limpio.length === 0 ? 'vacio' : 'buscando')
+  }
+
+  const errorFormato = cedula.length === 10 ? validarCedula(cedula) : null
+
+  return (
+    <div className="space-y-1">
+      <Input
+        id={id}
+        inputMode="numeric"
+        value={cedula}
+        disabled={disabled}
+        placeholder="1712345678"
+        onChange={(e) => alEscribir(e.target.value)}
+      />
+      {cedula.length > 0 && cedula.length < 10 && (
+        <p className="text-xs text-ink-soft">Faltan {10 - cedula.length} dígitos.</p>
+      )}
+      {errorFormato && <p className="text-xs text-red">{errorFormato}</p>}
+      {!errorFormato && estado === 'encontrado' && encontrado && (
+        <p className="text-xs font-medium text-emerald-700">
+          Guardia encontrado: {encontrado.nombre}
+          {encontrado.yaAsignado && (
+            <span className="font-normal text-ink-soft"> · ya tiene una asignación activa</span>
+          )}
+        </p>
+      )}
+      {!errorFormato && estado === 'no-encontrado' && (
+        <p className="text-xs text-red">
+          {campo.buscarPorCedula?.textoNoEncontrado ?? 'Esa cédula no corresponde a ningún usuario registrado.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function BajaModal({
   open, config, registro, onClose, onDone,
 }: {

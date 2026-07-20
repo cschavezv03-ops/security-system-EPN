@@ -290,6 +290,13 @@ El endurecimiento de la cédula no cambia esto: las 18 cédulas sintéticas de �
 válidas por estructura pero no corresponden a personas reales. **Pendiente del equipo:** sustituir
 por las cédulas reales desde ADM. (Las nuevas reglas no las rechazan: no son relleno.)
 
+## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
+No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
+`VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
+SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
+
+---
+
 ## V13 — Bloqueo por intentos fallidos: hueco residual del plan gratuito
 El bloqueo (5 intentos → 15 min) funciona y es efectivo: al dispararse se escribe
 `auth.users.banned_until`, así que GoTrue rechaza el acceso **aunque se llame a su API
@@ -308,13 +315,6 @@ no llega a dispararse. Cerrarlo del todo requiere el Auth Hook
    automatizado contra el endpoint directo.
 3. Supabase no expone un límite de tasa por IP para el *login* en el plan gratuito (`rate_limit_*`
    cubre correo, OTP y refresh, no el grant de contraseña).
-
-## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
-No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
-`VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
-SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
-
----
 
 # Ronda de mejoras de ADM (2026-07-18)
 
@@ -765,7 +765,7 @@ dato incoherente, porque el estudiante es **sujeto** del control de accesos, no 
 
 La auditoría de las 9 cuentas confirmó que era el **único** fuera de norma; las otras ocho son
 ADMINISTRATIVO o TRABAJADOR. Es decir, la regla ya se cumplía en la práctica y lo que faltaba era
-escribirla, así que se escribió (§D58): solo DOCENTE, ADMINISTRATIVO y TRABAJADOR pueden tener
+escribirla, así que se escribió (§D76): solo DOCENTE, ADMINISTRATIVO y TRABAJADOR pueden tener
 cuenta, comprobado en los dos sentidos —al crear la cuenta y al cambiar la categoría de quien ya
 la tiene—. `frank.jumbo` pasó a TRABAJADOR, que es lo que corresponde a quien opera una garita.
 
@@ -773,3 +773,36 @@ la tiene—. `frank.jumbo` pasó a TRABAJADOR, que es lo que corresponde a quien
 preguntaba por la categoría leyéndola de la tabla, y en un `BEFORE UPDATE` la fila todavía tiene
 el valor anterior, así que no bloqueaba nada. Corregido en la migración siguiente. Vale la pena
 recordarlo: **un trigger BEFORE que valida debe mirar `NEW`, no releer la tabla.**
+
+## V41 — Dos puntos de control en edificios no siguen el estándar de la EPN
+
+Desde §D78, un punto de control dentro de un edificio se nombra `E<edificio>/P<piso>/E<espacio>`.
+Dos de los que ya existían no lo cumplen y **no se les puede adivinar el piso ni el aula**:
+
+| Punto | Zona |
+|---|---|
+| `Puerta - Laboratorio "Alan Turing"` | Edificio 20 - Facultad de Ingeniería de Sistemas |
+| `Puerta - Laboratorio de Suelos` | Edificio 15 - Facultad de Ingeniería Mecánica |
+
+El trigger no revalida ediciones que no tocan el nombre ni la zona, así que se pueden seguir
+gestionando con normalidad; lo que no se puede es dejarlos así para siempre.
+
+**Qué hace falta:** que alguien que conozca los edificios diga en qué piso y aula están. El propio
+documento del v2 usa como ejemplo `E20/P4/E004 – Laboratorio Alan Turing`, lo que **sugiere** que
+el Alan Turing es el aula 004 del piso 4 del edificio 20 — pero es un ejemplo dentro de un texto,
+no un dato confirmado, y renombrar un punto de control cambia lo que ve el guardia en la garita.
+No se ha tocado por eso.
+
+## V42 — Una asignación de guardia activa sin fecha de fin
+
+La asignación `46a99012` (guardia.demo, 12:00–23:59:59, desde el 19/07) está **ACTIVA y sin fecha
+de fin**. Viene de la ronda de CAC.
+
+Desde §D78 una asignación activa exige fecha de fin y las dos horas, pero la regla se aplica a lo
+que se crea y a lo que se edita en esos campos, no a lo que ya estaba: por eso esa fila sigue
+siendo editable. Se intentó primero con un `CHECK` y hubo que retirarlo, porque un CHECK se evalúa
+en cualquier update y dejaba la fila congelada.
+
+**Qué hace falta decidir:** hasta cuándo dura esa asignación. No se puede completar por nuestra
+cuenta sin inventarse el dato. Mientras tanto es la única asignación activa incompleta del
+sistema, y cualquier edición que le toque las horas o el estado ya obligará a rellenarla.

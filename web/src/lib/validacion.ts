@@ -421,6 +421,41 @@ export function normalizarUbicacionEPN(v: string): string {
   return `E${sinCeros(m[1])}/P${sinCeros(m[2])}/E${sinCeros(m[3]).padStart(3, '0')}`
 }
 
+/** Espejo de `public.componer_nombre_punto_epn()`.
+ *
+ *  Arma "E20/P4/E004 – Laboratorio Alan Turing" con las tres cifras y la descripción. El usuario
+ *  no teclea nunca "/" ni "–": los pone esta función, que es lo que pedía PCO para que el código
+ *  no se pueda escribir mal ni repetir. Devuelve "" mientras falte alguna cifra, para no enseñar
+ *  un código a medias como "E20/P/E000".
+ */
+export function componerNombrePuntoEPN(
+  edificio: unknown, piso: unknown, espacio: unknown, descripcion?: unknown,
+): string {
+  const n = (v: unknown) => (v === '' || v == null ? null : Number(v))
+  const [e, p, a] = [n(edificio), n(piso), n(espacio)]
+  if (e == null || p == null || a == null || Number.isNaN(e) || Number.isNaN(p) || Number.isNaN(a)) return ''
+  const desc = typeof descripcion === 'string' ? descripcion.trim() : ''
+  return `E${e}/P${p}/E${String(a).padStart(3, '0')}${desc ? ` – ${desc}` : ''}`
+}
+
+/** Lo contrario: descompone un nombre ya guardado para volver a rellenar el formulario al editar.
+ *  Devuelve null si el nombre no sigue el estándar (los puntos anteriores a la regla, §V41). */
+export function partesUbicacionEPN(nombre: unknown): {
+  edificio: string; piso: string; espacio: string; descripcion: string
+} | null {
+  if (typeof nombre !== 'string') return null
+  const m = /^E([1-9]\d{0,2})\/P(\d{1,2})\/E(\d{3})(?:\s*[–-]\s*(.*))?$/.exec(nombre.trim())
+  if (!m) return null
+  return {
+    edificio: m[1],
+    piso: m[2],
+    // Se quitan los ceros de relleno para que el formulario enseñe "4" y no "004", que es lo que
+    // se teclea; al guardar se vuelve a rellenar.
+    espacio: String(Number(m[3])),
+    descripcion: (m[4] ?? '').trim(),
+  }
+}
+
 /** Validador para un campo de ubicación. La BD es la que manda (`es_ubicacion_epn`); esto solo
  *  adelanta el error para que no se descubra al guardar. */
 export const validarUbicacionEPN: Validador = (v) => {

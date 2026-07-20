@@ -1,6 +1,6 @@
 # Estado del sistema — punto de partida para la siguiente sesión
 
-La ronda de **ADM (cuentas y roles)** está cerrada. La siguiente es **PCO**.
+La ronda de **PCO v2** está cerrada. Lo siguiente es la **comprobación total del sistema**.
 
 ---
 
@@ -27,7 +27,7 @@ desde ADM; el texto que mandaba a GPI ya no está.
 | No estudiantes con código único o carrera | 0 |
 | Personas externas con cuenta | 0 |
 
-Al cierre se añadieron tres migraciones más (§D58, §V40): **una cuenta del sistema pertenece al
+Al cierre se añadieron tres migraciones más (§D76, §V40): **una cuenta del sistema pertenece al
 personal, nunca a un estudiante**, comprobado al crear la cuenta y al cambiar la categoría de
 quien ya la tiene. Salió de encontrar a `frank.jumbo` como ESTUDIANTE con rol de guardia; era la
 única de las nueve cuentas fuera de norma.
@@ -35,7 +35,7 @@ quien ya la tiene. Salió de encontrar a `frank.jumbo` como ESTUDIANTE con rol d
 ## ✅ Qué resolvió la ronda de ADM
 
 Cuatro incidencias que salieron de la revisión manual del administrador, todas reproducidas antes
-de tocar código (decisiones §D53-D56):
+de tocar código (decisiones §D72-§D75):
 
 - **El correo vivía en tres sitios sin nada que los uniera.** Se registró a una persona con un
   correo equivocado, se corrigió en GPI y **la cuenta siguió entrando con el viejo durante días**.
@@ -105,7 +105,7 @@ identificó y que probablemente reaparezcan en el documento:
 
 | # | Qué | Por qué importa |
 |---|---|---|
-| ~~§V27~~ | ~~El "código único" enfrenta a PCO con GPI~~ | **✅ RESUELTA antes de empezar** (§D57). No era una contradicción: la frase de PCO hablaba de cómo se identifica a la gente, no del modelo de datos. El código único se queda como dato académico; identificar es siempre por cédula. De paso se corrigieron los dos sitios que aún no lo cumplían. |
+| ~~§V27~~ | ~~El "código único" enfrenta a PCO con GPI~~ | **✅ RESUELTA antes de empezar** (§D77). No era una contradicción: la frase de PCO hablaba de cómo se identifica a la gente, no del modelo de datos. El código único se queda como dato académico; identificar es siempre por cédula. De paso se corrigieron los dos sitios que aún no lo cumplían. |
 | §V24 | El "Parqueadero Subsuelo EARME" cuelga del campus, no de un edificio | **Empezar por aquí ahora.** Dato mal colocado en la jerarquía de zonas. |
 | §V25 | Puntos de control que cuelgan directamente del campus | Mismo problema, otra entidad. |
 | §V28 | La búsqueda "solo con 10 dígitos o por apellido" no se implementó | Requisito pedido y no hecho. |
@@ -125,7 +125,7 @@ identificó y que probablemente reaparezcan en el documento:
 | Qué | Dónde |
 |---|---|
 | Producción | https://security-system-epn.vercel.app (rama `main`) |
-| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D53-D56 son de la ronda de ADM; §D62-D71, de CAC |
+| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D53-§D61 son de PCO; §D62-§D71, de CAC; §D72-§D77, de ADM. Antes de añadir una: `python3 scripts/verificar_numeracion_docs.py` |
 | Dudas y pendientes | `docs/99_DUDAS_PARA_EL_EQUIPO.md` — §V37-V39 son de la ronda de ADM; §V31-V36, de CAC |
 | Calibrar los umbrales | `scripts/calibracion_biometria` y `scripts/calibracion_placas` |
 | **Cómo probar las placas y el rostro** | `docs/New_Req/GUIA_PRUEBAS_PLACAS.md` |
@@ -193,6 +193,15 @@ positiva sobre la misma pantalla ("existe la tarjeta X" *y luego* "no existe la 
 un comando que termina mata los hijos: los procesos mueren y los logs quedan vacíos. La forma que
 funciona es lanzar todos con `&` y terminar con `wait` dentro de la misma invocación, en segundo
 plano.
+
+**4-bis. Como mucho DOS o TRES a la vez con la misma cuenta.** Medido el 20/07: doce pruebas de
+PCO lanzadas a la vez con `heidy.tenelema` dieron cinco fallos, y todas mostraban el mismo
+síntoma —formularios y desplegables vacíos, como si el usuario no tuviera permisos—. No era un
+fallo de la aplicación: **la misma prueba que falló en el lote pasó 15/15 al ejecutarla sola**.
+Doce navegadores compartiendo una cuenta se pisan las sesiones entre sí.
+
+Antes de tocar código por un fallo así, **relanza esa prueba aislada**. Y no consultes la API con
+esa misma cuenta mientras el lote corre, por el mismo motivo.
 
 **5. En paralelo, comprueba que los cinco terminaron.** Lanzarlos con `&` + `wait` funciona,
 pero en esta ronda **uno de los cinco murió sin escribir nada en su log** y el comando entero
@@ -267,6 +276,69 @@ conviene saber para no repetir el análisis:
   son. Quedan expuestos en una vista para que los corrija quien sepa.
 - **Que falte el propietario no bloquea el ingreso.** Lo que decide un acceso es que la persona
   esté asociada al vehículo; lo otro es integridad del maestro.
+
+## ✅ Qué resolvió la ronda de PCO v2 (2026-07-20)
+
+Sobre `Requerimientos_PCO_v2.docx`. Las líneas 21-38 de ese documento repiten literalmente el v1
+y ya estaban aplicadas; lo nuevo son las líneas 2-19. Decisiones §D78-§D82, dudas §V41-§V42.
+
+- **Nombre de un punto de control en un edificio** (§D78): tres campos numéricos y una
+  descripción; el sistema compone `E20/P4/E004 – Laboratorio Alan Turing` y el usuario no teclea
+  nunca `/` ni `–`. Índice único sobre el código: dos puntos no pueden ocupar el mismo espacio.
+- **El guardia se busca por cédula** (§D79), con mensaje de encontrado o no registrado y el
+  nombre al lado. RPC acotado: no expone la ficha ni permite sondear el directorio.
+- **"Activa" y "en turno" son dos columnas** (§D80), más "Desde" y "Hasta". No se borró nada: se
+  separó lo que estaba mezclado, porque una asignación vigente de 22:00–06:00 también lo está a
+  mediodía.
+- **Campus vuelve a los combos** (§D82), lo que además cierra §V25.
+- **Fechas pasadas**: bloqueadas al registrar, en el trigger y en el propio calendario
+  (`FieldConfig.minHoy`). Al editar se respeta lo que ya estaba guardado.
+
+**Tres piezas nuevas del motor**, útiles para cualquier módulo: `componerDesde` (valor que arma
+el sistema y **sí** se guarda, a diferencia de `soloLectura`), el tipo de campo
+`cedula-busqueda`, y `minHoy`.
+
+**Un bug que no venía en el documento** (§D81): las fechas de vigencia se mostraban **un día
+antes** a cualquiera en Ecuador. `fecha_inicio`/`fecha_fin` son `timestamptz` pero significan un
+día, se guardan a medianoche UTC y se formateaban en la zona del navegador. Es la **cuarta**
+aparición del error de medianoche (§D52, §D59, §D69). Se añadió `fmtFechaDia()`.
+
+| | |
+|---|---|
+| Pruebas locales | **200 en verde** (antes 185), typecheck y build |
+| TestSprite | **12 planes de PCO, los 12 en verde**, incluida la integración con CAC |
+| Migraciones | 5, aplicadas por MCP y guardadas en `supabase/migrations/` |
+
+## Comprobación total del sistema — pendiente para la próxima sesión
+
+Se han cerrado cinco rondas (validaciones, ADM, GPE+GPI, PCO, CAC) y cada una verificó lo suyo.
+Falta una pasada **de extremo a extremo sobre el sistema completo**, que es lo que toca ahora.
+
+**Lo que ya existe y hay que encadenar** (nada de esto hay que escribir de cero):
+
+| Herramienta | Qué cubre |
+|---|---|
+| `cd web && npm run verificar` | typecheck + suite de pruebas + build |
+| `python3 scripts/verificar_numeracion_docs.py` | numeración de decisiones y dudas, referencias rotas |
+| `psql "$DATABASE_URL" -f scripts/smoke_test.sql` | humo general de la base |
+| `scripts/pruebas_rls_por_rol.sql` | que cada rol ve lo que debe y nada más |
+| `scripts/pruebas_cobertura_docs.sql` | que el esquema real concuerda con los documentos |
+| `scripts/pruebas_adm_cuentas.sql`, `pruebas_gpe_gpi_nuevas.sql`, `pruebas_validaciones_nuevas.sql` | reglas de cada ronda |
+| `scripts/prueba_multisesion.py`, `prueba_bloqueo_intentos.py`, `prueba_cierre_sesion.py` | sesión y bloqueo (requieren `SB_URL`, `SB_ANON`, `SB_PASSWORD`) |
+| TestSprite | los planes de `tests/testsprite/planes/`, uno por módulo |
+
+**Lo que conviene mirar y todavía no cubre ningún script:**
+
+1. **Las integraciones entre módulos**, que es donde han aparecido los peores fallos: un cambio
+   en PCO dejó sin nombre al guardia en CAC (§D58), y una política de CAC más estrecha que la de
+   su tabla padre dejó un embed vacío sin dar error. Conviene una prueba que recorra el flujo
+   completo —persona → memorando/autorización → regla → punto → dispositivo → evento— con cada rol.
+2. **Los `advisors` de Supabase** (`get_advisors`, seguridad y rendimiento) después de cinco
+   rondas de migraciones.
+3. **Las dudas abiertas**: §V24, §V25, §V28, §V30 y las que deje esta ronda. Ninguna bloquea, pero
+   varias son decisiones del equipo que llevan tiempo aparcadas.
+4. **Datos sembrados**: quedan 18 cédulas ficticias por sustituir y sigue sin haber integración
+   con SRI / ANT / Registro Civil, así que `estado_verificacion_ruc` es siempre `NO_VERIFICADO`.
 
 ## Reglas del proyecto que conviene tener presentes
 

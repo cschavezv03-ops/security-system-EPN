@@ -7,6 +7,28 @@ export function fmtFecha(v?: string | null): string {
   return d.toLocaleDateString('es-EC', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+/**
+ * Formatea una columna que representa un DÍA, no un instante.
+ *
+ * `fecha_inicio` y `fecha_fin` de una asignación, la vigencia de un memorando o el día de una
+ * autorización son `timestamptz` en la base, pero significan "el día 31 de julio", no "las 00:00
+ * del 31". Se guardan a medianoche UTC, así que `fmtFecha` —que formatea en la zona del
+ * navegador— los retrasa un día para cualquiera que esté en Ecuador: una asignación que termina
+ * el 31/07 se leía "30/07".
+ *
+ * Es el mismo error de medianoche de §D52, §D59 y §D69, esta vez en la presentación. Al leer el
+ * valor en UTC se recupera el día que se guardó.
+ */
+export function fmtFechaDia(v?: string | null): string {
+  if (!v) return '—'
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return v
+  return d.toLocaleDateString('es-EC', {
+    timeZone: 'UTC',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  })
+}
+
 export function fmtFechaHora(v?: string | null): string {
   if (!v) return '—'
   const d = new Date(v)

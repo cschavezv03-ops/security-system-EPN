@@ -1,0 +1,39 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO v2 — la vigencia de la asignación y el estar en turno son columnas distintas",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Asignaciones de guardia'."
+    },
+    {
+      "type": "assertion",
+      "description": "La tabla muestra al menos una asignación"
+    },
+    {
+      "type": "assertion",
+      "description": "La tabla tiene una columna llamada 'Desde' y otra llamada 'Hasta' con fechas"
+    },
+    {
+      "type": "assertion",
+      "description": "La tabla tiene una columna llamada 'Asignación' y otra distinta llamada 'Ahora mismo'"
+    },
+    {
+      "type": "assertion",
+      "description": "En la columna 'Ahora mismo' aparece 'En turno' o 'Fuera de turno', y NO aparece ahí el texto 'Activa'"
+    },
+    {
+      "type": "assertion",
+      "description": "En la columna 'Asignación' aparece 'Activa' o 'Finalizada', y NO aparece ahí el texto 'En turno'"
+    }
+  ]
+}

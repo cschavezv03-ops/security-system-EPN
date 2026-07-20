@@ -5,7 +5,10 @@ export interface Opcion {
   label: string
 }
 
-export type FieldType = 'text' | 'number' | 'date' | 'time' | 'email' | 'select' | 'textarea' | 'checkbox' | 'timerange'
+export type FieldType =
+  | 'text' | 'number' | 'date' | 'time' | 'email' | 'select' | 'textarea' | 'checkbox' | 'timerange'
+  /** Busca a una persona por su cédula y guarda su id. Ver `FieldConfig.buscarPorCedula`. */
+  | 'cedula-busqueda'
 
 export interface FieldConfig {
   name: string
@@ -65,6 +68,39 @@ export interface FieldConfig {
    *  resto de valores del formulario, para reglas que dependen de otro campo (ej. el valor de
    *  un parámetro según su tipo_dato). */
   validar?: (valor: string, valores: Record<string, any>) => string | null
+  /** En un campo `type: 'date'`, impide elegir una fecha anterior a hoy.
+   *
+   *  PCO v2: «en los campos de fecha, no debe haber la posibilidad de poner fechas anteriores».
+   *  El trigger de la base ya lo rechaza, pero rechazarlo al guardar no es lo mismo que no
+   *  poder elegirlo: el calendario del navegador deshabilita los días anteriores.
+   *
+   *  Usa `hoyISO()` (hora de Ecuador), no la fecha del navegador. */
+  minHoy?: boolean
+  /** Configuración del campo `type: 'cedula-busqueda'`.
+   *
+   *  PCO v2: «el input Guardia será de tipo numérico, se debe validar el ingreso de 10 dígitos
+   *  pertenecientes a la cédula de un guardia. El sistema debe mostrar un mensaje de usuario
+   *  encontrado o si no, de usuario no registrado. Si sí se ha encontrado, se mostrará a un lado
+   *  el nombre completo del guardia.»
+   *
+   *  El campo guarda el **id** que devuelve el RPC, no la cédula: la cédula es cómo se busca a la
+   *  persona, no cómo se la referencia en la base. */
+  buscarPorCedula?: {
+    /** RPC que recibe `{ p_cedula }` y devuelve filas con `id_usuario` y `nombre_completo`. */
+    rpc: string
+    /** Qué decir cuando esa cédula no corresponde a nadie con ese perfil. */
+    textoNoEncontrado?: string
+  }
+  /** Valor que el sistema arma a partir de otros campos del formulario, y que **sí se guarda**.
+   *
+   *  Distinto de `soloLectura` + `valorCalculado`, que enseña un valor pero no lo envía en el
+   *  payload. Aquí la columna es real y se persiste; lo que no se deja es teclearla a mano.
+   *
+   *  Se usa en el nombre de un punto de control dentro de un edificio: PCO pide la nomenclatura
+   *  `E20/P4/E004 – Laboratorio Alan Turing` y que el usuario **no escriba los separadores**
+   *  («solo ingresará los datos, pero no estos caracteres: "/, -"»). Se piden tres números y una
+   *  descripción, y el nombre se compone solo, con lo que no hay forma de teclearlo mal. */
+  componerDesde?: { campos: string[]; componer: (valores: Record<string, any>) => string }
   /** Advertencia que NO impide guardar, mostrada bajo el campo mientras se rellena el formulario.
    *
    *  Para lo que es legal pero conviene mirar dos veces. Se usa en el turno del guardia: entre 8

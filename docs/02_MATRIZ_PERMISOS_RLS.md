@@ -57,7 +57,7 @@ ni modificar personas existentes. *(Derivado: ver `03_DECISIONES_Y_CORRECCIONES.
 ³ GPI y GPE pueden dar de alta un vehículo nuevo, pero **no** modificarlo ni darlo de baja:
 el ciclo de vida (UPDATE / cambio de estado) queda en ADM, como exige el modelo de datos §3.1.
 
-⁵ `ADM_PERSONA_INSERT`, acotado por RLS a `tipo_persona = 'INTERNA'` (§D56). Existe para que
+⁵ `ADM_PERSONA_INSERT`, acotado por RLS a `tipo_persona = 'INTERNA'` (§D75). Existe para que
 crear un responsable no exija dos sesiones —una de GPI para la persona y otra de ADM para la
 cuenta y el rol—, que era el flujo anterior. El personal externo sigue siendo de GPE: no puede
 tener cuenta, así que ADM no lo crea.
@@ -196,7 +196,7 @@ ADM_PERSONA_VEHICULO_SELECT ADM_PERSONA_VEHICULO_INSERT ADM_PERSONA_VEHICULO_UPD
 ADM_BITACORA_SELECT         ADM_BITACORA_EXPORTAR
 ```
 
-> `ADM_PERSONA_INSERT` es de la ronda del 20/07/2026 (§D56) y solo lo tiene el
+> `ADM_PERSONA_INSERT` es de la ronda del 20/07/2026 (§D75) y solo lo tiene el
 > **Administrador del Sistema**, no el Director Administrativo, que es de consulta. Su política
 > RLS lo acota a `tipo_persona = 'INTERNA'`: el personal externo es de GPE y no puede tener
 > cuenta. Existe para que dar de alta a un responsable no exija dos sesiones (una de GPI para

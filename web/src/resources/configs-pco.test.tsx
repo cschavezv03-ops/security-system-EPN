@@ -80,14 +80,17 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
         return chain
       },
       neq: mismo, gte: mismo, order: mismo, ilike: mismo,
-      maybeSingle: () => Promise.resolve({ data: filtradas()[0] ?? null, error: null }),
+      // Con latencia a propósito: `derivarDeRegistro` es asíncrono y en el navegador tarda.
+      // Sin esta espera el mock resolvía antes del primer render y ocultaba las carreras
+      // entre los efectos del formulario, que es justo lo que falló en el preview.
+      maybeSingle: () => new Promise((res) => setTimeout(() => res({ data: filtradas()[0] ?? null, error: null }), 30)),
       insert: () => Promise.resolve({ error: null }),
       update: (v: unknown) => {
         updatesHechos.push({ tabla, valores: v })
         return { eq: () => Promise.resolve({ error: null }) }
       },
       then: (r: (x: { data: unknown; error: null }) => unknown) =>
-        Promise.resolve({ data: filtradas(), error: null }).then(r),
+        new Promise((res) => setTimeout(() => res({ data: filtradas(), error: null }), 30)).then(r as any),
     })
     return chain
   }
@@ -97,13 +100,26 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
     supabase: {
       from: (t: string) => cadena(t),
       // El combo de guardias sale de un RPC porque PCO no puede leer usuario_rol.
-      rpc: (nombre: string) =>
-        Promise.resolve({
-          data: nombre === 'guardias_disponibles'
-            ? [{ id_usuario: 'u-g1', nombre_usuario: 'guardia_demo', correo_electronico: 'guardia.demo@epn.edu.ec' }]
-            : [],
-          error: null,
-        }),
+      rpc: (nombre: string, args?: Record<string, unknown>) => {
+        if (nombre === 'guardias_disponibles') {
+          return Promise.resolve({
+            data: [{ id_usuario: 'u-g1', nombre_usuario: 'guardia_demo', correo_electronico: 'guardia.demo@epn.edu.ec' }],
+            error: null,
+          })
+        }
+        if (nombre === 'buscar_guardia_por_cedula') {
+          // Solo esta cédula es de un guardia; cualquier otra devuelve vacío, que es como se
+          // comporta el RPC real (no expone el resto del directorio).
+          const encontrado = args?.p_cedula === '1750000018'
+          return Promise.resolve({
+            data: encontrado
+              ? [{ id_usuario: 'u-g1', nombre_completo: 'Guardia Demo', cedula: '1750000018', ya_asignado: false }]
+              : [],
+            error: null,
+          })
+        }
+        return Promise.resolve({ data: [], error: null })
+      },
     },
   }
 })
@@ -231,7 +247,9 @@ describe('el Estado desaparece del alta pero sigue en la edición', () => {
     expect(opciones).not.toContain('Bloqueada')
   })
 
-  it('registrar un punto de control no ofrece Campus como tipo de zona', async () => {
+  it('registrar un punto de control ofrece los tres tipos de zona', async () => {
+    // Cambiado en el v2: antes se ocultaba "Campus" al registrar, y eso dejaba a medio gestionar
+    // las garitas de entrada a la universidad, que sí cuelgan del campus (§V25).
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPuntoControl)
 
@@ -239,9 +257,9 @@ describe('el Estado desaparece del alta pero sigue en la edición', () => {
 
     const tipo = await screen.findByRole('combobox', { name: /Tipo de zona/i })
     const opciones = within(tipo).getAllByRole('option').map((o) => o.textContent)
+    expect(opciones).toContain('Campus')
     expect(opciones).toContain('Edificio')
     expect(opciones).toContain('Parqueadero')
-    expect(opciones).not.toContain('Campus')
   })
 })
 
@@ -315,21 +333,38 @@ describe('asignaciones de guardia', () => {
     expect(screen.getByText('1750000018')).toBeInTheDocument()
   })
 
-  it('avisa de si el guardia está en turno en este momento', async () => {
+  it('separa la vigencia de la asignación de si está en turno ahora', async () => {
+    // El v2 pedía que no se confundieran las dos cosas. Van en columnas distintas: "Asignación"
+    // dice si está en vigor estos días, "Ahora mismo" si el guardia está cubriendo el punto.
     montar(cfgAsignacionGuardia)
 
-    // Son las 12:00 en Ecuador y el turno de Guardia Demo es 07:00–17:00. Se acota a su fila:
-    // hay más asignaciones en pantalla y algunas también están en turno a esa hora.
+    expect(await screen.findByRole('columnheader', { name: /Asignación/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Ahora mismo/i })).toBeInTheDocument()
+
+    // Son las 12:00 en Ecuador y el turno de Guardia Demo es 07:00–17:00: vigente y en turno.
     const fila = (await screen.findByText(/Guardia Demo/)).closest('tr') as HTMLElement
-    expect(within(fila).getByText(/En turno ahora/i)).toBeInTheDocument()
+    expect(within(fila).getByText('Activa')).toBeInTheDocument()
+    expect(within(fila).getByText('En turno')).toBeInTheDocument()
   })
 
-  it('fuera del horario, el mismo turno aparece como fuera de turno', async () => {
+  it('a las 22:00 la asignación sigue vigente pero el guardia ya no está en turno', async () => {
+    // Es justo el caso que hacía ambigua la columna única: "Activa" no quiere decir "trabajando".
     vi.setSystemTime(new Date('2026-07-20T22:00:00-05:00'))
     montar(cfgAsignacionGuardia)
 
     const fila = (await screen.findByText(/Guardia Demo/)).closest('tr') as HTMLElement
-    expect(within(fila).getByText(/Fuera de turno/i)).toBeInTheDocument()
+    expect(within(fila).getByText('Activa')).toBeInTheDocument()
+    expect(within(fila).getByText('Fuera de turno')).toBeInTheDocument()
+  })
+
+  it('muestra desde y hasta cuándo dura el turno', async () => {
+    montar(cfgAsignacionGuardia)
+
+    expect(await screen.findByRole('columnheader', { name: /Desde/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Hasta/i })).toBeInTheDocument()
+    const fila = (await screen.findByText(/Guardia Demo/)).closest('tr') as HTMLElement
+    expect(within(fila).getByText('01/07/2026')).toBeInTheDocument()
+    expect(within(fila).getByText('31/07/2026')).toBeInTheDocument()
   })
 
   it('avisa cuando el punto está en mantenimiento y el guardia no puede operar', async () => {
@@ -347,6 +382,84 @@ describe('asignaciones de guardia', () => {
     const fila = (await screen.findByText(/Puerta Norte/)).closest('tr')
     expect(fila).not.toBeNull()
     expect(within(fila as HTMLElement).queryByText(/no puede operar/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('nombre estándar EPN al registrar en un edificio', () => {
+  it('pide tres números y compone el nombre, sin teclear separadores', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Punto de control/i }))
+    await usuario.selectOptions(screen.getByRole('combobox', { name: /Tipo de zona/i }), 'EDIFICIO')
+
+    await usuario.type(await screen.findByLabelText(/^Edificio/i), '20')
+    await usuario.type(screen.getByLabelText(/^Piso/i), '4')
+    await usuario.type(screen.getByLabelText(/Aula o espacio/i), '4')
+    await usuario.type(screen.getByLabelText(/^Descripción/i), 'Laboratorio Alan Turing')
+
+    // El nombre lo arma el sistema: el usuario nunca escribe "/" ni "–".
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Nombre del punto/i)).toHaveValue('E20/P4/E004 – Laboratorio Alan Turing'),
+    )
+    expect(screen.getByLabelText(/Nombre del punto/i)).toBeDisabled()
+  })
+
+  it('en un campus el nombre se escribe a mano', async () => {
+    // Ahí los puntos son garitas perimetrales, que no ocupan un aula.
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Punto de control/i }))
+    await usuario.selectOptions(screen.getByRole('combobox', { name: /Tipo de zona/i }), 'CAMPUS')
+
+    expect(await screen.findByRole('textbox', { name: /^Nombre/i })).toBeEnabled()
+    expect(screen.queryByLabelText(/Aula o espacio/i)).not.toBeInTheDocument()
+  })
+
+  it('al editar una garita del campus, el nombre sigue siendo editable', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    await abrirEdicion(usuario, /Acceso A/)
+
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /Tipo de zona/i })).toHaveValue('CAMPUS'))
+    expect(screen.getByRole('textbox', { name: /^Nombre/i })).toHaveValue('Acceso A')
+  })
+})
+
+describe('buscar al guardia por su cédula', () => {
+  it('encuentra al guardia y muestra su nombre', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgAsignacionGuardia)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Asignación/i }))
+    await usuario.type(screen.getByLabelText(/Cédula del guardia/i), '1750000018')
+
+    expect(await screen.findByText(/Guardia encontrado: Guardia Demo/i)).toBeInTheDocument()
+  })
+
+  it('avisa cuando la cédula no es de un guardia registrado', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgAsignacionGuardia)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Asignación/i }))
+    // Cédula válida según el algoritmo del Registro Civil, pero que no es de ningún guardia:
+    // así se comprueba el mensaje de "no registrado" y no el de formato incorrecto.
+    await usuario.type(screen.getByLabelText(/Cédula del guardia/i), '1710034065')
+
+    expect(await screen.findByText(/no corresponde a ningún guardia registrado/i)).toBeInTheDocument()
+  })
+
+  it('solo admite dígitos y como mucho diez', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgAsignacionGuardia)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Asignación/i }))
+    const campo = screen.getByLabelText(/Cédula del guardia/i)
+    await usuario.type(campo, 'AB17500000189999')
+
+    expect(campo).toHaveValue('1750000018')
   })
 })
 

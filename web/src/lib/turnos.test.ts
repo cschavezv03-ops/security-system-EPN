@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { duracionTurnoMin, estaEnTurno, horaEcuadorHHMM } from './format'
-import { esUbicacionEPN, normalizarUbicacionEPN, validarUbicacionEPN } from './validacion'
+import { duracionTurnoMin, estaEnTurno, fmtFechaDia, horaEcuadorHHMM } from './format'
+import {
+  componerNombrePuntoEPN, esUbicacionEPN, normalizarUbicacionEPN, partesUbicacionEPN, validarUbicacionEPN,
+} from './validacion'
 import { CAT } from './catalogos'
 
 /**
@@ -75,6 +77,22 @@ describe('duracionTurnoMin', () => {
   })
 })
 
+describe('fechas que representan un día, no un instante', () => {
+  it('una vigencia que termina el 31 no se lee como el 30', () => {
+    // `fecha_fin` es timestamptz pero significa "el día 31 de julio". Se guarda a medianoche UTC,
+    // así que formatearla en la zona del navegador la retrasaba un día para cualquiera en
+    // Ecuador: una asignación vigente hasta el 31/07 se leía "30/07". Cuarta aparición del error
+    // de medianoche (§D52, §D59, §D69).
+    expect(fmtFechaDia('2026-07-31T00:00:00+00:00')).toBe('31/07/2026')
+    expect(fmtFechaDia('2026-07-01T00:00:00+00:00')).toBe('01/07/2026')
+  })
+
+  it('sin valor no inventa una fecha', () => {
+    expect(fmtFechaDia(null)).toBe('—')
+    expect(fmtFechaDia(undefined)).toBe('—')
+  })
+})
+
 describe('ubicación con la nomenclatura de la EPN', () => {
   it('acepta el formato oficial', () => {
     expect(esUbicacionEPN('E20/P3/E004')).toBe(true)
@@ -106,6 +124,47 @@ describe('ubicación con la nomenclatura de la EPN', () => {
   it('un campo vacío no es un error de formato', () => {
     // De eso se encarga `required`; si no, el error saldría antes de escribir nada.
     expect(validarUbicacionEPN('')).toBeNull()
+  })
+})
+
+describe('nombre de un punto de control dentro de un edificio', () => {
+  it('compone el nombre sin que el usuario teclee separadores', () => {
+    // PCO v2: "el usuario solo ingresará los datos, pero no estos caracteres: /, -".
+    expect(componerNombrePuntoEPN(20, 4, 4, 'Laboratorio Alan Turing')).toBe('E20/P4/E004 – Laboratorio Alan Turing')
+    expect(componerNombrePuntoEPN('20', '4', '4')).toBe('E20/P4/E004')
+  })
+
+  it('rellena el espacio a tres dígitos', () => {
+    expect(componerNombrePuntoEPN(1, 0, 7, '')).toBe('E1/P0/E007')
+  })
+
+  it('no enseña un código a medias mientras falten cifras', () => {
+    // Sin esto el campo mostraría "E20/P/E000" mientras se rellena el formulario.
+    expect(componerNombrePuntoEPN(20, '', 4)).toBe('')
+    expect(componerNombrePuntoEPN('', '', '')).toBe('')
+  })
+
+  it('vuelve a descomponerlo para poder editarlo', () => {
+    expect(partesUbicacionEPN('E20/P4/E004 – Laboratorio Alan Turing')).toEqual({
+      edificio: '20', piso: '4', espacio: '4', descripcion: 'Laboratorio Alan Turing',
+    })
+    expect(partesUbicacionEPN('E20/P4/E004')).toEqual({
+      edificio: '20', piso: '4', espacio: '4', descripcion: '',
+    })
+  })
+
+  it('devuelve null para los nombres anteriores a la regla', () => {
+    // Los dos puntos sembrados en edificios no siguen el estándar y no se les puede adivinar el
+    // piso ni el aula (§V41): el formulario tiene que poder abrirlos igualmente.
+    expect(partesUbicacionEPN('Puerta - Laboratorio de Suelos')).toBeNull()
+    expect(partesUbicacionEPN('')).toBeNull()
+  })
+
+  it('lo que se compone se vuelve a descomponer igual', () => {
+    const nombre = componerNombrePuntoEPN(15, 2, 12, 'Aula magna')
+    expect(partesUbicacionEPN(nombre)).toEqual({
+      edificio: '15', piso: '2', espacio: '12', descripcion: 'Aula magna',
+    })
   })
 })
 
