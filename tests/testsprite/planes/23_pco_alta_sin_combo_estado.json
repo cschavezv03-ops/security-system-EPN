@@ -1,7 +1,7 @@
 {
   "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
   "type": "frontend",
-  "name": "PCO — el estado no se elige al registrar",
+  "name": "PCO — el estado no se elige al registrar, y la zona ofrece los tres tipos",
   "planSteps": [
     {
       "type": "action",
@@ -33,7 +33,7 @@
     },
     {
       "type": "assertion",
-      "description": "El formulario de alta está abierto y muestra un campo 'Tipo de zona' y un campo 'Nombre'"
+      "description": "El formulario de alta está abierto y muestra un campo 'Tipo de zona'"
     },
     {
       "type": "assertion",
@@ -45,11 +45,7 @@
     },
     {
       "type": "assertion",
-      "description": "El desplegable 'Tipo de zona' contiene las opciones 'Edificio' y 'Parqueadero'"
-    },
-    {
-      "type": "assertion",
-      "description": "El desplegable 'Tipo de zona' NO contiene la opción 'Campus'"
+      "description": "El desplegable 'Tipo de zona' contiene las tres opciones: 'Campus', 'Edificio' y 'Parqueadero'"
     }
   ]
 }

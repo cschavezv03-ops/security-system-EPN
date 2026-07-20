@@ -1,0 +1,47 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "PCO ↔ CAC — un punto de control de PCO se ve desde Control de Accesos",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente heidy.tenelema@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Puntos de Control. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a heidy.tenelema@epn.edu.ec y el Panel Principal muestra el módulo 'Puntos de Control'"
+    },
+    {
+      "type": "action",
+      "description": "Desde el Panel Principal, abrir el módulo 'Puntos de Control' y entrar en la sección 'Puntos de control'. Anotar el nombre del primer punto de control de la lista."
+    },
+    {
+      "type": "assertion",
+      "description": "La lista de puntos de control muestra al menos un punto con su nombre y su zona"
+    },
+    {
+      "type": "action",
+      "description": "Cerrar la sesión actual desde el menú de la cuenta. En la pantalla de inicio de sesión, BORRAR el correo precargado y escribir exactamente carlos.chavez03@epn.edu.ec con la contraseña admin1234, que es la única cuenta con acceso al módulo Control de Accesos. Pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a carlos.chavez03@epn.edu.ec y el Panel Principal muestra el módulo 'Control de Accesos'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir el módulo 'Control de Accesos' y entrar en la sección 'Reglas de acceso'. Abrir el formulario para registrar una regla nueva."
+    },
+    {
+      "type": "assertion",
+      "description": "En el formulario de la regla aparece un campo para elegir el punto de control o la garita"
+    },
+    {
+      "type": "action",
+      "description": "Desplegar ese campo de puntos de control o garitas."
+    },
+    {
+      "type": "assertion",
+      "description": "El desplegable contiene al menos un punto de control con nombre, y no está vacío"
+    }
+  ]
+}

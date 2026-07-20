@@ -1336,3 +1336,77 @@ Al aplicarla aparecieron dos sitios que la incumplían, y se corrigieron:
 
 El correo sigue siendo el identificador de la **cuenta** (`usuario_sistema`), que es otra cosa:
 una cuenta no es una persona. Por eso la pantalla de Sesiones sí busca por correo.
+# Ronda de PCO v2 (2026-07-20) — Requerimientos_PCO_v2
+
+## §D78 — Un punto de control dentro de un edificio se nombra con el estándar de la EPN
+
+**Conflicto:** el nombre de un punto de control era texto libre. En un edificio eso no vale: dos
+personas escriben el mismo laboratorio de dos formas y nada impide registrarlo dos veces.
+
+**Decisión:** dentro de una zona tipo EDIFICIO el nombre sigue la nomenclatura oficial —
+`E<edificio>/P<piso>/E<espacio de tres dígitos>`, con una descripción opcional detrás:
+`E20/P4/E004 – Laboratorio Alan Turing`. Hay un índice único sobre el **código**, no sobre el
+nombre completo, para que `E20/P4/E004 – Lab` y `E20/P4/E004 – Laboratorio Alan Turing` cuenten
+como el mismo sitio.
+
+En **campus y parqueaderos no aplica**: ahí los puntos son garitas y accesos perimetrales que no
+ocupan un aula, y obligarles a un código de aula sería inventarse un dato.
+
+El documento pedía además que el usuario no tecleara `/` ni `-`. En vez de una máscara sobre un
+único campo, la pantalla pide **tres números y una descripción** y compone el nombre. Con una
+máscara el usuario aún puede equivocarse de posición; así el formato no depende de él. Para eso
+se añadió `FieldConfig.componerDesde`, que a diferencia de `soloLectura` **sí persiste** el valor.
+
+## §D79 — Al guardia se le busca por su cédula, no en una lista
+
+**Conflicto:** asignar un guardia era elegirlo en un desplegable que lo identificaba por su
+**correo**. El correo identifica a la cuenta, no a la persona (§D77).
+
+**Decisión:** el campo es la cédula. Al completar los diez dígitos el sistema responde si esa
+persona está registrada como guardia y muestra su nombre; si no, lo dice. Va por el RPC
+`buscar_guardia_por_cedula`, que devuelve **solo** id, nombre y si ya tiene una asignación activa.
+
+Ese acotamiento es deliberado: PCO no puede leer el directorio de personas, y un RPC que
+respondiera por cualquier cédula sería una forma de sondearlo. Solo contesta si esa cédula
+corresponde a una cuenta de guardia activa, así que tampoco se puede asignar por error a un
+Responsable de Módulo.
+
+## §D80 — "Activa" y "en turno" son dos columnas, no una
+
+**Conflicto:** PCO pidió quitar los textos "en turno ahora" y "fuera de turno" porque *"con la
+columna estado ya se entiende"*. No se entiende: son cosas distintas. `estado_asignacion` dice si
+la asignación está en vigor estos días; estar en turno dice si el guardia está cubriendo el punto
+**en este momento**. Una asignación ACTIVA de 22:00–06:00 sigue estando activa a mediodía, con el
+guardia en su casa.
+
+**Decisión:** no se borró nada; se separó lo que estaba mezclado. La lista tiene ahora una
+columna **"Asignación"** (Activa / Finalizada) y otra **"Ahora mismo"** (En turno / Fuera de
+turno / Sin horario / No aplica), más **"Desde"** y **"Hasta"** con las fechas del turno, que era
+la otra parte de la petición.
+
+## §D81 — Una fecha que significa un día no se formatea en la zona del navegador
+
+`fecha_inicio` y `fecha_fin` son `timestamptz`, pero significan *"el día 31 de julio"*, no *"las
+00:00 del 31"*. Se guardan a medianoche UTC y se formateaban con la zona del navegador, así que
+para cualquiera en Ecuador **retrocedían un día**: una asignación vigente hasta el 31/07 se leía
+"30/07". Lo mismo afectaba a la vigencia mostrada en la ficha.
+
+**Decisión:** `fmtFechaDia()` formatea estos campos en UTC, que es donde se guardó el día. Se
+distingue a propósito de `fmtFecha()`, que sigue usando la zona local y es la correcta para un
+instante real (`fecha_registro`, hora de un evento).
+
+**Cuarta aparición del mismo error de medianoche** (§D52 en la vigencia, §D59 en la duración del
+turno, §D69 en los horarios de regla). Merece tenerlo presente: cada vez que se compara o se
+muestra una fecha hay que preguntarse si representa un instante o un día.
+
+## §D82 — "Campus" vuelve a los tres combos de tipo de zona
+
+**Conflicto:** la ronda anterior quitó CAMPUS del alta de puntos de control, porque el documento
+decía que un punto de control no está "en toda la universidad". El v2 pide lo contrario: que el
+campo Zona ofrezca los tres tipos en todos los paneles.
+
+**Decisión:** gana el requisito nuevo, y además resuelve el problema práctico que había dejado el
+anterior (§V25): seis de los puntos sembrados —las garitas de entrada, "Acceso A", "Acceso B",
+"Garita Principal"— sí cuelgan del campus, y con CAMPUS fuera del alta quedaban a medio gestionar.
+Un acceso perimetral pertenece al campus y a ningún edificio: es un caso legítimo, no una
+excepción que hubiera que tolerar.
