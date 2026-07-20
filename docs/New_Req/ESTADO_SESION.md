@@ -27,7 +27,7 @@ desde ADM; el texto que mandaba a GPI ya no está.
 | No estudiantes con código único o carrera | 0 |
 | Personas externas con cuenta | 0 |
 
-Al cierre se añadieron tres migraciones más (§D58, §V40): **una cuenta del sistema pertenece al
+Al cierre se añadieron tres migraciones más (§D76, §V40): **una cuenta del sistema pertenece al
 personal, nunca a un estudiante**, comprobado al crear la cuenta y al cambiar la categoría de
 quien ya la tiene. Salió de encontrar a `frank.jumbo` como ESTUDIANTE con rol de guardia; era la
 única de las nueve cuentas fuera de norma.
@@ -35,7 +35,7 @@ quien ya la tiene. Salió de encontrar a `frank.jumbo` como ESTUDIANTE con rol d
 ## ✅ Qué resolvió la ronda de ADM
 
 Cuatro incidencias que salieron de la revisión manual del administrador, todas reproducidas antes
-de tocar código (decisiones §D53-D56):
+de tocar código (decisiones §D72-§D75):
 
 - **El correo vivía en tres sitios sin nada que los uniera.** Se registró a una persona con un
   correo equivocado, se corrigió en GPI y **la cuenta siguió entrando con el viejo durante días**.
@@ -105,7 +105,7 @@ identificó y que probablemente reaparezcan en el documento:
 
 | # | Qué | Por qué importa |
 |---|---|---|
-| ~~§V27~~ | ~~El "código único" enfrenta a PCO con GPI~~ | **✅ RESUELTA antes de empezar** (§D57). No era una contradicción: la frase de PCO hablaba de cómo se identifica a la gente, no del modelo de datos. El código único se queda como dato académico; identificar es siempre por cédula. De paso se corrigieron los dos sitios que aún no lo cumplían. |
+| ~~§V27~~ | ~~El "código único" enfrenta a PCO con GPI~~ | **✅ RESUELTA antes de empezar** (§D77). No era una contradicción: la frase de PCO hablaba de cómo se identifica a la gente, no del modelo de datos. El código único se queda como dato académico; identificar es siempre por cédula. De paso se corrigieron los dos sitios que aún no lo cumplían. |
 | §V24 | El "Parqueadero Subsuelo EARME" cuelga del campus, no de un edificio | **Empezar por aquí ahora.** Dato mal colocado en la jerarquía de zonas. |
 | §V25 | Puntos de control que cuelgan directamente del campus | Mismo problema, otra entidad. |
 | §V28 | La búsqueda "solo con 10 dígitos o por apellido" no se implementó | Requisito pedido y no hecho. |
@@ -125,7 +125,7 @@ identificó y que probablemente reaparezcan en el documento:
 | Qué | Dónde |
 |---|---|
 | Producción | https://security-system-epn.vercel.app (rama `main`) |
-| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D53-D56 son de la ronda de ADM; §D62-D71, de CAC |
+| Decisiones | `docs/03_DECISIONES_Y_CORRECCIONES.md` — §D53-§D61 son de PCO; §D62-§D71, de CAC; §D72-§D77, de ADM. Antes de añadir una: `python3 scripts/verificar_numeracion_docs.py` |
 | Dudas y pendientes | `docs/99_DUDAS_PARA_EL_EQUIPO.md` — §V37-V39 son de la ronda de ADM; §V31-V36, de CAC |
 | Calibrar los umbrales | `scripts/calibracion_biometria` y `scripts/calibracion_placas` |
 | **Cómo probar las placas y el rostro** | `docs/New_Req/GUIA_PRUEBAS_PLACAS.md` |

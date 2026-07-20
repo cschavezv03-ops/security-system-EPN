@@ -104,7 +104,7 @@ begin
   assert v_fallo, 'el administrador NO deberia poder revocarse su propio rol';
 end $$;
 
--- 6. El sistema lo opera el personal, no los estudiantes (§D58) -------------
+-- 6. El sistema lo opera el personal, no los estudiantes (§D76) -------------
 do $$
 declare v_est uuid; v_cat_est uuid; v_persona uuid; v_a boolean := false; v_b boolean := false;
 begin

@@ -290,6 +290,13 @@ El endurecimiento de la cédula no cambia esto: las 18 cédulas sintéticas de �
 válidas por estructura pero no corresponden a personas reales. **Pendiente del equipo:** sustituir
 por las cédulas reales desde ADM. (Las nuevas reglas no las rechazan: no son relleno.)
 
+## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
+No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
+`VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
+SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
+
+---
+
 ## V13 — Bloqueo por intentos fallidos: hueco residual del plan gratuito
 El bloqueo (5 intentos → 15 min) funciona y es efectivo: al dispararse se escribe
 `auth.users.banned_until`, así que GoTrue rechaza el acceso **aunque se llame a su API
@@ -308,13 +315,6 @@ no llega a dispararse. Cerrarlo del todo requiere el Auth Hook
    automatizado contra el endpoint directo.
 3. Supabase no expone un límite de tasa por IP para el *login* en el plan gratuito (`rate_limit_*`
    cubre correo, OTP y refresh, no el grant de contraseña).
-
-## V12 — `empresa.estado_verificacion_ruc` siempre NO_VERIFICADO
-No hay integración con el SRI. La columna existe y el flujo la contempla, pero ningún RUC se marca
-`VALIDO`/`INVALIDO` hasta que haya un servicio oficial. **Pendiente del equipo:** convenio/API del
-SRI; entonces se puebla en backend con timeout y manejo de indisponibilidad (interfaz ya prevista).
-
----
 
 # Ronda de mejoras de ADM (2026-07-18)
 
@@ -765,7 +765,7 @@ dato incoherente, porque el estudiante es **sujeto** del control de accesos, no 
 
 La auditoría de las 9 cuentas confirmó que era el **único** fuera de norma; las otras ocho son
 ADMINISTRATIVO o TRABAJADOR. Es decir, la regla ya se cumplía en la práctica y lo que faltaba era
-escribirla, así que se escribió (§D58): solo DOCENTE, ADMINISTRATIVO y TRABAJADOR pueden tener
+escribirla, así que se escribió (§D76): solo DOCENTE, ADMINISTRATIVO y TRABAJADOR pueden tener
 cuenta, comprobado en los dos sentidos —al crear la cuenta y al cambiar la categoría de quien ya
 la tiene—. `frank.jumbo` pasó a TRABAJADOR, que es lo que corresponde a quien opera una garita.
 

@@ -1,5 +1,26 @@
 # 03 — Decisiones y Correcciones
 
+> **Cómo numerar.** Cada decisión lleva un número único y se cita en el resto del repositorio como
+> `§Dnn` (las dudas abiertas, como `§Vnn` en `99_DUDAS_PARA_EL_EQUIPO.md`). El número no se
+> reutiliza nunca, aunque la decisión quede superada: se escribe una nueva que diga que sustituye
+> a la anterior.
+>
+> Antes de añadir una, comprueba cuál es el siguiente libre:
+>
+> ```bash
+> python3 scripts/verificar_numeracion_docs.py
+> ```
+>
+> Ese script también avisa de números duplicados y de citas a decisiones que no existen. Se añadió
+> el 20/07 después de que la ronda de ADM reutilizara sin querer D53-D58, ya ocupados por PCO: la
+> colisión sobrevivió dos rondas porque cada una usaba un formato de encabezado distinto
+> (`## §Dnn` frente a `### Dnn`) y ninguna búsqueda las veía juntas. Las de ADM pasaron a
+> §D72-§D77.
+>
+> Los números **no van en orden dentro del documento**, y es a propósito: está agrupado por
+> secciones temáticas y por rondas. Lo que importa es que un número no signifique dos cosas.
+
+
 > Registro de las contradicciones detectadas entre los documentos fuente y cómo se resolvieron.
 > **Estas decisiones ya están tomadas. No re-litigarlas.** Si algo aquí parece incorrecto,
 > se cambia por acuerdo del equipo y se actualiza este documento — no en una sesión de código.
@@ -1065,6 +1086,63 @@ Es el mismo error que ya apareció en los turnos del guardia (§D59). La compara
 dos tramos cuando `fin < inicio`. En el formulario, teclear un horario que cruza la medianoche
 muestra un **aviso** (no bloquea): es válido, pero se teclea por error con demasiada facilidad.
 
+## §D70 — El umbral biométrico, ya medido: la estimación era correcta pero el margen era otro
+
+**Qué se hizo:** §D67 fijó `UMBRAL_BIOMETRIA = 0.45` con tres rostros enrolados, midiendo solo
+lo que se podía medir con una foto por persona: a qué distancia están dos personas **distintas**.
+Faltaba la otra mitad —a qué distancia está la **misma** persona en dos fotos— y sin ella el
+umbral era una estimación prudente.
+
+Con LFW (*Labeled Faces in the Wild*) y su protocolo de pares etiquetados, medido con el mismo
+modelo y el mismo detector que usa la garita:
+
+| | n | min | p5 | mediana | p95 | max |
+|---|---|---|---|---|---|---|
+| **Misma persona** | 446 | 0.250 | 0.325 | 0.448 | 0.588 | 0.948 |
+| **Personas distintas** | 416 | 0.566 | 0.681 | 0.829 | 0.963 | 1.087 |
+
+**El valor no cambia.** La estimación estaba bien puesta:
+
+| Confianza | Distancia | FAR (entra quien no es) | FRR (se rechaza a quien sí es) |
+|---|---|---|---|
+| 0.50 | 0.50 | 0.00 % | 27.35 % |
+| **0.45** | **0.55** | **0.00 %** | **10.99 %** ← el vigente |
+| 0.40 | 0.60 | 0.72 % | 4.48 % |
+| **0.35** | **0.65** | 2.88 % | 4.04 % ← suelo de la banda de revisión |
+| 0.30 | 0.70 | 7.93 % | 2.91 % |
+
+A 0.45 **no se cuela ni un impostor de los 416 medidos**, y el 11 % de intentos legítimos que se
+rechazan no se pierden: caen en la banda de revisión, donde el guardia confirma.
+
+**Lo que la medición sí corrige de §D67:** allí se escribió "margen de 0.141", comparando contra
+el impostor más parecido del banco de la EPN (0.691). Con 416 pares de impostores, el más
+parecido está a **0.566**, no a 0.691. El margen real es **0.016** — sigue bastando, porque el
+FAR medido es 0 %, pero es un filo y no un colchón. Si se cambia el modelo o el detector, hay que
+volver a medir antes de dar nada por bueno.
+
+**Por qué no se baja a 0.42** (FAR 0.5 %, FRR 5.2 %): los dos errores no cuestan lo mismo.
+Rechazar a alguien legítimo cuesta repetir la captura delante de un guardia que está ahí mismo;
+aceptar a un impostor es que entre. Con la banda de revisión cubriendo el rechazo, no hay razón
+para pagar FAR a cambio de comodidad.
+
+**Un hallazgo que no se buscaba: el detector pierde uno de cada cuatro rostros.** De los 1200
+pares, **338 se descartaron porque `TinyFaceDetector` no encontró cara en alguna de las dos
+fotos** — un 28 %. LFW son fotos de prensa, de frente y bien iluminadas; si ahí falla una de cada
+cuatro, en una garita a contraluz fallará más.
+
+Eso no afecta al umbral (un rostro no detectado no llega a compararse), pero sí a la experiencia:
+parte de las capturas dirán "no se detectó ningún rostro" y habrá que repetir. `SsdMobilenetv1`
+detecta bastante mejor a cambio de ser más pesado y lento. **Está sin decidir a propósito**:
+cambiar el detector invalida esta calibración, así que habría que medir de nuevo con él antes de
+cambiarlo. Anotado en §V32.
+
+**Sobre trasladar estos números a la EPN:** LFW no es una garita. El FRR medido es **optimista**
+—una cámara a contraluz o con mascarilla lo empeora— mientras que el FAR es razonablemente
+trasladable: si dos personas distintas se separan bien en condiciones buenas, en condiciones
+malas se separan más, no menos. Por eso el umbral se eligió apuntando al FAR.
+
+---
+
 ## §D71 — Los umbrales del lector de placas salen de una medición, y la confianza se calcula por consenso
 
 **Conflicto:** §D68 dejó el lector funcionando pero con dos números puestos a ojo
@@ -1137,69 +1215,17 @@ aleja o se tuerce, el acierto se hunde — y ahí importa que las lecturas malas
 confianza baja (p95 = 0.75), así que la mayoría no se auto-aceptan: se le proponen al guardia o
 se descartan.
 
-## §D70 — El umbral biométrico, ya medido: la estimación era correcta pero el margen era otro
-
-**Qué se hizo:** §D67 fijó `UMBRAL_BIOMETRIA = 0.45` con tres rostros enrolados, midiendo solo
-lo que se podía medir con una foto por persona: a qué distancia están dos personas **distintas**.
-Faltaba la otra mitad —a qué distancia está la **misma** persona en dos fotos— y sin ella el
-umbral era una estimación prudente.
-
-Con LFW (*Labeled Faces in the Wild*) y su protocolo de pares etiquetados, medido con el mismo
-modelo y el mismo detector que usa la garita:
-
-| | n | min | p5 | mediana | p95 | max |
-|---|---|---|---|---|---|---|
-| **Misma persona** | 446 | 0.250 | 0.325 | 0.448 | 0.588 | 0.948 |
-| **Personas distintas** | 416 | 0.566 | 0.681 | 0.829 | 0.963 | 1.087 |
-
-**El valor no cambia.** La estimación estaba bien puesta:
-
-| Confianza | Distancia | FAR (entra quien no es) | FRR (se rechaza a quien sí es) |
-|---|---|---|---|
-| 0.50 | 0.50 | 0.00 % | 27.35 % |
-| **0.45** | **0.55** | **0.00 %** | **10.99 %** ← el vigente |
-| 0.40 | 0.60 | 0.72 % | 4.48 % |
-| **0.35** | **0.65** | 2.88 % | 4.04 % ← suelo de la banda de revisión |
-| 0.30 | 0.70 | 7.93 % | 2.91 % |
-
-A 0.45 **no se cuela ni un impostor de los 416 medidos**, y el 11 % de intentos legítimos que se
-rechazan no se pierden: caen en la banda de revisión, donde el guardia confirma.
-
-**Lo que la medición sí corrige de §D67:** allí se escribió "margen de 0.141", comparando contra
-el impostor más parecido del banco de la EPN (0.691). Con 416 pares de impostores, el más
-parecido está a **0.566**, no a 0.691. El margen real es **0.016** — sigue bastando, porque el
-FAR medido es 0 %, pero es un filo y no un colchón. Si se cambia el modelo o el detector, hay que
-volver a medir antes de dar nada por bueno.
-
-**Por qué no se baja a 0.42** (FAR 0.5 %, FRR 5.2 %): los dos errores no cuestan lo mismo.
-Rechazar a alguien legítimo cuesta repetir la captura delante de un guardia que está ahí mismo;
-aceptar a un impostor es que entre. Con la banda de revisión cubriendo el rechazo, no hay razón
-para pagar FAR a cambio de comodidad.
-
-**Un hallazgo que no se buscaba: el detector pierde uno de cada cuatro rostros.** De los 1200
-pares, **338 se descartaron porque `TinyFaceDetector` no encontró cara en alguna de las dos
-fotos** — un 28 %. LFW son fotos de prensa, de frente y bien iluminadas; si ahí falla una de cada
-cuatro, en una garita a contraluz fallará más.
-
-Eso no afecta al umbral (un rostro no detectado no llega a compararse), pero sí a la experiencia:
-parte de las capturas dirán "no se detectó ningún rostro" y habrá que repetir. `SsdMobilenetv1`
-detecta bastante mejor a cambio de ser más pesado y lento. **Está sin decidir a propósito**:
-cambiar el detector invalida esta calibración, así que habría que medir de nuevo con él antes de
-cambiarlo. Anotado en §V32.
-
-**Sobre trasladar estos números a la EPN:** LFW no es una garita. El FRR medido es **optimista**
-—una cámara a contraluz o con mascarilla lo empeora— mientras que el FAR es razonablemente
-trasladable: si dos personas distintas se separan bien en condiciones buenas, en condiciones
-malas se separan más, no menos. Por eso el umbral se eligió apuntando al FAR.
-
----
-
 # Ronda de cuentas y roles de ADM (2026-07-20)
 
 Origen: revisión manual del administrador tras desplegar la ronda de ADM. Cuatro incidencias,
 todas reproducidas antes de tocar código.
 
-### D53 — El correo de una persona con cuenta es UNO SOLO
+> **Renumeradas el 20/07.** Esta ronda se escribió como D53-D56 y D58, números que ya ocupaba la
+> ronda de PCO. La colisión pasó desapercibida porque aquí se usó `### Dnn` y allí `## §Dnn`, así
+> que ninguna búsqueda las veía juntas. Son ahora **§D72-§D76**. Se renumeró esta ronda y no la de
+> PCO porque las de PCO están citadas dentro de migraciones ya aplicadas, que no se reescriben.
+
+## §D72 — El correo de una persona con cuenta es UNO SOLO
 
 `persona.correo`, `usuario_sistema.correo_electronico` y `auth.users.email` (más la identidad
 del proveedor en `auth.identities`) eran tres datos independientes. Se registró a Lady Celina
@@ -1218,7 +1244,7 @@ La identidad de GoTrue (`auth.identities.identity_data->>'email'`) se actualiza 
 Olvidarla deja la cuenta en un estado incoherente que se manifiesta más tarde y cuesta
 diagnosticar.
 
-### D54 — Una cuenta, un rol activo
+## §D73 — Una cuenta, un rol activo
 
 El modelo permitía varios roles y eso producía un fallo real: `guardia_demo` tenía
 GUARDIA_SEGURIDAD + RESPONSABLE_PERSONAL_INTERNO y, como la vista de Garita **reemplaza toda
@@ -1235,7 +1261,7 @@ Se impone con un índice único parcial sobre `usuario_rol (id_usuario) where es
 (`asignar_rol_unico`): revoca el anterior y asigna el nuevo en una operación, porque con el
 índice dos escrituras sueltas dejarían la cuenta sin rol si fallara la segunda.
 
-### D55 — Nadie se quita a sí mismo el rol de administrador
+## §D74 — Nadie se quita a sí mismo el rol de administrador
 
 `proteger_rol_administrador` solo cubría al **último** administrador. Con dos, cualquiera podía
 revocarse el suyo, perder ADM y no poder devolvérselo: una puerta que solo se abre por fuera.
@@ -1246,7 +1272,7 @@ Añadida la guarda de auto-revocación, simétrica a la que `proteger_administra
 para el estado de la cuenta. La interfaz además oculta el control, para no descubrir la regla
 chocándose con un error.
 
-### D56 — ADM da de alta personal interno
+## §D75 — ADM da de alta personal interno
 
 Crear un responsable exigía dos sesiones y dos personas: entrar como GPI para registrar a la
 persona, salir, entrar como ADM para crear la cuenta y el rol. Ahora el alta de ADM registra
@@ -1258,7 +1284,33 @@ El permiso es nuevo en vez de reutilizar `GPI_PERSONA_INSERT` para que la matriz
 la verdad sobre quién puede qué, y para poder retirarlo sin tocar GPI.
 
 
-### D57 — El código único es un dato, no un identificador (resuelve §V27)
+## §D76 — El sistema lo opera el personal, no los estudiantes
+
+Una cuenta de `usuario_sistema` solo puede pertenecer a una persona **interna** de categoría
+**DOCENTE, ADMINISTRATIVO o TRABAJADOR**. Quedan fuera:
+
+- **ESTUDIANTE** — es sujeto del control de accesos, no operador de él.
+- **EMPRESA_SERVICIO** — personal contratado: entra al campus, no administra el sistema.
+- **Todas las categorías EXTERNAS** — ya lo impedía el flujo, pero nada lo garantizaba.
+
+La regla no se inventó: se dedujo de los datos. De las 9 cuentas existentes, 8 ya la cumplían y
+una sola no (`frank.jumbo`, ESTUDIANTE con rol de guardia). Lo que faltaba era escribirla.
+
+Se comprueba en **los dos sentidos**, porque la incoherencia puede entrar por cualquiera:
+
+| Trigger | Qué impide |
+|---|---|
+| `trg_validar_operador_de_cuenta` (usuario_sistema) | Crear una cuenta sobre una persona que no puede tenerla |
+| `trg_validar_categoria_con_cuenta` (persona) | Cambiar a una categoría no operadora a quien ya tiene cuenta |
+
+**Lección de implementación:** la primera versión del segundo trigger no bloqueaba nada, porque
+consultaba la categoría releyéndola de la tabla y en un `BEFORE UPDATE` la fila todavía tiene el
+valor anterior. Un trigger BEFORE que valida **debe evaluar `NEW`**. Lo detectó su propia prueba;
+sin ella habría quedado una guarda decorativa, que es peor que no tener ninguna porque da
+sensación de seguridad.
+
+
+## §D77 — El código único es un dato, no un identificador (resuelve §V27)
 
 PCO pidió *"se elimina cualquier concepto de Código de Estudiante… no debe existir un campo
 llamado Código"* y GPI, en la ronda anterior, pidió justo lo contrario y ya estaba implementado
@@ -1284,29 +1336,3 @@ Al aplicarla aparecieron dos sitios que la incumplían, y se corrigieron:
 
 El correo sigue siendo el identificador de la **cuenta** (`usuario_sistema`), que es otra cosa:
 una cuenta no es una persona. Por eso la pantalla de Sesiones sí busca por correo.
-
-
-### D58 — El sistema lo opera el personal, no los estudiantes
-
-Una cuenta de `usuario_sistema` solo puede pertenecer a una persona **interna** de categoría
-**DOCENTE, ADMINISTRATIVO o TRABAJADOR**. Quedan fuera:
-
-- **ESTUDIANTE** — es sujeto del control de accesos, no operador de él.
-- **EMPRESA_SERVICIO** — personal contratado: entra al campus, no administra el sistema.
-- **Todas las categorías EXTERNAS** — ya lo impedía el flujo, pero nada lo garantizaba.
-
-La regla no se inventó: se dedujo de los datos. De las 9 cuentas existentes, 8 ya la cumplían y
-una sola no (`frank.jumbo`, ESTUDIANTE con rol de guardia). Lo que faltaba era escribirla.
-
-Se comprueba en **los dos sentidos**, porque la incoherencia puede entrar por cualquiera:
-
-| Trigger | Qué impide |
-|---|---|
-| `trg_validar_operador_de_cuenta` (usuario_sistema) | Crear una cuenta sobre una persona que no puede tenerla |
-| `trg_validar_categoria_con_cuenta` (persona) | Cambiar a una categoría no operadora a quien ya tiene cuenta |
-
-**Lección de implementación:** la primera versión del segundo trigger no bloqueaba nada, porque
-consultaba la categoría releyéndola de la tabla y en un `BEFORE UPDATE` la fila todavía tiene el
-valor anterior. Un trigger BEFORE que valida **debe evaluar `NEW`**. Lo detectó su propia prueba;
-sin ella habría quedado una guarda decorativa, que es peor que no tener ninguna porque da
-sensación de seguridad.
