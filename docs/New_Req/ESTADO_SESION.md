@@ -194,6 +194,15 @@ un comando que termina mata los hijos: los procesos mueren y los logs quedan vac
 funciona es lanzar todos con `&` y terminar con `wait` dentro de la misma invocación, en segundo
 plano.
 
+**4-bis. Como mucho DOS o TRES a la vez con la misma cuenta.** Medido el 20/07: doce pruebas de
+PCO lanzadas a la vez con `heidy.tenelema` dieron cinco fallos, y todas mostraban el mismo
+síntoma —formularios y desplegables vacíos, como si el usuario no tuviera permisos—. No era un
+fallo de la aplicación: **la misma prueba que falló en el lote pasó 15/15 al ejecutarla sola**.
+Doce navegadores compartiendo una cuenta se pisan las sesiones entre sí.
+
+Antes de tocar código por un fallo así, **relanza esa prueba aislada**. Y no consultes la API con
+esa misma cuenta mientras el lote corre, por el mismo motivo.
+
 **5. En paralelo, comprueba que los cinco terminaron.** Lanzarlos con `&` + `wait` funciona,
 pero en esta ronda **uno de los cinco murió sin escribir nada en su log** y el comando entero
 devolvió error. Los otros cuatro habían pasado. Si un registro queda vacío, relanza ese test

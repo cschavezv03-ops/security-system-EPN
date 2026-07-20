@@ -80,14 +80,17 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
         return chain
       },
       neq: mismo, gte: mismo, order: mismo, ilike: mismo,
-      maybeSingle: () => Promise.resolve({ data: filtradas()[0] ?? null, error: null }),
+      // Con latencia a propósito: `derivarDeRegistro` es asíncrono y en el navegador tarda.
+      // Sin esta espera el mock resolvía antes del primer render y ocultaba las carreras
+      // entre los efectos del formulario, que es justo lo que falló en el preview.
+      maybeSingle: () => new Promise((res) => setTimeout(() => res({ data: filtradas()[0] ?? null, error: null }), 30)),
       insert: () => Promise.resolve({ error: null }),
       update: (v: unknown) => {
         updatesHechos.push({ tabla, valores: v })
         return { eq: () => Promise.resolve({ error: null }) }
       },
       then: (r: (x: { data: unknown; error: null }) => unknown) =>
-        Promise.resolve({ data: filtradas(), error: null }).then(r),
+        new Promise((res) => setTimeout(() => res({ data: filtradas(), error: null }), 30)).then(r as any),
     })
     return chain
   }
