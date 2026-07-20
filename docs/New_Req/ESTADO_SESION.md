@@ -18,8 +18,19 @@ desde ADM; el texto que mandaba a GPI ya no está.
 | Aserciones SQL | `scripts/pruebas_adm_cuentas.sql`, pasa entero |
 
 **El esquema y el frontend desplegado vuelven a ir a la par.** Comprobado en la base al cerrar:
-cero correos desincronizados entre persona, cuenta y credencial, y cero cuentas con más de un rol
-activo. No hay ninguna ventana abierta.
+
+| Comprobación | Resultado |
+|---|---|
+| Correos desincronizados entre persona, cuenta y credencial | 0 |
+| Cuentas con más de un rol activo | 0 |
+| Cuentas cuya categoría no puede operar el sistema | 0 |
+| No estudiantes con código único o carrera | 0 |
+| Personas externas con cuenta | 0 |
+
+Al cierre se añadieron tres migraciones más (§D58, §V40): **una cuenta del sistema pertenece al
+personal, nunca a un estudiante**, comprobado al crear la cuenta y al cambiar la categoría de
+quien ya la tiene. Salió de encontrar a `frank.jumbo` como ESTUDIANTE con rol de guardia; era la
+única de las nueve cuentas fuera de norma.
 
 ## ✅ Qué resolvió la ronda de ADM
 
@@ -57,11 +68,14 @@ intento**.
 para que TestSprite pueda entrar; mientras siga así, cualquier URL de preview es accesible para
 quien la tenga.
 
-**2. Verificar las contraseñas de las cuentas de prueba** (§V38). En esta ronda se descubrió que
-`frank.jumbo` **no** usaba `admin1234`, contra lo que decía este documento. Se alineó, pero nadie
-ha comprobado las demás una a una. Cuesta cinco minutos y evita perseguir fallos que no existen:
-en esta ronda esa premisa falsa hizo parecer roto el bloqueo por intentos fallidos, que estaba
-perfectamente.
+**2. Activar la protección de contraseñas filtradas.** Panel de Supabase →
+**Authentication → Policies → Passwords** → *Leaked password protection*. Comprueba las
+contraseñas contra HaveIBeenPwned; ahora mismo está desactivada y el linter lo señala. Es un
+interruptor del panel: no se puede hacer por migración.
+
+*(Las contraseñas de las cuentas ya NO hay que verificarlas: se comprobaron una a una, §V38.
+Las 8 sembradas usan `admin1234`; `lady.velasquez` usa la suya porque completó el cambio
+obligatorio, que es lo correcto.)*
 
 **3. `guardia.demo@epn.edu.ec` ya NO ve GPI** (§V39). Al imponer un rol por cuenta se quedó solo
 con GUARDIA_SEGURIDAD; el otro rol estaba marcado `TEMPORAL_PRUEBA_BIOMETRIA`. Para probar GPI,

@@ -379,7 +379,7 @@ que separan un despliegue del otro.
 
 ---
 
-## V18 — Un docente sembrado tiene código único de estudiante
+## V18 — Un docente sembrado tiene código único de estudiante ✅ RESUELTA
 
 GPI dejó claro que *"el campo de Código Único solo es utilizado por los estudiantes"*, y así se
 implementó: el formulario solo lo muestra para estudiantes y el trigger
@@ -396,14 +396,21 @@ dato heredado no bloquee cualquier otra edición de esa ficha. Dos posibilidades
 error de la carga inicial (y haya que ponerlo a NULL), o que esa persona esté además matriculada
 como estudiante, en cuyo caso la regla del documento tiene una excepción que conviene escribir.
 
-**Decide el equipo.** Si es un error, basta con vaciar el campo desde la ficha.
+**RESUELTA (20/07/2026): era un error de la carga inicial y se vació.** La evidencia que lo
+decidió: esa ficha tenía a la vez `cargo = 'Titular'` (campo de docente) y `carrera` (campo de
+estudiante), o sea que el seed rellenó campos de las dos categorías; y su código empezaba por
+2025 mientras los dos estudiantes reales tienen 2023xxxxx, así que ni siquiera seguía el patrón
+de una matrícula de verdad. El valor queda registrado en la Auditoría por si hubiera que
+recuperarlo.
 
-## V19 — La misma persona tiene `carrera` siendo docente
+## V19 — La misma persona tiene `carrera` siendo docente ✅ RESUELTA
 
 El mismo registro de §V18 tiene `carrera = 'Sistemas'`, un campo de estudiante. Con el
 formulario nuevo ese campo ya no se ofrece a los docentes, así que el dato no se puede volver a
-introducir, pero el existente sigue ahí y se ve en la ficha de detalle. No se ha borrado: no
-destruimos datos que no creamos.
+introducir.
+
+**RESUELTA (20/07/2026)** junto con §V18 y por el mismo motivo: los dos campos venían del mismo
+error de siembra. `carrera` quedó a NULL.
 
 ## V20 — El preview de Vercel está protegido por SSO y TestSprite no puede entrar
 
@@ -735,11 +742,12 @@ fallar tras el vencimiento. La causa no era el bloqueo sino que **la contraseña
 documentado. Moraleja: antes de declarar un bug, comprobar que la premisa de la prueba es
 cierta.
 
-## V38 — Contraseñas de las cuentas de prueba sin verificar
+## V38 — Contraseñas de las cuentas de prueba ✅ VERIFICADAS
 
-Lo anterior destapa que **nadie ha comprobado que las 8 cuentas usen la contraseña que dice la
-documentación**. `frank.jumbo` no la usaba. Conviene verificarlas una a una antes de la
-siguiente ronda de pruebas manuales, o se perderá tiempo persiguiendo fallos que no existen.
+**Comprobadas una a una (20/07/2026) contra la Edge Function de login.** Las 8 cuentas
+sembradas usan `admin1234`. La novena, `lady.velasquez`, **no** — y es correcto: se creó durante
+la revisión manual con contraseña temporal y su titular ya completó el cambio obligatorio, así
+que usa la suya. Los contadores de intentos fallidos que dejó la comprobación se pusieron a cero.
 
 ## V39 — `guardia_demo` perdió su rol de GPI
 
@@ -748,3 +756,20 @@ conservó GUARDIA_SEGURIDAD (es la cuenta de la Garita) y se revocó el de Perso
 además estaba marcado `TEMPORAL_PRUEBA_BIOMETRIA`. **Esa cuenta ya no ve GPI** — antes tampoco
 podía, porque la Garita ocupa la pantalla entera, pero ahora es explícito. Para probar GPI,
 `lenin.amangandi@epn.edu.ec`.
+
+
+## V40 — Un estudiante tenía cuenta de guardia ✅ RESUELTA, y ya no puede repetirse
+
+`frank.jumbo` tenía categoría ESTUDIANTE y rol GUARDIA_SEGURIDAD. No es un caso exótico: es un
+dato incoherente, porque el estudiante es **sujeto** del control de accesos, no operador de él.
+
+La auditoría de las 9 cuentas confirmó que era el **único** fuera de norma; las otras ocho son
+ADMINISTRATIVO o TRABAJADOR. Es decir, la regla ya se cumplía en la práctica y lo que faltaba era
+escribirla, así que se escribió (§D58): solo DOCENTE, ADMINISTRATIVO y TRABAJADOR pueden tener
+cuenta, comprobado en los dos sentidos —al crear la cuenta y al cambiar la categoría de quien ya
+la tiene—. `frank.jumbo` pasó a TRABAJADOR, que es lo que corresponde a quien opera una garita.
+
+**De paso apareció un fallo en el propio trigger**, y lo destapó su prueba: la primera versión
+preguntaba por la categoría leyéndola de la tabla, y en un `BEFORE UPDATE` la fila todavía tiene
+el valor anterior, así que no bloqueaba nada. Corregido en la migración siguiente. Vale la pena
+recordarlo: **un trigger BEFORE que valida debe mirar `NEW`, no releer la tabla.**

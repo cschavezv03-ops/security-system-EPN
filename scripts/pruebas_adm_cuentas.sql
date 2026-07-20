@@ -104,6 +104,41 @@ begin
   assert v_fallo, 'el administrador NO deberia poder revocarse su propio rol';
 end $$;
 
+-- 6. El sistema lo opera el personal, no los estudiantes (§D58) -------------
+do $$
+declare v_est uuid; v_cat_est uuid; v_persona uuid; v_a boolean := false; v_b boolean := false;
+begin
+  select id_categoria into v_cat_est from categoria_persona where codigo_categoria = 'ESTUDIANTE';
+  select p.id_persona into v_est from persona p
+   where p.id_categoria = v_cat_est
+     and not exists (select 1 from usuario_sistema u where u.id_persona = p.id_persona) limit 1;
+
+  if v_est is null then
+    raise notice 'sin estudiantes sin cuenta: se omite la comprobacion 6';
+  else
+    -- (a) Crear la cuenta sobre quien no puede tenerla.
+    begin
+      insert into usuario_sistema (id_usuario, nombre_usuario, correo_electronico, id_persona, estado_usuario)
+      values (gen_random_uuid(), 'prueba.estudiante', 'prueba.estudiante@epn.edu.ec', v_est, 'ACTIVO');
+    exception when others then v_a := true;
+    end;
+    assert v_a, 'no deberia poder crearse una cuenta para un estudiante';
+  end if;
+
+  -- (b) Degradar la categoria de quien YA tiene cuenta. Esta es la que destapo que el trigger
+  --     leia la categoria de la tabla en vez de NEW, y por tanto no bloqueaba nada.
+  select id_persona into v_persona from usuario_sistema limit 1;
+  begin
+    update persona set id_categoria = v_cat_est where id_persona = v_persona;
+  exception when others then v_b := true;
+  end;
+  assert v_b, 'no deberia poder pasarse a ESTUDIANTE a alguien con cuenta';
+
+  -- (c) Y un cambio legitimo entre categorias de personal debe seguir permitido.
+  update persona set id_categoria = (select id_categoria from categoria_persona where codigo_categoria = 'DOCENTE')
+   where id_persona = v_persona;
+end $$;
+
 rollback;
 
 \echo 'TODAS LAS PRUEBAS DE CUENTAS Y ROLES PASARON'

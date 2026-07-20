@@ -1284,3 +1284,29 @@ Al aplicarla aparecieron dos sitios que la incumplían, y se corrigieron:
 
 El correo sigue siendo el identificador de la **cuenta** (`usuario_sistema`), que es otra cosa:
 una cuenta no es una persona. Por eso la pantalla de Sesiones sí busca por correo.
+
+
+### D58 — El sistema lo opera el personal, no los estudiantes
+
+Una cuenta de `usuario_sistema` solo puede pertenecer a una persona **interna** de categoría
+**DOCENTE, ADMINISTRATIVO o TRABAJADOR**. Quedan fuera:
+
+- **ESTUDIANTE** — es sujeto del control de accesos, no operador de él.
+- **EMPRESA_SERVICIO** — personal contratado: entra al campus, no administra el sistema.
+- **Todas las categorías EXTERNAS** — ya lo impedía el flujo, pero nada lo garantizaba.
+
+La regla no se inventó: se dedujo de los datos. De las 9 cuentas existentes, 8 ya la cumplían y
+una sola no (`frank.jumbo`, ESTUDIANTE con rol de guardia). Lo que faltaba era escribirla.
+
+Se comprueba en **los dos sentidos**, porque la incoherencia puede entrar por cualquiera:
+
+| Trigger | Qué impide |
+|---|---|
+| `trg_validar_operador_de_cuenta` (usuario_sistema) | Crear una cuenta sobre una persona que no puede tenerla |
+| `trg_validar_categoria_con_cuenta` (persona) | Cambiar a una categoría no operadora a quien ya tiene cuenta |
+
+**Lección de implementación:** la primera versión del segundo trigger no bloqueaba nada, porque
+consultaba la categoría releyéndola de la tabla y en un `BEFORE UPDATE` la fila todavía tiene el
+valor anterior. Un trigger BEFORE que valida **debe evaluar `NEW`**. Lo detectó su propia prueba;
+sin ella habría quedado una guarda decorativa, que es peor que no tener ninguna porque da
+sensación de seguridad.
