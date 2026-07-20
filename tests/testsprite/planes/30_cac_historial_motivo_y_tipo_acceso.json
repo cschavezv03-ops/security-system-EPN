@@ -9,7 +9,7 @@
     },
     {
       "type": "assertion",
-      "description": "El inicio de sesión fue correcto: el encabezado de la cuenta muestra el rol 'Responsable de Control de Accesos' y el Panel Principal muestra el módulo 'Control de Accesos'. NOTA: el nombre que aparece en el encabezado es 'Sebastián Chávez', porque la cuenta carlos.chavez03@epn.edu.ec está vinculada a esa persona en los datos de prueba. Eso es esperado y NO debe considerarse un fallo del inicio de sesión."
+      "description": "El inicio de sesión fue correcto: el encabezado de la cuenta muestra el nombre 'Carlos Chávez' con el rol 'Responsable de Control de Accesos', y el Panel Principal muestra el módulo 'Control de Accesos'."
     },
     {
       "type": "action",

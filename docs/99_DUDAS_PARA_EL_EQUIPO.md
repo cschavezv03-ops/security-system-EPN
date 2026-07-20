@@ -645,7 +645,7 @@ función y el camino manual está siempre disponible.
 
 El plan gratuito son 2500 lecturas al mes. Una garita con tráfico real las agota en días.
 
-## V34 — Las reglas nuevas de categoría se sembraron con horarios inventados
+## V34 — Horarios de las reglas de categoría ✅ REVISADOS
 
 §D62 destapó que DOCENTE, ADMINISTRATIVO, EMPRESA_SERVICIO, CONDUCTOR y PROVEEDOR no tenían
 ninguna regla de acceso activa. Se sembraron cinco reglas para que esas personas puedan entrar,
@@ -659,9 +659,10 @@ con horarios **plausibles pero no acordados con nadie**:
 | Conductor externo | 06:00 – 20:00 | Sí |
 | Proveedor | 08:00 – 17:00 | Sí |
 
-**Que el equipo los revise.** Son los horarios en los que de verdad se decide quién entra al
-campus, y ahora mismo salen de una estimación razonable, no de una política. Se cambian desde
-CAC → Reglas de acceso sin tocar código.
+**Revisados y aceptados por el equipo el 19/07/2026.** Se quedan como están. Siguen siendo una
+estimación razonable y no una política escrita, así que si la EPN publica un horario oficial hay
+que contrastarlo — pero ya no es una decisión pendiente. Se cambian desde CAC → Reglas de acceso
+sin tocar código.
 
 ## V35 — El texto libre `turno` y el catálogo de alertas siguen creciendo
 
@@ -674,7 +675,7 @@ No se ha cambiado porque rehacerlo implica tocar el trigger, la Edge Function y 
 históricos a la vez. Si el catálogo sigue creciendo, conviene pasar el código de motivo a una
 **columna propia** de `evento_acceso` en vez de deducirlo del texto.
 
-## V36 — La cuenta de CAC muestra el nombre de otra persona
+## V36 — La cuenta de CAC mostraba el nombre de otra persona ✅ RESUELTA
 
 Lo encontró TestSprite, no las pruebas locales: el agente inició sesión con
 `carlos.chavez03@epn.edu.ec`, vio "Sebastián Chávez" en el encabezado y lo declaró un fallo de
@@ -695,7 +696,9 @@ paso: son dos personas distintas del equipo y solo ellas saben cuál es la buena
 Mientras tanto, los planes de TestSprite de CAC afirman el **rol**, no el nombre, y llevan una
 nota explicando la discrepancia para que el agente no la interprete como un fallo de login.
 
-**Comprobado: es el único caso.** Las otras siete cuentas del sistema tienen el nombre de la
-persona y el correo de la cuenta en correspondencia (`admin`, `frank.jumbo`, `gary.defas`,
-`guardia.demo`, `heidy.tenelema`, `joel.velastegui`, `lenin.amangandi`). Así que se arregla
-cambiando un solo dato, en cuanto el equipo diga cuál de los dos es el bueno.
+**Comprobado: era el único caso.** Las otras siete cuentas del sistema tienen el nombre de la
+persona y el correo en correspondencia.
+
+**Resuelta el 19/07/2026:** el equipo confirma que el nombre era el dato equivocado, no la
+vinculación. La persona 1750000141 se llama **Carlos Chávez**; su correo institucional ya era el
+correcto. Corregido en la migración `cac_corregir_nombre_persona_cuenta_control_accesos`.

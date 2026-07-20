@@ -78,17 +78,18 @@ formulario de login. Para que un plan entre a otro módulo, el primer paso debe 
 
 | Módulo | Cuenta | Rol |
 |---|---|---|
-| **CAC** | `carlos.chavez03@epn.edu.ec` | Responsable de Control de Accesos |
+| **CAC** | `carlos.chavez03@epn.edu.ec` | Responsable de Control de Accesos (Carlos Chávez) |
 | **Garita** | `guardia.demo@epn.edu.ec` | Guardia (además ve GPI) |
 | PCO | `heidy.tenelema@epn.edu.ec` | Responsable de Puntos de Control |
 | ADM | `admin@epn.edu.ec` | Administrador del Sistema |
 | GPI | `lenin.amangandi@epn.edu.ec` | Responsable de Personal Interno |
 | GPE | `joel.velastegui@epn.edu.ec` | Responsable de Personal Externo |
 
-**2. No afirmes el NOMBRE del usuario, afirma el ROL.** La cuenta de CAC muestra "Sebastián
-Chávez" en el encabezado (§V36: la cuenta está vinculada a esa persona). Un plan que afirme
-"la sesión corresponde a carlos.chavez03" se declara **blocked** aunque el login haya ido bien.
-Es el primer test de esta ronda que se perdió por ahí.
+**2. Afirma el ROL, no el correo.** TestSprite comprueba lo que ve en pantalla, y en el
+encabezado no aparece el correo sino el nombre y el rol. Un plan que afirme "la sesión
+corresponde a carlos.chavez03@epn.edu.ec" se declara **blocked** aunque el login haya ido bien.
+Fue así como se destapó §V36: el encabezado decía "Sebastián Chávez" porque el nombre de esa
+persona estaba mal (ya corregido a **Carlos Chávez**).
 
 **3. Una aserción negativa sola no prueba nada.** Toda negativa debe ir precedida de una
 positiva sobre la misma pantalla ("existe la tarjeta X" *y luego* "no existe la Y").
@@ -113,10 +114,11 @@ crea sus propios datos, la aserción tiene que contemplar los dos casos.
 | `32` Garita peatonal / vehicular | **passed 15/15** |
 | `33` Placa no registrada y corrección de erratas | **passed 11/11** |
 
-TestSprite encontró **dos cosas que las pruebas locales no podían ver**: el desajuste de la
-cuenta de CAC (§V36) y que el campo de placa manual rechazaba `PDFI234` con un error de formato
-antes de que el corrector actuara, cuando el sistema sabía de sobra que eso era `PDF1234`.
-Merece la pena correr los planes contra el preview aunque la suite local esté verde.
+TestSprite encontró **dos cosas que las pruebas locales no podían ver**: el nombre equivocado de
+la persona de la cuenta de CAC (§V36, ya corregido) y que el campo de placa manual rechazaba
+`PDFI234` con un error de formato antes de que el corrector actuara, cuando el sistema sabía de
+sobra que eso era `PDF1234`. Merece la pena correr los planes contra el preview aunque la suite
+local esté verde.
 
 ```bash
 testsprite test create --plan-from tests/testsprite/planes/NN_nombre.json
