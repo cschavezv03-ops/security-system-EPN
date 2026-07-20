@@ -1256,3 +1256,31 @@ la persona si la cédula no existe, con permiso propio `ADM_PERSONA_INSERT` y RL
 `persona` sigue siendo entidad maestra única: es el mismo INSERT que hace GPI, no una copia.
 El permiso es nuevo en vez de reutilizar `GPI_PERSONA_INSERT` para que la matriz siga diciendo
 la verdad sobre quién puede qué, y para poder retirarlo sin tocar GPI.
+
+
+### D57 — El código único es un dato, no un identificador (resuelve §V27)
+
+PCO pidió *"se elimina cualquier concepto de Código de Estudiante… no debe existir un campo
+llamado Código"* y GPI, en la ronda anterior, pidió justo lo contrario y ya estaba implementado
+y probado. Parecía una contradicción que obligaba a elegir un módulo ganador.
+
+**No lo era.** Aclarado con el equipo: la frase de PCO habla de **cómo se identifica a una
+persona**, no del modelo de datos. Y visto así, los dos requisitos son compatibles:
+
+- **Identificar** a alguien se hace **siempre por cédula.** Nunca por código único, ni por
+  correo, ni por nombre de cuenta.
+- **Guardar** el código único de un estudiante es un dato académico legítimo, sujeto a la regla
+  de GPI: solo estudiantes, y bloqueado para el resto (trigger `validar_codigo_unico_estudiante`).
+
+La regla práctica que queda: *el código único se ve en la ficha del estudiante, pero no se busca
+por él ni se muestra como identificador en ninguna lista.*
+
+Al aplicarla aparecieron dos sitios que la incumplían, y se corrigieron:
+
+| Dónde | Qué pasaba |
+|---|---|
+| PCO · asignación de guardia | Mostraba la cédula, pero la búsqueda era por `correo_electronico` |
+| GPI · personal interno | Se podía encontrar a una persona tecleando su código único |
+
+El correo sigue siendo el identificador de la **cuenta** (`usuario_sistema`), que es otra cosa:
+una cuenta no es una persona. Por eso la pantalla de Sesiones sí busca por correo.

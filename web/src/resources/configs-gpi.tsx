@@ -71,7 +71,10 @@ export const cfgPersonaInterna: ResourceConfig = {
   filtroFijo: { tipo_persona: 'INTERNA' },
   permisos: { select: ['GPI_PERSONA_SELECT'], insert: ['GPI_PERSONA_INSERT'], update: ['GPI_PERSONA_UPDATE'] },
   defaultsInsert: { tipo_persona: 'INTERNA', estado: 'ACTIVO' },
-  buscarEn: ['cedula', 'nombres', 'apellidos', 'correo', 'codigo_unico'],
+  // El código único NO es una forma de identificar a una persona (§D57): se conserva como
+  // dato académico del estudiante y se ve en su ficha, pero no se busca por él. A quien
+  // se busca es por cédula o por nombre.
+  buscarEn: ['cedula', 'nombres', 'apellidos', 'correo'],
   // GPE §5 / GPI: cambiar la categoría o el estado de una persona decide si entra al campus;
   // el correo institucional es con lo que se le identifica y notifica.
   camposSensibles: ['id_categoria', 'correo', 'id_empresa'],

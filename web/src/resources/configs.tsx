@@ -577,7 +577,9 @@ export const cfgAsignacionGuardia: ResourceConfig = {
   // CAC conserva SELECT únicamente, para supervisión.
   permisos: { select: ['PCO_ASIGNACION_SELECT', 'CAC_ASIGNACION_SELECT'], insert: ['PCO_ASIGNACION_INSERT'], update: ['PCO_ASIGNACION_UPDATE'] },
   autoUsuarioRegistro: ['id_usuario_registro'],
-  buscarEn: ['guardia.correo_electronico', 'punto.nombre_punto', 'turno'],
+  // Se busca por cédula y apellido, no por correo: el identificador de una persona es su
+  // cédula (§D57). El correo identifica a la CUENTA, que es otra cosa.
+  buscarEn: ['guardia.persona.cedula', 'guardia.persona.apellidos', 'punto.nombre_punto', 'turno'],
   columnas: [
     { key: 'guardia', label: 'Guardia', render: (r) => nombreGuardia(r), valorExport: (r) => nombreGuardia(r) },
     // El identificador visible de una persona es siempre la cédula (RF de PCO), nunca un código

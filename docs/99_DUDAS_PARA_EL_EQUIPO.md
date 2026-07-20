@@ -517,7 +517,7 @@ de catorce horas pasó a FINALIZADA, sin borrarla.
 
 Además de `validar_solapamiento_turno_guardia()`, ahora hay reglas de jornada (§D59).
 
-## V27 — El "Código único" enfrenta a PCO con GPI
+## V27 — El "Código único" enfrenta a PCO con GPI ✅ RESUELTA
 
 El documento de PCO pide eliminar el concepto: *"Se elimina cualquier concepto de Código de
 Estudiante, ID de Usuario o Código de Profesor. El único identificador será la cédula. No debe
@@ -535,8 +535,17 @@ Lo que sí se hizo, dentro de PCO: el identificador visible de una persona en la
 PCO es **siempre la cédula** (la lista y la ficha de asignaciones muestran nombre y cédula, no
 el nombre de cuenta ni el correo).
 
-**Qué hace falta decidir:** si el código único de estudiante sobrevive o no. Está relacionado
-con §V18/§V19, también abiertas. Mientras tanto, GPI se queda como estaba.
+**RESUELTA (20/07/2026).** El equipo aclaró que la frase de PCO se refiere a **cómo se
+identifica a la gente**, no a que la columna no exista. Con eso los dos requisitos dejan de ser
+incompatibles y no había que elegir un ganador: hablaban de cosas distintas. Ver §D57.
+
+El código único **sobrevive** como dato académico del estudiante, con la regla de GPI intacta.
+Lo que se hizo es cerrar los dos sitios donde todavía se identificaba a alguien sin la cédula:
+la asignación de guardia de PCO se buscaba por correo, y en GPI se podía encontrar a una persona
+tecleando su código único.
+
+§V18/§V19 siguen abiertas y son independientes: son un dato heredado que incumple la regla de
+GPI (un docente con código único y carrera), no un conflicto entre documentos.
 
 ## V28 — La búsqueda "solo con 10 dígitos o por apellido" no se ha implementado
 

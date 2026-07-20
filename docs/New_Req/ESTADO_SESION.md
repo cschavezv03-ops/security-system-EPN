@@ -91,8 +91,8 @@ identificó y que probablemente reaparezcan en el documento:
 
 | # | Qué | Por qué importa |
 |---|---|---|
-| §V27 | El "código único" enfrenta a PCO con GPI: PCO pidió quitarlo, GPI lo exige | **Empezar por aquí.** Es un choque entre dos módulos, no una tarea suelta: hay que decidir a quién se le da la razón **antes** de escribir código. En la ronda de PCO se dejó sin tocar para no romper GPI, que ya estaba probado. |
-| §V24 | El "Parqueadero Subsuelo EARME" cuelga del campus, no de un edificio | Dato mal colocado en la jerarquía de zonas. |
+| ~~§V27~~ | ~~El "código único" enfrenta a PCO con GPI~~ | **✅ RESUELTA antes de empezar** (§D57). No era una contradicción: la frase de PCO hablaba de cómo se identifica a la gente, no del modelo de datos. El código único se queda como dato académico; identificar es siempre por cédula. De paso se corrigieron los dos sitios que aún no lo cumplían. |
+| §V24 | El "Parqueadero Subsuelo EARME" cuelga del campus, no de un edificio | **Empezar por aquí ahora.** Dato mal colocado en la jerarquía de zonas. |
 | §V25 | Puntos de control que cuelgan directamente del campus | Mismo problema, otra entidad. |
 | §V28 | La búsqueda "solo con 10 dígitos o por apellido" no se implementó | Requisito pedido y no hecho. |
 | §V30 | El descanso entre jornadas no se comprueba con turnos nocturnos combinados | Ojo con §D59/§D69: el error de medianoche ya ha aparecido tres veces. |
