@@ -110,11 +110,36 @@ Tres salidas, en orden de preferencia:
   que solo funciona cuando el OCR acierta deja al guardia sin salida justo cuando más falta le
   hace.
 
+### Si vas a mostrar la placa en la pantalla del móvil
+
+Es el caso de la demo y **no es una versión más fácil** de fotografiar una placa metálica: la
+pantalla emite luz en vez de reflejarla, aparece moiré (la interferencia entre la rejilla de
+píxeles del móvil y la del sensor de la webcam) y el brillo aplana el contraste.
+
+Medido sobre 200 imágenes (§D71), esto es lo que cambia el resultado:
+
+| Cómo la muestres | Acierto |
+|---|---|
+| Llenando el marco, de frente, brillo del móvil al máximo | ~100 % |
+| Encuadrada pero pequeña dentro del marco | ~65 % |
+| Lejos o torcida | ~5 % — no lo hagas |
+
+Tres cosas que suben mucho el acierto y cuestan nada:
+
+1. **Que la placa llene el marco verde.** Es lo que más pesa, con diferencia.
+2. **Brillo del móvil al máximo** y la pantalla lo más perpendicular posible a la cámara: así se
+   evita el reflejo, que es lo que borra caracteres enteros.
+3. **Que la foto de origen sea nítida.** Si la foto ya está movida, ningún preprocesado la
+   arregla.
+
+Y si aun así falla: escribe la placa a mano. Está siempre disponible a propósito.
+
 ### Qué esperar de cada motor
 
 | | Lector en la nube | Lector local (Tesseract) |
 |---|---|---|
 | Placa limpia, buena luz, de frente | Casi siempre bien | Suele acertar |
+| Foto en pantalla, bien encuadrada | Muy bien | Bien |
 | Ángulo, sombra o placa sucia | Aguanta bastante | Falla a menudo |
 | Distancia > 3 m | Aguanta | Casi nunca lee |
 | Necesita internet | Sí | No |
@@ -139,6 +164,20 @@ Prueba a escribir a mano estas placas, que simulan lo que devuelve un OCR sucio:
 
 En los casos corregidos, la pantalla avisa de que **la lectura no fue exacta** y pide comprobar
 la placa antes de continuar. El sistema propone; tú confirmas.
+
+### Los umbrales de la placa
+
+El lector prepara la imagen de cuatro formas distintas y las lee por separado; la confianza es
+**cuántas de las cuatro coincidieron**. Eso sustituye a la confianza que reporta Tesseract, que
+en la versión que usa el sistema llega siempre a cero y no servía para nada (§D71).
+
+| Acuerdo | Qué hace el sistema |
+|---|---|
+| ≥ 0.75 | Usa la lectura directamente |
+| 0.50 – 0.75 | Te propone la placa y te pide confirmarla |
+| < 0.50 | Descarta la lectura y te pide repetir la captura |
+
+Medido: con 0.75, solo el 1,2 % de las lecturas que se aceptan solas son erróneas.
 
 ### Los umbrales del rostro
 
