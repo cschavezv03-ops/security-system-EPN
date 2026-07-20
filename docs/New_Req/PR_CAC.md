@@ -98,7 +98,8 @@ las garitas" y no un guion.
 
 - **179 pruebas locales** en verde (36 nuevas: motor de placas, navegación de la garita,
   pantallas de CAC, persistencia de formularios).
-- **TestSprite contra el preview.** El plan de la Garita pasa 15/15. TestSprite encontró además
+- **TestSprite contra el preview: los 6 planes en verde** (100/100 pasos entre todos).
+  TestSprite encontró además
   un fallo que las pruebas locales no veían: al teclear `PDFI234` en el campo manual, la
   validación de formato lo rechazaba antes de que el corrector actuara, cuando el sistema sabía
   de sobra que eso era `PDF1234`. Corregido.

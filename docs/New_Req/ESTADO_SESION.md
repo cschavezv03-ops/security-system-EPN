@@ -102,16 +102,16 @@ plano.
 las columnas X e Y" falla si no hay ni una fila, porque sin filas no se renderizan. Si el plan no
 crea sus propios datos, la aserción tiene que contemplar los dos casos.
 
-**Resultados de la ronda de CAC** (planes `28_*` a `33_*`):
+**Resultados de la ronda de CAC: los 6 planes en verde** (`28_*` a `33_*`).
 
 | Plan | Resultado |
 |---|---|
-| `32` Garita peatonal / vehicular | **passed 15/15** |
-| `30` Historial con motivo y tipo de acceso | **passed 22/22** |
+| `28` Garitas múltiples por regla | **passed 29/29** |
 | `29` Regla sin combo de estado + reactivar | **passed 11/11** |
+| `30` Historial con motivo y tipo de acceso | **passed 22/22** |
+| `31` Errores de reconocimiento | **passed 12/12** |
+| `32` Garita peatonal / vehicular | **passed 15/15** |
 | `33` Placa no registrada y corrección de erratas | **passed 11/11** |
-| `28` Garitas múltiples por regla | pendiente de cerrar |
-| `31` Errores de reconocimiento | pendiente de cerrar |
 
 TestSprite encontró **dos cosas que las pruebas locales no podían ver**: el desajuste de la
 cuenta de CAC (§V36) y que el campo de placa manual rechazaba `PDFI234` con un error de formato
