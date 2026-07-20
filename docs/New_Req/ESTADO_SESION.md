@@ -268,6 +268,37 @@ conviene saber para no repetir el análisis:
 - **Que falte el propietario no bloquea el ingreso.** Lo que decide un acceso es que la persona
   esté asociada al vehículo; lo otro es integridad del maestro.
 
+## Comprobación total del sistema — pendiente para la próxima sesión
+
+Se han cerrado cinco rondas (validaciones, ADM, GPE+GPI, PCO, CAC) y cada una verificó lo suyo.
+Falta una pasada **de extremo a extremo sobre el sistema completo**, que es lo que toca ahora.
+
+**Lo que ya existe y hay que encadenar** (nada de esto hay que escribir de cero):
+
+| Herramienta | Qué cubre |
+|---|---|
+| `cd web && npm run verificar` | typecheck + suite de pruebas + build |
+| `python3 scripts/verificar_numeracion_docs.py` | numeración de decisiones y dudas, referencias rotas |
+| `psql "$DATABASE_URL" -f scripts/smoke_test.sql` | humo general de la base |
+| `scripts/pruebas_rls_por_rol.sql` | que cada rol ve lo que debe y nada más |
+| `scripts/pruebas_cobertura_docs.sql` | que el esquema real concuerda con los documentos |
+| `scripts/pruebas_adm_cuentas.sql`, `pruebas_gpe_gpi_nuevas.sql`, `pruebas_validaciones_nuevas.sql` | reglas de cada ronda |
+| `scripts/prueba_multisesion.py`, `prueba_bloqueo_intentos.py`, `prueba_cierre_sesion.py` | sesión y bloqueo (requieren `SB_URL`, `SB_ANON`, `SB_PASSWORD`) |
+| TestSprite | los planes de `tests/testsprite/planes/`, uno por módulo |
+
+**Lo que conviene mirar y todavía no cubre ningún script:**
+
+1. **Las integraciones entre módulos**, que es donde han aparecido los peores fallos: un cambio
+   en PCO dejó sin nombre al guardia en CAC (§D58), y una política de CAC más estrecha que la de
+   su tabla padre dejó un embed vacío sin dar error. Conviene una prueba que recorra el flujo
+   completo —persona → memorando/autorización → regla → punto → dispositivo → evento— con cada rol.
+2. **Los `advisors` de Supabase** (`get_advisors`, seguridad y rendimiento) después de cinco
+   rondas de migraciones.
+3. **Las dudas abiertas**: §V24, §V25, §V28, §V30 y las que deje esta ronda. Ninguna bloquea, pero
+   varias son decisiones del equipo que llevan tiempo aparcadas.
+4. **Datos sembrados**: quedan 18 cédulas ficticias por sustituir y sigue sin haber integración
+   con SRI / ANT / Registro Civil, así que `estado_verificacion_ruc` es siempre `NO_VERIFICADO`.
+
 ## Reglas del proyecto que conviene tener presentes
 
 - **La fecha de hoy se calcula con `public.hoy_ecuador()` (SQL) y `hoyISO()` (frontend)**, nunca
