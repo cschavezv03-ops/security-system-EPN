@@ -100,8 +100,8 @@ describe('vehículos: el alta exige propietario (RF-CA-018)', () => {
   })
 })
 
-describe('vehículos: vincular una persona (id_usuario_registro)', () => {
-  it('el INSERT del vínculo incluye id_usuario_registro (antes faltaba y fallaba)', async () => {
+describe('vehículos: vincular una persona (vigencia e id_usuario_registro)', () => {
+  it('exige Fecha de fin y la incluye junto al usuario registrador', async () => {
     const usuario = userEvent.setup()
     envolver(<AsociacionesVehiculo idVehiculo="v-1" onCambio={async () => {}} modulo="ADM" />)
 
@@ -109,8 +109,19 @@ describe('vehículos: vincular una persona (id_usuario_registro)', () => {
     await usuario.click(await screen.findByRole('button', { name: /elegir persona/i }))
     await usuario.click(screen.getByRole('button', { name: /^Vincular$/i }))
 
+    expect(await screen.findByText(/Ingrese la fecha de fin de la relación/i)).toBeInTheDocument()
+    expect(insertsPersonaVehiculo).toHaveLength(0)
+
+    await usuario.type(screen.getByLabelText(/Fecha de fin/i), '2026-12-31')
+    await usuario.click(screen.getByRole('button', { name: /^Vincular$/i }))
+
     await waitFor(() => expect(insertsPersonaVehiculo.length).toBe(1))
     const payload = insertsPersonaVehiculo[0]
-    expect(payload).toMatchObject({ id_persona: 'p-99', id_vehiculo: 'v-1', id_usuario_registro: 'u-adm-777' })
+    expect(payload).toMatchObject({
+      id_persona: 'p-99',
+      id_vehiculo: 'v-1',
+      fecha_fin: '2026-12-31',
+      id_usuario_registro: 'u-adm-777',
+    })
   })
 })

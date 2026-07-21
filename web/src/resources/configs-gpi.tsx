@@ -19,8 +19,8 @@ const OPCIONES_SEXO = [{ value: 'M', label: 'Masculino' }, { value: 'F', label: 
    dicho tipo de persona").
    ------------------------------------------------------------------------- */
 
-/** Cargo y escalafón son de quien ocupa un puesto en la Politécnica. */
-const CATEGORIAS_CARGO = ['ADMINISTRATIVO', 'DOCENTE']
+/** El cargo aplica a administrativos y trabajadores; el docente usa su categoría académica. */
+const CATEGORIAS_CARGO = ['ADMINISTRATIVO', 'TRABAJADOR']
 const CATEGORIAS_ESTUDIANTE = ['ESTUDIANTE']
 const CATEGORIAS_ESCALAFON = ['DOCENTE']
 /** GPI: "a un docente debemos agregar un campo el cual es contrato ... al momento de registrar
@@ -179,26 +179,48 @@ export const cfgPersonaInternaDetalle: ResourceConfig = {
   detalle: [
     { label: 'Cédula', render: (r) => d(r.persona?.cedula) },
     { label: 'Unidad', render: (r) => (r.unidad ? humanizar(r.unidad) : '—') },
-    { label: 'Cargo', render: (r) => d(r.cargo) },
+    {
+      label: 'Cargo', render: (r) => d(r.cargo),
+      visibleSi: (r) => CATEGORIAS_CARGO.includes(r.persona?.categoria?.codigo_categoria),
+    },
     { label: 'Carrera', render: (r) => d(r.carrera) },
     { label: 'Curso', render: (r) => d(r.curso) },
-    { label: 'Escalafón', render: (r) => d(r.categoria_escalafon) },
-    { label: 'Contrato', render: (r) => (r.contrato ? humanizar(r.contrato) : '—') },
-    { label: 'Nombramiento', render: (r) => d(r.nombramiento) },
+    {
+      label: 'Categoría', render: (r) => d(r.categoria_escalafon),
+      visibleSi: (r) => CATEGORIAS_ESCALAFON.includes(r.persona?.categoria?.codigo_categoria),
+    },
+    {
+      label: 'Contrato', render: (r) => (r.contrato ? humanizar(r.contrato) : '—'),
+      visibleSi: (r) => CATEGORIAS_CONTRATO.includes(r.persona?.categoria?.codigo_categoria),
+    },
   ],
   campos: [
     { name: 'id_persona', label: 'Persona interna', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'INTERNA' }), hint: 'Los demás campos se habilitan según su categoría.' },
     // Oculto: solo alimenta las reglas `visibleSi` de abajo.
     { name: '_categoria', label: '', persistir: false, visibleSi: () => false, derivarSiempreDesde: { campo: 'id_persona', calcular: categoriaDePersona } },
 
-    { name: 'unidad', label: 'Unidad', type: 'select', options: opcionesCatalogo(CAT.unidad), visibleSi: (v) => CATEGORIAS_UNIDAD.includes(v._categoria), hint: 'EPN o Centro de Educación Continua (CEC).' },
+    {
+      name: 'unidad', label: 'Unidad', type: 'select', options: opcionesCatalogo(CAT.unidad),
+      visibleSi: (v) => CATEGORIAS_UNIDAD.includes(v._categoria),
+      alCambiarLimpiar: ['carrera', 'curso'],
+      hint: 'EPN o Centro de Educación Continua (CEC). Al cambiarla se limpian los datos académicos incompatibles.',
+    },
     { name: 'cargo', label: 'Cargo', visibleSi: (v) => CATEGORIAS_CARGO.includes(v._categoria) },
-    { name: 'carrera', label: 'Carrera', visibleSi: (v) => CATEGORIAS_ESTUDIANTE.includes(v._categoria) },
-    { name: 'curso', label: 'Curso (solo estudiante CEC)', visibleSi: (v) => CATEGORIAS_ESTUDIANTE.includes(v._categoria) },
-    { name: 'categoria_escalafon', label: 'Categoría / escalafón', visibleSi: (v) => CATEGORIAS_ESCALAFON.includes(v._categoria) },
+    {
+      name: 'carrera', label: 'Carrera',
+      visibleSi: (v) => CATEGORIAS_ESTUDIANTE.includes(v._categoria),
+      deshabilitadoSi: (v) => v.unidad !== 'EPN',
+      hint: 'Se habilita únicamente para estudiantes de la EPN.',
+    },
+    {
+      name: 'curso', label: 'Curso',
+      visibleSi: (v) => CATEGORIAS_ESTUDIANTE.includes(v._categoria),
+      deshabilitadoSi: (v) => v.unidad !== 'CEC',
+      hint: 'Se habilita únicamente para estudiantes del CEC.',
+    },
+    { name: 'categoria_escalafon', label: 'Categoría', visibleSi: (v) => CATEGORIAS_ESCALAFON.includes(v._categoria) },
     // GPI: catálogo Fijo/Temporal, no texto libre. Antes se podía escribir cualquier cosa y de
     // hecho había un docente con contrato "Si".
     { name: 'contrato', label: 'Contrato', type: 'select', options: opcionesCatalogo(CAT.contrato_tipo), visibleSi: (v) => CATEGORIAS_CONTRATO.includes(v._categoria) },
-    { name: 'nombramiento', label: 'Nombramiento', visibleSi: (v) => CATEGORIAS_CONTRATO.includes(v._categoria) },
   ],
 }

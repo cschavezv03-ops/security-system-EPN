@@ -4,6 +4,7 @@ import { Car, RotateCcw } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { CAT, humanizar } from '../lib/catalogos'
+import { hoyISO } from '../lib/format'
 import { normalizarPlaca, validarPlacaTipo } from '../lib/validacion'
 import { useBorrador } from '../lib/useBorrador'
 import { Breadcrumb } from '../components/layout/Shell'
@@ -21,6 +22,7 @@ interface FormVehiculo {
   color: string
   tipo_relacion: string
   fecha_inicio: string
+  fecha_fin: string
 }
 
 const FORM_INICIAL: FormVehiculo = {
@@ -31,7 +33,8 @@ const FORM_INICIAL: FormVehiculo = {
   modelo: '',
   color: '',
   tipo_relacion: 'PROPIETARIO',
-  fecha_inicio: new Date().toISOString().slice(0, 10),
+  fecha_inicio: hoyISO(),
+  fecha_fin: '',
 }
 
 /**
@@ -82,6 +85,11 @@ export function VehiculoPropietarioPage() {
     if (sinPlaca && !placaNormalizada && !form.motivo_sin_placa.trim()) {
       setError('Indique el motivo por el que el vehículo no tiene placa.'); return
     }
+    if (!form.fecha_inicio) { setError('Ingrese la fecha de inicio de la relación.'); return }
+    if (!form.fecha_fin) { setError('Ingrese la fecha de fin de la relación.'); return }
+    if (form.fecha_fin <= form.fecha_inicio) {
+      setError('La fecha de fin debe ser posterior a la fecha de inicio.'); return
+    }
 
     setGuardando(true)
     // Operación ATÓMICA en el backend: crea vehículo y relación, o ninguno (req 35).
@@ -95,7 +103,9 @@ export function VehiculoPropietarioPage() {
       p_modelo: form.modelo.trim() || undefined,
       p_color: form.color.trim() || undefined,
       p_tipo_relacion: form.tipo_relacion,
-      p_fecha_inicio: new Date(`${form.fecha_inicio}T00:00:00`).toISOString(),
+      // Son días de vigencia, no instantes locales: se guardan a medianoche UTC (§D81).
+      p_fecha_inicio: `${form.fecha_inicio}T00:00:00.000Z`,
+      p_fecha_fin: `${form.fecha_fin}T00:00:00.000Z`,
       p_motivo_sin_placa: sinPlaca && !placaNormalizada ? form.motivo_sin_placa.trim() : undefined,
     })
     setGuardando(false)
@@ -134,8 +144,9 @@ export function VehiculoPropietarioPage() {
 
         <Card className="space-y-4 p-5">
           <h3 className="text-base font-semibold text-navy">2. Vehículo</h3>
-          <Field label="Tipo de vehículo" required>
+          <Field label="Tipo de vehículo" htmlFor="vehiculo-tipo" required>
             <Select
+              id="vehiculo-tipo"
               value={form.tipo_vehiculo}
               onChange={(e) => set('tipo_vehiculo', e.target.value)}
               options={CAT.vehiculo_tipo.map((t) => ({ value: t, label: humanizar(t) }))}
@@ -144,11 +155,13 @@ export function VehiculoPropietarioPage() {
 
           <Field
             label={sinPlaca ? 'Placa (opcional)' : 'Placa'}
+            htmlFor="vehiculo-placa"
             required={!sinPlaca}
             error={errorPlaca}
             ayuda="Automóvil/camioneta: 3 letras + 3 o 4 dígitos (ABC-1234). Motocicleta: también AB-123C. Bicicleta u otros pueden no tener placa."
           >
             <Input
+              id="vehiculo-placa"
               value={form.placa}
               onChange={(e) => set('placa', e.target.value.toUpperCase())}
               placeholder={sinPlaca ? 'Sin placa' : 'ABC-1234'}
@@ -156,30 +169,34 @@ export function VehiculoPropietarioPage() {
           </Field>
 
           {sinPlaca && !placaNormalizada && (
-            <Field label="Motivo sin placa" required hint="Por qué este vehículo no tiene placa (p. ej. bicicleta).">
-              <Input value={form.motivo_sin_placa} onChange={(e) => set('motivo_sin_placa', e.target.value)} />
+            <Field label="Motivo sin placa" htmlFor="vehiculo-motivo-sin-placa" required hint="Por qué este vehículo no tiene placa (p. ej. bicicleta).">
+              <Input id="vehiculo-motivo-sin-placa" value={form.motivo_sin_placa} onChange={(e) => set('motivo_sin_placa', e.target.value)} />
             </Field>
           )}
 
           <div className="grid grid-cols-3 gap-2">
-            <Field label="Marca (opcional)"><Input value={form.marca} onChange={(e) => set('marca', e.target.value)} /></Field>
-            <Field label="Modelo (opcional)"><Input value={form.modelo} onChange={(e) => set('modelo', e.target.value)} /></Field>
-            <Field label="Color (opcional)"><Input value={form.color} onChange={(e) => set('color', e.target.value)} /></Field>
+            <Field label="Marca (opcional)" htmlFor="vehiculo-marca"><Input id="vehiculo-marca" value={form.marca} onChange={(e) => set('marca', e.target.value)} /></Field>
+            <Field label="Modelo (opcional)" htmlFor="vehiculo-modelo"><Input id="vehiculo-modelo" value={form.modelo} onChange={(e) => set('modelo', e.target.value)} /></Field>
+            <Field label="Color (opcional)" htmlFor="vehiculo-color"><Input id="vehiculo-color" value={form.color} onChange={(e) => set('color', e.target.value)} /></Field>
           </div>
         </Card>
 
         <Card className="space-y-4 p-5 lg:col-span-2">
           <h3 className="text-base font-semibold text-navy">3. Relación</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tipo de relación" required>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Tipo de relación" htmlFor="vehiculo-tipo-relacion" required>
               <Select
+                id="vehiculo-tipo-relacion"
                 value={form.tipo_relacion}
                 onChange={(e) => set('tipo_relacion', e.target.value)}
                 options={CAT.persona_vehiculo_tipo.map((t) => ({ value: t, label: humanizar(t) }))}
               />
             </Field>
-            <Field label="Fecha de inicio" required>
-              <Input type="date" value={form.fecha_inicio} onChange={(e) => set('fecha_inicio', e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+            <Field label="Fecha de inicio" htmlFor="vehiculo-fecha-inicio" required>
+              <Input id="vehiculo-fecha-inicio" type="date" value={form.fecha_inicio} onChange={(e) => set('fecha_inicio', e.target.value)} max={hoyISO()} />
+            </Field>
+            <Field label="Fecha de fin" htmlFor="vehiculo-fecha-fin" required hint="Debe ser posterior a la fecha de inicio.">
+              <Input id="vehiculo-fecha-fin" type="date" value={form.fecha_fin} onChange={(e) => set('fecha_fin', e.target.value)} min={form.fecha_inicio || undefined} />
             </Field>
           </div>
           <ErrorBanner message={error} />

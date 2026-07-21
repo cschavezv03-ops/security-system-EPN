@@ -367,7 +367,7 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
               <div className="mb-4 text-sm text-ink-soft">{config.campoSubtituloDetalle(seleccion)}</div>
             )}
             <dl className="divide-y divide-slate-100">
-              {config.detalle.map((d, i) => (
+              {config.detalle.map((d, i) => d.visibleSi?.(seleccion) === false ? null : (
                 <div key={i} className="grid grid-cols-3 gap-2 py-2">
                   <dt className="text-xs font-medium text-ink-soft">{d.label}</dt>
                   <dd className="col-span-2 text-sm text-navy">{d.render(seleccion)}</dd>
@@ -662,7 +662,7 @@ function RecordForm({
   /** Deshabilitado en pantalla: por política de edición o por ser un valor que calcula el sistema.
    *  `componerDesde` también se deshabilita, pero a diferencia de `soloLectura` sí se guarda. */
   const deshabilitado = (c: FieldConfig) =>
-    bloqueadoEnEdicion(c) || c.soloLectura === true || !!c.componerDesde
+    bloqueadoEnEdicion(c) || c.soloLectura === true || !!c.componerDesde || c.deshabilitadoSi?.(valores) === true
 
   /** Campos sensibles que el usuario acaba de cambiar (GPE §5). Vacío si no hay ninguno. */
   const cambiosSensibles = () => {
@@ -693,13 +693,13 @@ function RecordForm({
         setError(`Selecciona al menos un valor en "${c.label}".`)
         return
       }
-      if (c.required && !bloqueadoEnEdicion(c) && (valores[c.name] === '' || valores[c.name] == null)) {
+      if (c.required && !deshabilitado(c) && (valores[c.name] === '' || valores[c.name] == null)) {
         setError(`El campo "${c.label}" es obligatorio.`)
         return
       }
       // Validación de formato (espejo de los CHECK de la BD, ver web/src/lib/validacion.ts).
       // Los campos bloqueados en edición no se envían, así que no se validan.
-      if (c.validar && !bloqueadoEnEdicion(c)) {
+      if (c.validar && !deshabilitado(c)) {
         const v = valores[c.name]
         if (v != null && v !== '') {
           const problema = c.validar(String(v), valores)
