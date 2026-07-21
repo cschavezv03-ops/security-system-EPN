@@ -849,6 +849,42 @@ sistema, y cualquier edición que le toque las horas o el estado ya obligará a 
 holgura el periodo de la defensa del prototipo. Aplicado en
 `scripts/ajustes_datos_demo_prototipo3.sql`; ya no hay ninguna asignación activa sin fecha de fin.
 
+## V43 — Nuevos requerimientos PCO (documento `Nuevos_Requerimientos_PCO`, 21/07): decisiones tomadas sin poder preguntar
+
+Implementado en la rama `feat/pco-nuevos-requerimientos`. La mayoría del documento era clara y se
+aplicó tal cual (IP única de dispositivo, código legible BIO-/LPR- autogenerado, columna Zona en
+Dispositivos, número de edificio para no elegir la zona de una lista, "Acceso X" automático en el
+campus, quitar el ejemplo "Laboratorio Alan Turing" del placeholder, "ESTADO ACTUAL" en vez de
+"AHORA MISMO"). Quedan cuatro puntos donde tocó decidir sin poder preguntarle al equipo:
+
+1. **`Edificio EARME` se queda sin número de edificio.** El backfill de `numero_edificio` se hizo
+   con una expresión regular sobre `nombre_zona` ("Edificio 20 - ..." → 20), pero
+   "Edificio EARME - Aulas y Relación con el Medio Externo" no lleva ningún número en su nombre y
+   no hay ningún documento de la universidad a mano que se lo asigne. Se dejó en `NULL` a
+   propósito (no se inventó un número) — hoy no bloquea nada porque EARME no tiene ningún punto de
+   control propio (su único punto, "Garita - Subsuelo EARME", cuelga del *parqueadero*, no del
+   edificio). El día que alguien quiera registrar un punto de control dentro del edificio EARME
+   mismo, hace falta editar esa zona y ponerle un número real antes.
+
+2. **`Edificioflnd 21` no se tocó.** Es una fila que ya existía en el remoto, con un nombre que
+   huele a dato de prueba mal tecleado ("Edificioflnd" no es ningún edificio real de la EPN). Se
+   le asignó `numero_edificio = 21` por el mismo backfill automático (el único número que aparece
+   en su nombre), pero no se renombró ni se dio de baja porque no es parte de lo que pidió este
+   documento y no hay certeza de si es basura de prueba o un edificio real mal escrito. Si el
+   equipo confirma que es basura, se puede dar de baja (`estado_zona = 'INACTIVA'`) sin más.
+
+3. **"Validar que todos los nombres empiecen con mayúscula en TODO el sistema"** se implementó
+   solo para `zona.nombre_zona` y `punto_control.nombre_punto`, que es lo que trae este documento
+   (PCO). Extenderlo a `persona`, `empresa`, `categoria_persona`, `parametro_sistema`, etc. es un
+   cambio más grande — cada uno con sus propios datos y pantallas, y `persona` ya tiene su propio
+   validador de nombres (`validarNombre`) que hoy sí permite empezar en minúscula. No se tocó para
+   no arrastrar un cambio de comportamiento a módulos que no pidieron esto en esta ronda.
+
+4. **La MAC deja de ser la identidad del dispositivo, pero no se borra.** "En vez de MAC trabajar
+   con un ID" se leyó como un cambio de identificador (columna nueva `codigo_dispositivo`,
+   autogenerada, BIO-0001/LPR-0001), no como borrar el dato de la MAC real de un aparato ya
+   inventariado. `codigo_mac` pasó a ser opcional (`NOT NULL` retirado) y ya no aparece en el
+   formulario ni en el listado, pero se conserva en la fila por si hace falta consultarlo.
 ## V43 — ¿DIRECTOR_ADMINISTRATIVO también queda protegido de GPI/GPE, o solo los RESPONSABLE_*?
 
 Reportado en pruebas (Sebastián, 20/07): una cuenta con solo `GPI_PERSONA_UPDATE` dio de baja a
