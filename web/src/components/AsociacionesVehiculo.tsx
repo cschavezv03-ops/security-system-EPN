@@ -3,8 +3,8 @@ import { Link2, Plus, X } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { CAT, humanizar } from '../lib/catalogos'
-import { fmtFecha, hoyISO } from '../lib/format'
-import { Badge, Button, Field, Select, useToast } from './ui'
+import { fmtFechaDia, hoyISO } from '../lib/format'
+import { Badge, Button, Field, Input, Select, useToast } from './ui'
 import { BuscarPersonaPorCedula, type PersonaCedula } from './BuscarPersonaPorCedula'
 
 interface Relacion {
@@ -59,6 +59,8 @@ export function AsociacionesVehiculo({
   const [guardando, setGuardando] = useState(false)
   const [persona, setPersona] = useState<PersonaCedula | null>(null)
   const [tipoRelacion, setTipoRelacion] = useState('PROPIETARIO')
+  const [fechaInicio, setFechaInicio] = useState(hoyISO())
+  const [fechaFin, setFechaFin] = useState('')
 
   const cargar = async () => {
     setCargando(true)
@@ -78,10 +80,24 @@ export function AsociacionesVehiculo({
     // buscada quedaría colgando sobre una ficha distinta.
     setAnadiendo(false)
     setPersona(null)
+    setFechaInicio(hoyISO())
+    setFechaFin('')
   }, [idVehiculo])
 
   const vincular = async () => {
     if (!persona) return
+    if (!fechaInicio) {
+      setError('Ingrese la fecha de inicio de la relación.')
+      return
+    }
+    if (!fechaFin) {
+      setError('Ingrese la fecha de fin de la relación.')
+      return
+    }
+    if (fechaFin <= fechaInicio) {
+      setError('La fecha de fin debe ser posterior a la fecha de inicio.')
+      return
+    }
     setGuardando(true)
     setError(null)
     // id_usuario_registro es NOT NULL en persona_vehiculo y no tiene default: sin él el INSERT
@@ -93,7 +109,8 @@ export function AsociacionesVehiculo({
       id_vehiculo: idVehiculo,
       tipo_relacion: tipoRelacion,
       estado_relacion: 'ACTIVA',
-      fecha_inicio: hoyISO(),
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
       id_usuario_registro: session?.user.id,
     } as never)
     setGuardando(false)
@@ -104,6 +121,8 @@ export function AsociacionesVehiculo({
     toast('ok', `${persona.nombres} ${persona.apellidos} quedó vinculada al vehículo.`)
     setAnadiendo(false)
     setPersona(null)
+    setFechaInicio(hoyISO())
+    setFechaFin('')
     await cargar()
     await onCambio()
   }
@@ -147,7 +166,7 @@ export function AsociacionesVehiculo({
             soloTipo={soloTipo}
             label={soloTipo === 'INTERNA' ? 'Cédula de la persona interna' : soloTipo === 'EXTERNA' ? 'Cédula de la persona externa' : 'Cédula de la persona'}
           />
-          <Field label="Tipo de relación" htmlFor="tipo-relacion">
+          <Field label="Tipo de relación" htmlFor="tipo-relacion" required>
             <Select
               id="tipo-relacion"
               value={tipoRelacion}
@@ -155,9 +174,29 @@ export function AsociacionesVehiculo({
               options={CAT.persona_vehiculo_tipo.map((v) => ({ value: v, label: humanizar(v) }))}
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Fecha de inicio" htmlFor="fecha-inicio-relacion" required>
+              <Input
+                id="fecha-inicio-relacion"
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                max={hoyISO()}
+              />
+            </Field>
+            <Field label="Fecha de fin" htmlFor="fecha-fin-relacion" required hint="Debe ser posterior a la fecha de inicio.">
+              <Input
+                id="fecha-fin-relacion"
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                min={fechaInicio || undefined}
+              />
+            </Field>
+          </div>
           <div className="flex gap-2">
             <Button onClick={vincular} loading={guardando} disabled={!persona}>Vincular</Button>
-            <Button variant="ghost" onClick={() => { setAnadiendo(false); setPersona(null) }}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => { setAnadiendo(false); setPersona(null); setFechaInicio(hoyISO()); setFechaFin('') }}>Cancelar</Button>
           </div>
         </div>
       )}
@@ -177,7 +216,8 @@ export function AsociacionesVehiculo({
                 <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
                   {r.persona?.cedula} <Badge value={r.tipo_relacion} /> <Badge value={r.estado_relacion} />
                   {r.es_responsable_tramite && <span>· responsable del trámite</span>}
-                  <span>· desde {fmtFecha(r.fecha_inicio)}</span>
+                  <span>· desde {fmtFechaDia(r.fecha_inicio)}</span>
+                  <span>· hasta {r.fecha_fin ? fmtFechaDia(r.fecha_fin) : 'sin definir'}</span>
                 </p>
               </div>
               {puedeRevocar && r.estado_relacion === 'ACTIVA' && (

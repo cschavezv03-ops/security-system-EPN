@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
@@ -46,9 +46,25 @@ const { supabase, insertsHechos, updatesHechos } = vi.hoisted(() => {
       { id_categoria: 'c-est', codigo_categoria: 'ESTUDIANTE', ambito: 'INTERNA', estado: 'ACTIVO' },
       { id_categoria: 'c-doc', codigo_categoria: 'DOCENTE', ambito: 'INTERNA', estado: 'ACTIVO' },
       { id_categoria: 'c-emp', codigo_categoria: 'EMPRESA_SERVICIO', ambito: 'INTERNA', estado: 'ACTIVO' },
+      { id_categoria: 'c-adm', codigo_categoria: 'ADMINISTRATIVO', ambito: 'INTERNA', estado: 'ACTIVO' },
+      { id_categoria: 'c-tra', codigo_categoria: 'TRABAJADOR', ambito: 'INTERNA', estado: 'ACTIVO' },
     ],
     empresa: [{ id_empresa: 'e-1', nombre: 'Servicios Integrales S.A.', estado: 'ACTIVO' }],
-    persona: [],
+    persona: [
+      { id_persona: 'p-doc', nombres: 'Cecilia', apellidos: 'Paredes', cedula: '1750000232', correo: 'cecilia@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'DOCENTE' } },
+      { id_persona: 'p-est', nombres: 'Mateo', apellidos: 'Vega', cedula: '1750000240', correo: 'mateo@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'ESTUDIANTE' } },
+      { id_persona: 'p-adm', nombres: 'Ana', apellidos: 'López', cedula: '1750000257', correo: 'ana@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'ADMINISTRATIVO' } },
+      { id_persona: 'p-tra', nombres: 'Luis', apellidos: 'Mora', cedula: '1750000265', correo: 'luis@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'TRABAJADOR' } },
+      { id_persona: 'p-emp', nombres: 'Marta', apellidos: 'Paz', cedula: '1750000273', correo: 'marta@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'EMPRESA_SERVICIO' } },
+    ],
+    persona_interna_detalle: [{
+      id_persona: 'p-doc', unidad: 'EPN', cargo: 'Director histórico', carrera: null,
+      curso: null, categoria_escalafon: 'Titular', contrato: 'FIJO', nombramiento: null,
+      persona: {
+        nombres: 'Cecilia', apellidos: 'Paredes', cedula: '1750000232',
+        categoria: { codigo_categoria: 'DOCENTE' },
+      },
+    }],
   }
 
   const cadena = (tabla: string) => {
@@ -113,7 +129,7 @@ vi.mock('../auth/AuthProvider', () => ({
 const { ResourceScreen } = await import('./ResourceScreen')
 const { ToastProvider } = await import('./ui')
 const { cfgMemorando } = await import('../resources/configs')
-const { cfgPersonaInterna } = await import('../resources/configs-gpi')
+const { cfgPersonaInterna, cfgPersonaInternaDetalle } = await import('../resources/configs-gpi')
 
 function montar(config: Parameters<typeof ResourceScreen>[0]['config']) {
   return render(
@@ -123,6 +139,12 @@ function montar(config: Parameters<typeof ResourceScreen>[0]['config']) {
       </ToastProvider>
     </MemoryRouter>,
   )
+}
+
+async function buscarPersonaInterna(usuario: ReturnType<typeof userEvent.setup>, cedula: string) {
+  const input = screen.getByRole('textbox', { name: /Cédula de la persona interna/i })
+  await usuario.type(input, cedula)
+  await usuario.click(screen.getByRole('button', { name: /^Buscar$/i }))
 }
 
 beforeEach(() => {
@@ -172,6 +194,17 @@ describe('formulario dinámico según la categoría (GPI)', () => {
     await waitFor(() => expect(screen.getByRole('combobox', { name: /Empresa a la que pertenece/i })).toBeInTheDocument())
   })
 
+  it('el combobox usa la etiqueta plural "Empresas de servicio"', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInterna)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Persona interna/i }))
+    const categoria = screen.getByRole('combobox', { name: /^Categoría/i })
+
+    expect(within(categoria).getByRole('option', { name: 'Empresas de servicio' })).toBeInTheDocument()
+    expect(within(categoria).queryByRole('option', { name: 'Empresa de servicio' })).not.toBeInTheDocument()
+  })
+
   it('el sexo es obligatorio para cualquier persona interna', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPersonaInterna)
@@ -187,6 +220,75 @@ describe('formulario dinámico según la categoría (GPI)', () => {
 
     expect(await screen.findByText(/El campo "Sexo" es obligatorio/i)).toBeInTheDocument()
     expect(insertsHechos).toHaveLength(0)
+  })
+})
+
+describe('datos internos por perfil (últimos cambios GPI)', () => {
+  it('el detalle docente omite Cargo aunque exista como dato histórico', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInternaDetalle)
+
+    await usuario.click(await screen.findByText('Paredes Cecilia'))
+    const panel = screen.getByRole('heading', { name: 'Cecilia Paredes' }).closest('.fixed')
+
+    expect(panel).not.toBeNull()
+    expect(within(panel as HTMLElement).queryByText('Cargo', { selector: 'dt' })).not.toBeInTheDocument()
+    expect(within(panel as HTMLElement).getByText('Categoría', { selector: 'dt' })).toBeInTheDocument()
+    expect(within(panel as HTMLElement).queryByText('Nombramiento')).not.toBeInTheDocument()
+  })
+
+  it('el docente ve Categoría, pero no Cargo ni Nombramiento', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInternaDetalle)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
+    expect(screen.queryByRole('combobox', { name: /Persona interna/i })).not.toBeInTheDocument()
+    await buscarPersonaInterna(usuario, '1750000232')
+
+    expect(await screen.findByText(/Cédula 1750000232 · Categoría: Docente/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /^Categoría/i })).toBeInTheDocument())
+    expect(screen.queryByRole('textbox', { name: /^Cargo/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /^Nombramiento/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /^Contrato/i })).toBeInTheDocument()
+  })
+
+  it('habilita Curso para CEC y Carrera para EPN, limpiando el dato anterior', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInternaDetalle)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
+    await buscarPersonaInterna(usuario, '1750000240')
+
+    const unidad = await screen.findByRole('combobox', { name: /^Unidad/i })
+    const carrera = screen.getByRole('textbox', { name: /^Carrera/i })
+    const curso = screen.getByRole('textbox', { name: /^Curso/i })
+
+    expect(carrera).toBeDisabled()
+    expect(curso).toBeDisabled()
+
+    await usuario.selectOptions(unidad, 'CEC')
+    await waitFor(() => expect(curso).toBeEnabled())
+    expect(carrera).toBeDisabled()
+    await usuario.type(curso, 'Robótica educativa')
+
+    await usuario.selectOptions(unidad, 'EPN')
+    await waitFor(() => expect(carrera).toBeEnabled())
+    expect(curso).toBeDisabled()
+    expect(curso).toHaveValue('')
+  })
+
+  it('el trabajador usa Cargo y ninguna categoría laboral ofrece Nombramiento', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInternaDetalle)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
+    await buscarPersonaInterna(usuario, '1750000265')
+
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /^Cargo/i })).toBeInTheDocument())
+    expect(screen.queryByRole('textbox', { name: /^Nombramiento/i })).not.toBeInTheDocument()
+
+    const nombramiento = cfgPersonaInternaDetalle.campos.find((c) => c.name === 'nombramiento')
+    expect(nombramiento).toBeUndefined()
   })
 })
 

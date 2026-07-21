@@ -66,12 +66,15 @@ select caso, case when ok then 'OK' else 'FALLO' end as resultado from resultado
 do $$
 declare
   v_cat_doc uuid;
+  v_cat_est uuid;
   v_emp uuid;
   v_usr uuid;
   v_persona uuid;
+  v_vehiculo uuid;
   r text := '';
 begin
   select id_categoria into v_cat_doc from categoria_persona where codigo_categoria = 'DOCENTE';
+  select id_categoria into v_cat_est from categoria_persona where codigo_categoria = 'ESTUDIANTE';
   select id_empresa into v_emp from empresa limit 1;
   select id_usuario into v_usr from usuario_sistema limit 1;
 
@@ -102,6 +105,68 @@ begin
     r := r || E'FALLO: acepto el contrato "Si"\n';
   exception when check_violation then
     r := r || E'OK: rechaza contrato fuera de FIJO/TEMPORAL\n';
+  end;
+
+  -- Ultimos_Cambios_GPI: el docente ya no usa Cargo ni Nombramiento.
+  begin
+    insert into persona(tipo_persona, id_categoria, cedula, nombres, apellidos, correo)
+    values ('INTERNA', v_cat_doc, '1710034065', 'Prueba', 'Cargo', 'prueba.cargo@epn.edu.ec')
+    returning id_persona into v_persona;
+    insert into persona_interna_detalle(id_persona, cargo) values (v_persona, 'Docente titular');
+    r := r || E'FALLO: acepto Cargo para un docente\n';
+  exception when check_violation then
+    r := r || E'OK: rechaza Cargo para un docente\n';
+  end;
+
+  begin
+    insert into persona(tipo_persona, id_categoria, cedula, nombres, apellidos, correo)
+    values ('INTERNA', v_cat_doc, '1710034065', 'Prueba', 'Nombramiento', 'prueba.nombramiento@epn.edu.ec')
+    returning id_persona into v_persona;
+    insert into persona_interna_detalle(id_persona, nombramiento) values (v_persona, 'Definitivo');
+    r := r || E'FALLO: acepto Nombramiento para un docente\n';
+  exception when check_violation then
+    r := r || E'OK: rechaza Nombramiento para un docente\n';
+  end;
+
+  -- Estudiante CEC = Curso; estudiante EPN = Carrera.
+  begin
+    insert into persona(tipo_persona, id_categoria, cedula, nombres, apellidos, correo, codigo_unico)
+    values ('INTERNA', v_cat_est, '1710034065', 'Prueba', 'CEC', 'prueba.cec@cec.edu.ec', 'GPI-TEST-CEC')
+    returning id_persona into v_persona;
+    insert into persona_interna_detalle(id_persona, unidad, carrera)
+    values (v_persona, 'CEC', 'Sistemas');
+    r := r || E'FALLO: acepto Carrera para un estudiante CEC\n';
+  exception when check_violation then
+    r := r || E'OK: rechaza Carrera para un estudiante CEC\n';
+  end;
+
+  begin
+    insert into persona(tipo_persona, id_categoria, cedula, nombres, apellidos, correo, codigo_unico)
+    values ('INTERNA', v_cat_est, '1710034065', 'Prueba', 'EPN', 'prueba.epn@epn.edu.ec', 'GPI-TEST-EPN')
+    returning id_persona into v_persona;
+    insert into persona_interna_detalle(id_persona, unidad, curso)
+    values (v_persona, 'EPN', 'Robotica');
+    r := r || E'FALLO: acepto Curso para un estudiante EPN\n';
+  exception when check_violation then
+    r := r || E'OK: rechaza Curso para un estudiante EPN\n';
+  end;
+
+  -- Toda nueva relacion persona-vehiculo debe tener fecha_fin.
+  begin
+    insert into persona(tipo_persona, id_categoria, cedula, nombres, apellidos, correo)
+    values ('INTERNA', v_cat_doc, '1710034065', 'Prueba', 'Vehiculo', 'prueba.vehiculo@epn.edu.ec')
+    returning id_persona into v_persona;
+    insert into vehiculo(placa, tipo_vehiculo, id_usuario_registro)
+    values ('TST9090', 'AUTOMOVIL', v_usr)
+    returning id_vehiculo into v_vehiculo;
+    insert into persona_vehiculo(
+      id_persona, id_vehiculo, tipo_relacion, fecha_inicio, id_usuario_registro
+    ) values (
+      v_persona, v_vehiculo, 'PROPIETARIO', current_date, v_usr
+    );
+    r := r || E'FALLO: acepto una relacion vehicular sin fecha_fin\n';
+  exception when not_null_violation then
+    r := r || E'OK: exige fecha_fin en una relacion vehicular nueva\n';
   end;
 
   -- GPE §3: el número lo teclea una persona, así que la base tiene que validarlo.

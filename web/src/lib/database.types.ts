@@ -1668,6 +1668,7 @@ export type Database = {
       crear_vehiculo_con_propietario: {
         Args: {
           p_color?: string
+          p_fecha_fin: string
           p_fecha_inicio?: string
           p_id_persona: string
           p_marca?: string

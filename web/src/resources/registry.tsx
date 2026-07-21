@@ -51,7 +51,7 @@ export const MODULOS: ModuloDef[] = [
     icono: <UserCog className="h-7 w-7" />,
     submodulos: [
       sub('personas', 'Personal interno', 'Registro y consulta de personas internas.', <Users className="h-6 w-6" />, cfgPersonaInterna),
-      sub('detalle', 'Datos internos', 'Cargo, unidad, carrera, escalafón.', <Contact className="h-6 w-6" />, cfgPersonaInternaDetalle),
+      sub('detalle', 'Datos internos', 'Cargo, unidad, carrera y categoría.', <Contact className="h-6 w-6" />, cfgPersonaInternaDetalle),
       // GPE §7 / GPI: las descripciones nombraban el algoritmo ("Enrolamiento facial 1:N") en
       // vez de la tarea. A quien registra una cara no le sirve saber que la búsqueda es 1:N.
       { key: 'biometria', titulo: 'Biometría', descripcion: 'Registrar el rostro del personal interno.', icono: <Fingerprint className="h-6 w-6" />, permisoVer: ['GPI_BIOMETRIA_SELECT'], render: () => <BiometriaScreen /> },

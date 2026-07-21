@@ -60,6 +60,10 @@ export interface FieldConfig {
   /** El campo solo se muestra si esta función devuelve true para los valores actuales
    *  (ej. "Zona padre" solo si el tipo de zona es Parqueadero o Edificio). */
   visibleSi?: (valores: Record<string, any>) => boolean
+  /** Mantiene el campo visible, pero bloquea su edición mientras se cumpla la condición.
+   *  A diferencia de `visibleSi`, sirve cuando el usuario necesita entender que el dato existe
+   *  pero no aplica a la selección actual (ej. Carrera para un estudiante del CEC). */
+  deshabilitadoSi?: (valores: Record<string, any>) => boolean
   /** Formatea el valor tecleado en un input de texto (ej. MAC con ":", IP con ".") */
   formatear?: (valorCrudo: string) => string
   /** Valida el valor al guardar. Devuelve `null` si es correcto o el mensaje de error si no.
@@ -90,6 +94,13 @@ export interface FieldConfig {
     rpc: string
     /** Qué decir cuando esa cédula no corresponde a nadie con ese perfil. */
     textoNoEncontrado?: string
+  }
+  /** Búsqueda directa en la entidad maestra `persona`, mediante el componente reutilizable
+   *  `BuscarPersonaPorCedula`. Se usa en lugar de descargar un combo con todas las personas.
+   *  La tarjeta de resultado muestra nombre, categoría y estado antes de guardar el id. */
+  buscarPersona?: {
+    soloTipo?: 'INTERNA' | 'EXTERNA'
+    soloActivas?: boolean
   }
   /** Valor que el sistema arma a partir de otros campos del formulario, y que **sí se guarda**.
    *
@@ -140,6 +151,8 @@ export interface ColumnConfig<Row = any> {
 export interface DetailRow<Row = any> {
   label: string
   render: (row: Row) => ReactNode
+  /** Permite omitir datos que no aplican a la categoría concreta del registro. */
+  visibleSi?: (row: Row) => boolean
 }
 
 export interface BajaConfig {
