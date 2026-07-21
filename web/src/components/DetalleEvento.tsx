@@ -86,7 +86,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
 
   return (
     <div className="space-y-3">
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
         <Dato etiqueta="Persona">
           {detalle.persona ? `${detalle.persona.apellidos} ${detalle.persona.nombres}` : 'No identificada'}
         </Dato>
@@ -100,7 +100,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
       )}
 
       <Seccion icono={<MapPin className="h-3.5 w-3.5" />} titulo={esSalida ? 'Por dónde salió' : 'Por dónde entró'}>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
           <Dato etiqueta="Garita">{detalle.punto.nombre_punto}</Dato>
           <Dato etiqueta="Zona">{detalle.punto.zona ?? '—'}</Dato>
           <Dato etiqueta="Fecha y hora">{fmtFechaHora(detalle.fecha_hora)}</Dato>
@@ -112,7 +112,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
           precisamente lo que hay que poder ver de un vistazo. */}
       {detalle.ingreso_relacionado && (
         <Seccion icono={<DoorOpen className="h-3.5 w-3.5" />} titulo="Ingreso con el que se corresponde">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
             <Dato etiqueta="Entró por">{detalle.ingreso_relacionado.punto}</Dato>
             <Dato etiqueta="Hora de entrada">{fmtFechaHora(detalle.ingreso_relacionado.fecha_hora)}</Dato>
             <Dato etiqueta="Tiempo dentro">{detalle.ingreso_relacionado.horas_dentro} h</Dato>
@@ -126,7 +126,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
       )}
 
       <Seccion icono={<Camera className="h-3.5 w-3.5" />} titulo="Cómo se registró">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
           <Dato etiqueta="Origen"><Badge value={detalle.origen_registro} /></Dato>
           {detalle.dispositivo ? (
             <>
@@ -137,7 +137,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
               <Dato etiqueta="Estado del dispositivo"><Badge value={detalle.dispositivo.estado_dispositivo} /></Dato>
             </>
           ) : (
-            <div className="col-span-2 sm:col-span-3">
+            <div className="col-span-2">
               <dt className="text-xs text-ink-soft">Dispositivo</dt>
               <dd className="text-sm text-ink-soft">
                 Sin dispositivo: lo registró una persona desde la garita.
@@ -154,7 +154,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
       </Seccion>
 
       <Seccion icono={<UserCheck className="h-3.5 w-3.5" />} titulo="Quién respondía">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-2">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
           <Dato etiqueta="Lo registró">
             {detalle.registrado_por
               ? (detalle.registrado_por.persona ?? detalle.registrado_por.nombre_usuario)
@@ -179,7 +179,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
 
       {detalle.vehiculo && (
         <Seccion icono={<IdCard className="h-3.5 w-3.5" />} titulo="Vehículo">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
             <Dato etiqueta="Placa">{detalle.vehiculo.placa ? formatearPlaca(detalle.vehiculo.placa) : '—'}</Dato>
             <Dato etiqueta="Leída como">
               {detalle.placa_detectada ? formatearPlaca(detalle.placa_detectada) : '—'}
@@ -195,7 +195,7 @@ export function DetalleEvento({ idEvento }: { idEvento: string }) {
 
       {(detalle.regla_aplicada || detalle.autorizacion_visita) && (
         <Seccion icono={<ShieldCheck className="h-3.5 w-3.5" />} titulo="Con qué respaldo pasó">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
             {detalle.regla_aplicada && (
               <>
                 <Dato etiqueta="Regla aplicada">{detalle.regla_aplicada.nombre_regla}</Dato>

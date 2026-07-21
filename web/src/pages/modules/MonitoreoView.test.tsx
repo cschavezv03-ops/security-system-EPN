@@ -93,7 +93,9 @@ describe('Eventos recientes (RF-CA-022 + RF-CA-021)', () => {
 
     await usuario.click(await screen.findByText(/Error de reconocimiento facial/i))
 
-    expect(await screen.findByText('Detalle del error de reconocimiento')).toBeInTheDocument()
+    // El detalle se abre en el panel lateral, como en el resto de módulos: al pie de la página
+    // quedaba tan abajo que parecía que pulsar la fila no hacía nada.
+    expect(await screen.findByRole('heading', { name: 'Error de reconocimiento' })).toBeInTheDocument()
     expect(screen.getByText(/no se detectó ningún rostro en la imagen/i)).toBeInTheDocument()
   })
 })
