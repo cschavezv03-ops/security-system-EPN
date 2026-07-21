@@ -17,7 +17,7 @@ vi.mock('../lib/supabase', () => ({
   mensajeError: () => 'Error',
 }))
 
-const { cfgBitacora, cfgBiometriaADM, cfgPersonaADM } = await import('./configs-lectura')
+const { cfgBitacora, cfgBiometriaADM } = await import('./configs-lectura')
 
 /** Fila de ejemplo: un administrador cierra la sesión de otro usuario. */
 const CIERRE_DE_SESION = {
@@ -139,25 +139,5 @@ describe('Biometría (metadatos)', () => {
       // Una URL firmada de Storage sería la otra forma de filtrarlo.
       expect(container.textContent ?? '').not.toMatch(/https?:\/\//)
     }
-  })
-})
-
-describe('Personas (vista global ADM)', () => {
-  // El backend (trigger impedir_reactivar_persona) rechaza volver a ACTIVO una vez que una
-  // persona dejó de estarlo, para cualquier rol, incluido ADM. El combo de "Estado" no debe
-  // ofrecer una opción que el guardado solo va a rechazar con un error de base de datos.
-  const campoEstado = () => cfgPersonaADM('INTERNA').campos.find((c) => c.name === 'estado')!
-
-  it('ofrece las tres opciones mientras la persona sigue Activa', async () => {
-    const opciones = await campoEstado().opcionesDependientes!({ estado: 'ACTIVO' })
-    expect(opciones.map((o) => o.value)).toEqual(['ACTIVO', 'INACTIVO', 'DADO_DE_BAJA'])
-  })
-
-  it('retira "Activo" del combo en cuanto la persona ya no lo está', async () => {
-    const inactiva = await campoEstado().opcionesDependientes!({ estado: 'INACTIVO' })
-    expect(inactiva.map((o) => o.value)).toEqual(['INACTIVO', 'DADO_DE_BAJA'])
-
-    const dadaDeBaja = await campoEstado().opcionesDependientes!({ estado: 'DADO_DE_BAJA' })
-    expect(dadaDeBaja.map((o) => o.value)).toEqual(['INACTIVO', 'DADO_DE_BAJA'])
   })
 })

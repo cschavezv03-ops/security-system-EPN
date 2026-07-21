@@ -152,6 +152,11 @@ export const cfgPersonaInterna: ResourceConfig = {
   campoEstado: 'estado',
   // Brecha §6.1: sin baja temporal con duración; INACTIVO + motivo en detalle_estado. Ver 99_DUDAS_FRONTEND.md.
   baja: { campoEstado: 'estado', valorBaja: 'INACTIVO', campoMotivo: 'detalle_estado', etiqueta: 'Dar de baja' },
+  // GPI reactiva a su propio personal, simétrico con "Dar de baja". La única restricción
+  // vive en el backend: nadie sin ADM_PERSONA_UPDATE puede tocar el estado de una persona con
+  // rol de Responsable/Director/Administrador (trigger proteger_personal_privilegiado) — ese
+  // caso ya llega con el error del backend, no se duplica aquí en el frontend.
+  reactivar: { valorActivo: 'ACTIVO', etiqueta: 'Reactivar' },
 }
 
 export const cfgPersonaInternaDetalle: ResourceConfig = {

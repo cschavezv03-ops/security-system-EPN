@@ -929,6 +929,8 @@ export const cfgPersonaExterna: ResourceConfig = {
   campoEstado: 'estado',
   // Brecha §6.1: baja de persona = INACTIVO (sin "temporal con duración"). Ver 99_DUDAS_FRONTEND.md.
   baja: { campoEstado: 'estado', valorBaja: 'INACTIVO', campoMotivo: 'detalle_estado', etiqueta: 'Dar de baja' },
+  // GPE reactiva a su propio personal externo, simétrico con "Dar de baja".
+  reactivar: { valorActivo: 'ACTIVO', etiqueta: 'Reactivar' },
 }
 
 export const cfgMemorando: ResourceConfig = {
