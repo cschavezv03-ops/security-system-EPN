@@ -55,9 +55,26 @@ export function cfgPersonaADM(ambito?: 'INTERNA' | 'EXTERNA'): ResourceConfig {
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'estado', label: 'Estado', type: 'select', options: [
-      { value: 'ACTIVO', label: 'Activo' }, { value: 'INACTIVO', label: 'Inactivo' }, { value: 'DADO_DE_BAJA', label: 'Dado de baja' },
-    ] },
+    {
+      name: 'estado', label: 'Estado', type: 'select',
+      // Dar de baja (o inactivar) a una persona es permanente: el backend
+      // (trigger impedir_reactivar_persona) rechaza cualquier UPDATE que intente volver a
+      // ACTIVO una vez que dejó de estarlo, para cualquier rol, incluido ADM. Aquí se retira
+      // "Activo" de las opciones en cuanto eso ya pasó, para no ofrecer una opción que el
+      // guardar solo va a rechazar con un error de base de datos.
+      opcionesDependientes: (v) =>
+        v.estado === 'ACTIVO'
+          ? [
+              { value: 'ACTIVO', label: 'Activo' },
+              { value: 'INACTIVO', label: 'Inactivo' },
+              { value: 'DADO_DE_BAJA', label: 'Dado de baja' },
+            ]
+          : [
+              { value: 'INACTIVO', label: 'Inactivo' },
+              { value: 'DADO_DE_BAJA', label: 'Dado de baja' },
+            ],
+      hint: 'Dar de baja o inactivar es permanente: una vez que deja de estar Activo, no se puede volver a activar.',
+    },
     { name: 'correo', label: 'Correo', type: 'email' },
     { name: 'telefono_contacto', label: 'Teléfono' },
     { name: 'direccion_domicilio', label: 'Dirección', colSpan: 2 },
