@@ -45,7 +45,7 @@ export function AsociacionesVehiculo({
   /** Módulo desde el que se gestiona: decide los permisos y el ámbito de las personas. */
   modulo?: 'ADM' | 'GPI' | 'GPE'
 }) {
-  const { tiene } = useAuth()
+  const { tiene, session } = useAuth()
   const toast = useToast()
   const puedeVincular = tiene(`${modulo}_PERSONA_VEHICULO_INSERT`)
   const puedeRevocar = tiene(`${modulo}_PERSONA_VEHICULO_UPDATE`)
@@ -84,12 +84,17 @@ export function AsociacionesVehiculo({
     if (!persona) return
     setGuardando(true)
     setError(null)
+    // id_usuario_registro es NOT NULL en persona_vehiculo y no tiene default: sin él el INSERT
+    // fallaba con "Falta completar un dato obligatorio". El resto del sistema lo rellena con el
+    // usuario autenticado (autoUsuarioRegistro en ResourceScreen); aquí, al ser un INSERT manual,
+    // hay que ponerlo a mano.
     const { error: err } = await supabase.from('persona_vehiculo').insert({
       id_persona: persona.id_persona,
       id_vehiculo: idVehiculo,
       tipo_relacion: tipoRelacion,
       estado_relacion: 'ACTIVA',
       fecha_inicio: hoyISO(),
+      id_usuario_registro: session?.user.id,
     } as never)
     setGuardando(false)
     if (err) {

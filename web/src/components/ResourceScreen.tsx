@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pencil, Plus, Search, Ban, ArrowLeft, Download, RotateCcw } from 'lucide-react'
 import { fromTable, mensajeError, supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
@@ -91,6 +91,7 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
   // Un enlace puede llegar con la búsqueda ya puesta (?buscar=EPN-DA-2026-0001-M), que es como
   // la ficha de una persona externa lleva a "su" memorando sin obligar a teclearlo otra vez.
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [rows, setRows] = useState<Row[]>([])
   const [cargando, setCargando] = useState(true)
@@ -221,6 +222,13 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
         {puedeCrear && (
           <Button
             onClick={() => {
+              // Si el recurso define un alta propia (ej. vehículo + propietario en una sola
+              // transacción), se va allí en vez de abrir el formulario genérico, que insertaría
+              // la fila suelta.
+              if (config.altaRuta) {
+                navigate(config.altaRuta)
+                return
+              }
               setEditando(null)
               setVista('form')
             }}

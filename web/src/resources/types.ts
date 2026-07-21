@@ -204,6 +204,12 @@ export interface ResourceConfig<Row = any> {
   defaultsInsert?: Record<string, unknown>
   /** Columnas que se rellenan automáticamente con el id del usuario autenticado al INSERTAR. */
   autoUsuarioRegistro?: string[]
+  /** El alta no usa el formulario genérico, sino que lleva a esta ruta. Para recursos cuyo
+   *  registro no es un simple INSERT en una tabla, sino una operación atómica sobre varias
+   *  (ej. un vehículo NO puede crearse sin su propietario: el alta va a `/vehiculos/nuevo`, que
+   *  crea vehículo y relación en una sola transacción vía RPC). Sin esto, el botón "Registrar"
+   *  abría un formulario que insertaba la fila suelta y dejaba, p. ej., vehículos sin dueño. */
+  altaRuta?: string
   /** Si el usuario tiene alguno de estos permisos, se muestra un botón "Exportar CSV" que
    *  exporta las filas actualmente filtradas/buscadas (feedback ADM: ADM_BITACORA_EXPORTAR). */
   exportarConPermiso?: string[]

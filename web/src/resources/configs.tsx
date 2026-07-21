@@ -265,6 +265,11 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
     orderBy: { columna: 'placa' },
     permisos: { select, insert, update },
     autoUsuarioRegistro: ['id_usuario_registro'],
+    // Un vehículo NO puede crearse sin propietario (RF-CA-018): el alta va a la pantalla que
+    // registra vehículo y propietario en una sola transacción (RPC crear_vehiculo_con_propietario),
+    // en vez del formulario genérico, que insertaba la fila suelta y dejaba vehículos huérfanos.
+    // La restricción diferida de la base lo respalda para cualquier otra vía.
+    altaRuta: '/vehiculos/nuevo',
     buscarEn: ['placa', 'marca', 'modelo', 'color', 'relaciones.persona.apellidos', 'relaciones.persona.cedula'],
     columnas: [
       { key: 'placa', label: 'Placa', render: (r) => (r.placa ? formatearPlaca(r.placa) : '—'), valorExport: (r) => (r.placa ? formatearPlaca(r.placa) : '') },
