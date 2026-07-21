@@ -70,6 +70,24 @@ usuario.
 bloquean, se escribe `banned_until` en GoTrue y, vencido el plazo, la cuenta entra **al primer
 intento**.
 
+## 🔄 Ronda GPE en curso — PR #16, sin fusionar
+
+Rama `feat/gpe-memorando-vehicular`. Dos encargos, ambos implementados y verificados:
+
+1. **La vigencia del memorando se mostraba un día antes** de lo guardado. No era del backend: la
+   base guardaba lo tecleado y el acceso se decidía bien. Era `fmtFecha` interpretando una fecha
+   sin hora como medianoche UTC (§D83). Arreglado en la raíz, lo que corrigió de paso otros tres
+   sitios con el mismo desfase.
+2. **Ingreso vehicular del personal externo con memorando** (§D84-§D86). Para un externo el
+   segundo factor de RF-CA-016 no puede ser el rostro, así que es el memorando; sin memorando no
+   entra conduciendo. El vehículo se registra **en el memorando**, de modo que el permiso caduca
+   con él.
+
+Verificado: 236 pruebas locales, 9 aserciones SQL contra la base y 3 planes de TestSprite en
+verde (57 pasos). Dudas abiertas para el equipo: **§V43** (si la exigencia de memorando debe
+aplicarse también a los acompañantes o solo al conductor) y **§V44** (si `permite_acompanantes`
+debe llegar a denegar).
+
 ## ⚠️ Cosas que hacer ANTES de empezar
 
 **1. Volver a proteger los previews.** Panel de Vercel → proyecto `security-system-epn` →
