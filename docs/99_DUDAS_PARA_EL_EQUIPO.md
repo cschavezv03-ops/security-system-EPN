@@ -848,3 +848,62 @@ sistema, y cualquier edición que le toque las horas o el estado ya obligará a 
 **✅ Cerrado en la sesión final (20/07/2026):** se fija `fecha_fin = 2026-12-31`, que cubre con
 holgura el periodo de la defensa del prototipo. Aplicado en
 `scripts/ajustes_datos_demo_prototipo3.sql`; ya no hay ninguna asignación activa sin fecha de fin.
+
+## V43 — ¿DIRECTOR_ADMINISTRATIVO también queda protegido de GPI/GPE, o solo los RESPONSABLE_*?
+
+Reportado en pruebas (Sebastián, 20/07): una cuenta con solo `GPI_PERSONA_UPDATE` dio de baja a
+Carlos Chávez (cédula `1750000141`), que tiene la cuenta `carlos.chavez03` con el rol
+`RESPONSABLE_CONTROL_ACCESOS` activo — un Responsable de otro módulo, no un subordinado de GPI.
+El reporte fue explícito: *"el único que puede revocar permisos a los Responsables o
+administradores es el Administrador del Sistema"*.
+
+Se implementó la migración `20260720220000_gpi_proteger_responsables_y_administradores.sql`: un
+trigger `BEFORE UPDATE OF estado ON persona` bloquea a cualquiera sin `ADM_PERSONA_UPDATE` que
+intente cambiar el estado de una persona con rol activo `ADMINISTRADOR_SISTEMA` o cualquier
+`RESPONSABLE_*`. Verificado contra el remoto (rollback): GPI bloqueado sobre Chávez, ADM permitido,
+GPI sin restricción sobre personal operativo normal.
+
+**La inferencia:** se incluyó también `DIRECTOR_ADMINISTRATIVO` en el conjunto protegido, aunque el
+reporte solo nombró "Responsables o administradores". Director es de solo lectura (sin ningún
+`_INSERT`/`_UPDATE`, doc02 §Notas), así que nunca sería el *actor* de este problema — pero sí podría
+ser el *objetivo*: sin esta inclusión, GPI podría dar de baja al Director de la misma forma que le
+pasó a Chávez. Se optó por la opción conservadora (protegerlo también) por ser el mismo nivel
+jerárquico de supervisión transversal.
+
+**Qué hace falta decidir:** si el equipo prefiere que la protección sea *estrictamente* la nombrada
+(solo `RESPONSABLE_*` + `ADMINISTRADOR_SISTEMA`, dejando a Director fuera), hay que quitar
+`'DIRECTOR_ADMINISTRATIVO'` de la lista en `public.persona_tiene_rol_privilegiado()`.
+
+## V44 — "No se puede reactivar a nadie" era la lectura equivocada → CORREGIDA
+
+Primera lectura de "no se puede volver a activarle" (Dax, 20/07): una regla a **imponer**. Se
+implementó `20260720230000_gpi_baja_de_persona_es_permanente.sql`, un trigger que bloqueaba volver
+a `ACTIVO` para **cualquier** actor, incluido ADM.
+
+Era la lectura equivocada. Con una captura de la pantalla real de GPI (`/m/GPI/personas`, ficha de
+Carlos Chávez, solo botón "Editar" y ningún "Reactivar") quedó claro que la frase describía una
+**carencia**, no una regla: al frontend le faltaba el botón, no había que prohibir la acción.
+Confirmado con el equipo: **"cada módulo reactiva lo suyo"**, simétrico con "Dar de baja" — GPI
+reactiva personal interno, GPE personal externo, ADM cualquiera.
+
+**Corregido** en `20260720240000_gpi_permitir_reactivar_persona.sql`: se elimina el trigger y la
+función de la migración anterior. La RLS existente (`GPI_PERSONA_UPDATE` / `GPE_PERSONA_UPDATE` /
+`ADM_PERSONA_UPDATE`) ya autorizaba esto sin necesidad de un trigger nuevo — lo único que sobraba
+era el bloqueo. Verificado contra el remoto (rollback): GPI reactiva personal ordinario; ADM
+reactiva a cualquiera.
+
+**Lo que SÍ se mantiene, sin cambios:** `proteger_personal_privilegiado` (V43) sigue bloqueando
+tanto la baja como la reactivación de una persona con rol de Responsable/Director/Administrador
+para quien no tenga `ADM_PERSONA_UPDATE` — verificado que GPI sigue sin poder reactivar a Chávez.
+Ese es un problema distinto (par jerárquico) del de "¿se puede deshacer una baja?", y no se tocó.
+
+Frontend: se agregó `reactivar: { valorActivo: 'ACTIVO' }` a `cfgPersonaInterna` (`configs-gpi.tsx`)
+y `cfgPersonaExterna` (`configs.tsx`) — mismo patrón ya usado en zona/regla_acceso. La vista global
+de ADM (`cfgPersonaADM`, `configs-lectura.tsx`) vuelve a su combo de Estado sin restricción (se
+revirtió el cambio de la ronda anterior).
+
+**Hallazgo relacionado, ya no es una brecha:** `usuario_sistema.estado_usuario` (doc03 §D29) tiene
+el mismo patrón — solo `ADMINISTRADOR_SISTEMA` puede volver a `ACTIVO` una cuenta `DADO_DE_BAJA`, y
+la RLS ya lo permite sin trigger adicional. Con esta corrección, ese comportamiento es coherente
+con la decisión tomada aquí (quien tiene el permiso de `UPDATE` puede mover el estado en cualquier
+dirección) y no un descuido — se cierra sin cambios.

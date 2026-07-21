@@ -31,6 +31,22 @@ en `persona.detalle_estado` cuando existe la columna. **No se ofrece "temporal" 
 duración** en ninguna pantalla. Si el equipo decide implementarlo, necesita antes una columna de
 fecha de reactivación (o un `parametro_sistema` de referencia) — es un cambio de esquema, no de UI.
 
+**Actualización (20/07), primera vuelta — corregida después:** se interpretó "no se puede volver a
+activarle" como que la baja debía ser permanente para todos, ni siquiera ADM podía reactivar
+(trigger `impedir_reactivar_persona`). Era una lectura equivocada de lo pedido — ver la vuelta
+siguiente.
+
+**Actualización (20/07), segunda vuelta — la correcta:** con la captura real de la pantalla de GPI
+(ficha de Carlos Chávez, solo "Editar", ningún "Reactivar") se confirmó que **sí** debía existir el
+botón, simétrico con "Dar de baja": cada módulo reactiva lo suyo (GPI su personal interno, GPE el
+externo, ADM cualquiera), apoyado en la RLS que ya lo permitía. Se eliminó el trigger que lo
+bloqueaba (`20260720240000_gpi_permitir_reactivar_persona.sql`, ver `99_DUDAS_PARA_EL_EQUIPO.md`
+V44) y se agregó `reactivar: { valorActivo: 'ACTIVO' }` a `cfgPersonaInterna` (`configs-gpi.tsx`) y
+`cfgPersonaExterna` (`configs.tsx`) — mismo patrón que zona/regla_acceso. El combo de Estado de la
+vista global de ADM (`cfgPersonaADM`, `configs-lectura.tsx`) volvió a su versión sin restricción.
+Lo único que sigue bloqueado (sin cambios, backend): GPI/GPE no pueden reactivar a una persona con
+rol de Responsable/Director/Administrador — eso sigue siendo exclusivo de ADM (V43).
+
 ## F2 — Ámbito de `EMPRESA_SERVICIO` → **resuelto por el backend real: EXTERNA**
 **Duda original (07 §6.2):** el mockup de GPI gestionaba `EMPRESA_SERVICIO` como personal interno
 (biometría), pero el modelo de datos también contemplaba que fuera externo.
