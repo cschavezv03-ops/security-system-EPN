@@ -7,6 +7,7 @@ import { useBorrador } from '../lib/useBorrador'
 import { validarCedula } from '../lib/validacion'
 import { hoyISO } from '../lib/format'
 import type { FieldConfig, Opcion, ResourceConfig } from '../resources/types'
+import { BuscarPersonaPorCedula, type PersonaCedula } from './BuscarPersonaPorCedula'
 import {
   Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Input, Modal,
   Select, SidePanel, Textarea, useToast,
@@ -873,14 +874,27 @@ function RecordForm({
                     // era justo lo que confundía en "Editar Memorando".
                     <Input id={campoId} value={c.valorCalculado ? c.valorCalculado(valores) : String(valores[c.name] ?? '')} disabled readOnly />
                   ) : c.type === 'cedula-busqueda' ? (
-                    <BuscarPorCedula
-                      id={campoId}
-                      campo={c}
-                      idSeleccionado={valores[c.name] ?? ''}
-                      disabled={disabled}
-                      onSeleccion={(id) => set(c.name, id)}
-                      registro={registro}
-                    />
+                    c.buscarPersona ? (
+                      <BuscarPersonaPorCedula
+                        id={campoId}
+                        label={c.label}
+                        embebido
+                        disabled={disabled}
+                        soloActivas={c.buscarPersona.soloActivas}
+                        soloTipo={c.buscarPersona.soloTipo}
+                        personaInicial={registro?.persona as PersonaCedula | null}
+                        onSelect={(persona) => set(c.name, persona?.id_persona ?? '')}
+                      />
+                    ) : (
+                      <BuscarPorCedula
+                        id={campoId}
+                        campo={c}
+                        idSeleccionado={valores[c.name] ?? ''}
+                        disabled={disabled}
+                        onSeleccion={(id) => set(c.name, id)}
+                        registro={registro}
+                      />
+                    )
                   ) : c.type === 'select' ? (
                     <Select
                       id={campoId}

@@ -11,7 +11,7 @@ import { AnularMemorando } from '../components/AnularMemorando'
 import { GaritasDeRegla } from '../components/GaritasDeRegla'
 import {
   opcionesCatalogo, optCategorias, optEmpresas, optPuntosControl, optZonas,
-  opcionesTabla, optZonasPorTipo, optZonasPadrePara, optPuntosPorZona, optGuardiasDisponibles,
+  optZonasPorTipo, optZonasPadrePara, optPuntosPorZona, optGuardiasDisponibles,
   optPersonasExternasConEmpresa, optMemorandosVigentes, humanizarNombreCuenta,
 } from './opciones'
 import { supabase } from '../lib/supabase'
@@ -1179,7 +1179,7 @@ export const cfgAutorizacion: ResourceConfig = {
   titulo: 'Autorizaciones de visita',
   singular: 'Autorización',
   idField: 'id_autorizacion',
-  select: '*, persona:persona(nombres, apellidos, cedula)',
+  select: '*, persona:persona(id_persona, nombres, apellidos, cedula, correo, tipo_persona, estado, categoria:categoria_persona(codigo_categoria))',
   orderBy: { columna: 'fecha_visita', ascendente: false },
   permisos: { select: ['GPE_AUTORIZACION_SELECT'], insert: ['GPE_AUTORIZACION_INSERT'], update: ['GPE_AUTORIZACION_UPDATE'] },
   autoUsuarioRegistro: ['id_usuario_registro'],
@@ -1220,7 +1220,11 @@ export const cfgAutorizacion: ResourceConfig = {
     { label: 'Registrada', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'id_persona', label: 'Visitante (persona externa)', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'EXTERNA' }), colSpan: 2 },
+    {
+      name: 'id_persona', label: 'Cédula del visitante', type: 'cedula-busqueda', required: true,
+      editable: false, buscarPersona: { soloTipo: 'EXTERNA', soloActivas: true }, colSpan: 2,
+      hint: 'Busca una persona externa registrada; se mostrará su categoría antes de autorizarla.',
+    },
     {
       name: 'fecha_visita', label: 'Fecha de visita', type: 'date', required: true, default: hoyISO(),
       hint: 'La autorización vale solo ese día.',

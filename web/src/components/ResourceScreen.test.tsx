@@ -44,11 +44,11 @@ const { supabase, insertsHechos, updatesHechos } = vi.hoisted(() => {
     ],
     empresa: [{ id_empresa: 'e-1', nombre: 'Servicios Integrales S.A.', estado: 'ACTIVO' }],
     persona: [
-      { id_persona: 'p-doc', nombres: 'Cecilia', apellidos: 'Paredes', cedula: '1750000232', tipo_persona: 'INTERNA', categoria: { codigo_categoria: 'DOCENTE' } },
-      { id_persona: 'p-est', nombres: 'Mateo', apellidos: 'Vega', cedula: '1750000240', tipo_persona: 'INTERNA', categoria: { codigo_categoria: 'ESTUDIANTE' } },
-      { id_persona: 'p-adm', nombres: 'Ana', apellidos: 'López', cedula: '1750000257', tipo_persona: 'INTERNA', categoria: { codigo_categoria: 'ADMINISTRATIVO' } },
-      { id_persona: 'p-tra', nombres: 'Luis', apellidos: 'Mora', cedula: '1750000265', tipo_persona: 'INTERNA', categoria: { codigo_categoria: 'TRABAJADOR' } },
-      { id_persona: 'p-emp', nombres: 'Marta', apellidos: 'Paz', cedula: '1750000273', tipo_persona: 'INTERNA', categoria: { codigo_categoria: 'EMPRESA_SERVICIO' } },
+      { id_persona: 'p-doc', nombres: 'Cecilia', apellidos: 'Paredes', cedula: '1750000232', correo: 'cecilia@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'DOCENTE' } },
+      { id_persona: 'p-est', nombres: 'Mateo', apellidos: 'Vega', cedula: '1750000240', correo: 'mateo@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'ESTUDIANTE' } },
+      { id_persona: 'p-adm', nombres: 'Ana', apellidos: 'López', cedula: '1750000257', correo: 'ana@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'ADMINISTRATIVO' } },
+      { id_persona: 'p-tra', nombres: 'Luis', apellidos: 'Mora', cedula: '1750000265', correo: 'luis@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'TRABAJADOR' } },
+      { id_persona: 'p-emp', nombres: 'Marta', apellidos: 'Paz', cedula: '1750000273', correo: 'marta@epn.edu.ec', tipo_persona: 'INTERNA', estado: 'ACTIVO', categoria: { codigo_categoria: 'EMPRESA_SERVICIO' } },
     ],
     persona_interna_detalle: [{
       id_persona: 'p-doc', unidad: 'EPN', cargo: 'Director histórico', carrera: null,
@@ -132,6 +132,12 @@ function montar(config: Parameters<typeof ResourceScreen>[0]['config']) {
       </ToastProvider>
     </MemoryRouter>,
   )
+}
+
+async function buscarPersonaInterna(usuario: ReturnType<typeof userEvent.setup>, cedula: string) {
+  const input = screen.getByRole('textbox', { name: /Cédula de la persona interna/i })
+  await usuario.type(input, cedula)
+  await usuario.click(screen.getByRole('button', { name: /^Buscar$/i }))
 }
 
 beforeEach(() => {
@@ -228,8 +234,10 @@ describe('datos internos por perfil (últimos cambios GPI)', () => {
     montar(cfgPersonaInternaDetalle)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
-    await usuario.selectOptions(screen.getByRole('combobox', { name: /Persona interna/i }), 'p-doc')
+    expect(screen.queryByRole('combobox', { name: /Persona interna/i })).not.toBeInTheDocument()
+    await buscarPersonaInterna(usuario, '1750000232')
 
+    expect(await screen.findByText(/Cédula 1750000232 · Categoría: Docente/i)).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('textbox', { name: /^Categoría/i })).toBeInTheDocument())
     expect(screen.queryByRole('textbox', { name: /^Cargo/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /^Nombramiento/i })).not.toBeInTheDocument()
@@ -241,7 +249,7 @@ describe('datos internos por perfil (últimos cambios GPI)', () => {
     montar(cfgPersonaInternaDetalle)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
-    await usuario.selectOptions(screen.getByRole('combobox', { name: /Persona interna/i }), 'p-est')
+    await buscarPersonaInterna(usuario, '1750000240')
 
     const unidad = await screen.findByRole('combobox', { name: /^Unidad/i })
     const carrera = screen.getByRole('textbox', { name: /^Carrera/i })
@@ -266,7 +274,7 @@ describe('datos internos por perfil (últimos cambios GPI)', () => {
     montar(cfgPersonaInternaDetalle)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
-    await usuario.selectOptions(screen.getByRole('combobox', { name: /Persona interna/i }), 'p-tra')
+    await buscarPersonaInterna(usuario, '1750000265')
 
     await waitFor(() => expect(screen.getByRole('textbox', { name: /^Cargo/i })).toBeInTheDocument())
     expect(screen.queryByRole('textbox', { name: /^Nombramiento/i })).not.toBeInTheDocument()

@@ -95,6 +95,13 @@ export interface FieldConfig {
     /** Qué decir cuando esa cédula no corresponde a nadie con ese perfil. */
     textoNoEncontrado?: string
   }
+  /** Búsqueda directa en la entidad maestra `persona`, mediante el componente reutilizable
+   *  `BuscarPersonaPorCedula`. Se usa en lugar de descargar un combo con todas las personas.
+   *  La tarjeta de resultado muestra nombre, categoría y estado antes de guardar el id. */
+  buscarPersona?: {
+    soloTipo?: 'INTERNA' | 'EXTERNA'
+    soloActivas?: boolean
+  }
   /** Valor que el sistema arma a partir de otros campos del formulario, y que **sí se guarda**.
    *
    *  Distinto de `soloLectura` + `valorCalculado`, que enseña un valor pero no lo envía en el

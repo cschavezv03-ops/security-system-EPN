@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IdCard, Search, X } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import { validarCedula } from '../lib/validacion'
@@ -34,6 +34,9 @@ export function BuscarPersonaPorCedula({
   id = 'buscar-persona-cedula',
   soloTipo,
   onNoEncontrada,
+  personaInicial = null,
+  disabled = false,
+  embebido = false,
 }: {
   onSelect: (persona: PersonaCedula | null) => void
   /** Se avisa con la cédula ya validada cuando no existe esa persona, para que quien use el
@@ -51,12 +54,21 @@ export function BuscarPersonaPorCedula({
   /** Restringe el resultado al ámbito del módulo: GPI trabaja con personal interno y GPE con
    *  externo. Sin esto, desde GPI se puede acabar vinculando por error a un visitante. */
   soloTipo?: 'INTERNA' | 'EXTERNA'
+  /** Persona que ya tiene el registro al abrir un formulario de edición. */
+  personaInicial?: PersonaCedula | null
+  disabled?: boolean
+  /** Omite el `<Field>` propio cuando el motor de formularios ya aporta etiqueta, ayuda y error. */
+  embebido?: boolean
 }) {
   const [cedula, setCedula] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [persona, setPersona] = useState<PersonaCedula | null>(null)
   const [noEncontrada, setNoEncontrada] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (personaInicial?.id_persona) setPersona(personaInicial)
+  }, [personaInicial?.id_persona])
 
   const normal = cedula.replace(/\D/g, '')
   const errorFormato = validar ? validarCedula(normal) : null
@@ -111,8 +123,7 @@ export function BuscarPersonaPorCedula({
     onSelect(null)
   }
 
-  if (persona) {
-    return (
+  const contenido = persona ? (
       <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -120,14 +131,55 @@ export function BuscarPersonaPorCedula({
               <IdCard className="h-4 w-4" /> {persona.nombres} {persona.apellidos}
             </p>
             <p className="mt-0.5 text-xs text-ink-soft">
-              Cédula {persona.cedula} · {humanizar(persona.categoria?.codigo_categoria ?? persona.tipo_persona)} ·{' '}
+              Cédula {persona.cedula} · Categoría: {humanizar(persona.categoria?.codigo_categoria ?? persona.tipo_persona)} ·{' '}
               <Badge value={persona.estado} />
             </p>
           </div>
-          <button type="button" onClick={limpiar} className="rounded p-1 text-slate-400 hover:bg-white hover:text-navy" aria-label="Cambiar persona">
-            <X className="h-4 w-4" />
-          </button>
+          {!disabled && (
+            <button type="button" onClick={limpiar} className="rounded p-1 text-slate-400 hover:bg-white hover:text-navy" aria-label="Cambiar persona">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
+      </div>
+  ) : (
+    <>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          inputMode="numeric"
+          autoFocus={autoFocus}
+          disabled={disabled}
+          value={cedula}
+          maxLength={10}
+          onChange={(e) => {
+            setCedula(e.target.value.replace(/\D/g, '').slice(0, 10))
+            setNoEncontrada(false)
+            setError(null)
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), buscar())}
+          placeholder="Número de cédula"
+        />
+        <Button type="button" onClick={buscar} loading={buscando} disabled={disabled || !normal || (validar && !!errorFormato)}>
+          <Search className="h-4 w-4" /> Buscar
+        </Button>
+      </div>
+      {buscando && <p className={cx('mt-2 text-xs text-ink-soft')}>Buscando…</p>}
+      {noEncontrada && (
+        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          No se encontró una persona con esa cédula.
+        </p>
+      )}
+    </>
+  )
+
+  if (embebido) {
+    return (
+      <div>
+        {contenido}
+        {!persona && (error ?? (cedula && errorFormato ? errorFormato : null)) && (
+          <p className="mt-1 text-xs text-red">{error ?? errorFormato}</p>
+        )}
       </div>
     )
   }
@@ -139,31 +191,7 @@ export function BuscarPersonaPorCedula({
       error={error ?? (cedula && errorFormato ? errorFormato : null)}
       hint="10 dígitos."
     >
-      <div className="flex gap-2">
-        <Input
-          id={id}
-          inputMode="numeric"
-          autoFocus={autoFocus}
-          value={cedula}
-          maxLength={10}
-          onChange={(e) => {
-            setCedula(e.target.value.replace(/\D/g, '').slice(0, 10))
-            setNoEncontrada(false)
-            setError(null)
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), buscar())}
-          placeholder="Número de cédula"
-        />
-        <Button type="button" onClick={buscar} loading={buscando} disabled={!normal || (validar && !!errorFormato)}>
-          <Search className="h-4 w-4" /> Buscar
-        </Button>
-      </div>
-      {buscando && <p className={cx('mt-2 text-xs text-ink-soft')}>Buscando…</p>}
-      {noEncontrada && (
-        <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          No se encontró una persona con esa cédula.
-        </p>
-      )}
+      {contenido}
     </Field>
   )
 }

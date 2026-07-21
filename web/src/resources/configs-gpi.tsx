@@ -2,7 +2,7 @@ import type { ResourceConfig } from './types'
 import { CAT, humanizar } from '../lib/catalogos'
 import { fmtFecha } from '../lib/format'
 import { Badge } from '../components/ui'
-import { opcionesCatalogo, optCategorias, optEmpresas, opcionesTabla } from './opciones'
+import { opcionesCatalogo, optCategorias, optEmpresas } from './opciones'
 import { supabase } from '../lib/supabase'
 import {
   normalizarTelefono, validarCedula, validarCorreo, validarCorreoInstitucional,
@@ -164,7 +164,7 @@ export const cfgPersonaInternaDetalle: ResourceConfig = {
   titulo: 'Datos internos (cargo / unidad)',
   singular: 'Detalle interno',
   idField: 'id_persona',
-  select: '*, persona:persona(nombres, apellidos, cedula, categoria:categoria_persona(codigo_categoria))',
+  select: '*, persona:persona(id_persona, nombres, apellidos, cedula, correo, tipo_persona, estado, categoria:categoria_persona(codigo_categoria))',
   permisos: { select: ['GPI_PERSONA_DETALLE_SELECT'], insert: ['GPI_PERSONA_DETALLE_INSERT'], update: ['GPI_PERSONA_DETALLE_UPDATE'] },
   buscarEn: ['persona.cedula', 'persona.apellidos', 'cargo', 'unidad'],
   columnas: [
@@ -195,7 +195,11 @@ export const cfgPersonaInternaDetalle: ResourceConfig = {
     },
   ],
   campos: [
-    { name: 'id_persona', label: 'Persona interna', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'INTERNA' }), hint: 'Los demás campos se habilitan según su categoría.' },
+    {
+      name: 'id_persona', label: 'Cédula de la persona interna', type: 'cedula-busqueda',
+      required: true, editable: false, buscarPersona: { soloTipo: 'INTERNA', soloActivas: true },
+      hint: 'Al encontrarla se muestra su categoría, que determina qué campos se habilitan.',
+    },
     // Oculto: solo alimenta las reglas `visibleSi` de abajo.
     { name: '_categoria', label: '', persistir: false, visibleSi: () => false, derivarSiempreDesde: { campo: 'id_persona', calcular: categoriaDePersona } },
 
