@@ -60,7 +60,58 @@ Deno.serve(async (req) => {
     .eq('correo_electronico', email)
     .maybeSingle();
 
-  // 1) Bloqueo vigente: ni siquiera se comprueba la contraseña.
+  // 1) Estado ADMINISTRATIVO de la cuenta: lo decidio una persona, no un contador.
+  //
+  // Esta comprobacion faltaba, y su ausencia producia el peor mensaje posible. Al bloquear o
+  // dar de baja a alguien, el trigger `sincronizar_estado_auth` escribe banned_until en
+  // auth.users; GoTrue entonces rechaza el login, pero devuelve un error que aqui se traducia
+  // como "credenciales invalidas". Consecuencias:
+  //
+  //   - al usuario se le decia que su contraseña estaba mal, cuando era correcta;
+  //   - y encima se le contaban intentos fallidos que nunca cometio, asi que una cuenta ya
+  //     bloqueada acumulaba 4 de 5 "fallos" y amenazaba con bloquearse otra vez.
+  //
+  // `estado_usuario` se leia en el SELECT de arriba desde el principio... y no se usaba en
+  // ninguna parte. Ahora decide, y ANTES de tocar GoTrue, para que el intento no cuente.
+  //
+  // Nota de diseño: distinguir estos casos revela que la cuenta existe. Es una concesion
+  // deliberada — este es un sistema interno con correos institucionales predecibles, donde
+  // ocultar la existencia aporta poco, y en cambio decirle a alguien "su cuenta esta
+  // bloqueada, hable con el administrador" le ahorra media hora de llamadas creyendo que
+  // olvido su contraseña.
+  if (usuario && usuario.estado_usuario !== 'ACTIVO') {
+    const porEstado: Record<string, { codigo: string; mensaje: string }> = {
+      BLOQUEADO: {
+        codigo: 'account_blocked',
+        mensaje:
+          'Su cuenta esta bloqueada por un administrador. No es un problema de contraseña: ' +
+          'comuniquese con el administrador del sistema para que la desbloquee.',
+      },
+      DADO_DE_BAJA: {
+        codigo: 'account_disabled',
+        mensaje:
+          'Su cuenta fue dada de baja y ya no permite el ingreso al sistema. ' +
+          'Si cree que es un error, comuniquese con el administrador del sistema.',
+      },
+      INACTIVO: {
+        codigo: 'account_inactive',
+        mensaje:
+          'Su cuenta esta inactiva y no permite el ingreso. ' +
+          'Comuniquese con el administrador del sistema para reactivarla.',
+      },
+    };
+
+    const caso = porEstado[usuario.estado_usuario] ?? {
+      codigo: 'account_disabled',
+      mensaje:
+        'Su cuenta no se encuentra activa y no permite el ingreso. ' +
+        'Comuniquese con el administrador del sistema.',
+    };
+
+    return jsonResponse({ error_code: caso.codigo, message: caso.mensaje }, 403);
+  }
+
+  // 2) Bloqueo TEMPORAL por intentos fallidos: ni siquiera se comprueba la contraseña.
   if (usuario?.bloqueado_hasta && new Date(usuario.bloqueado_hasta) > new Date()) {
     const minutos = Math.max(
       1,
@@ -78,11 +129,11 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 2) Verificacion real de credenciales contra GoTrue.
+  // 3) Verificacion real de credenciales contra GoTrue.
   const anon = createClient(url, anonKey, { auth: { persistSession: false } });
   const { data: sesion, error } = await anon.auth.signInWithPassword({ email, password });
 
-  // 3) Se registra el resultado y se aplica la politica.
+  // 4) Se registra el resultado y se aplica la politica.
   let estado: Record<string, unknown> | null = null;
   if (usuario?.id_usuario) {
     const { data } = await admin.rpc('registrar_intento_login', {
@@ -119,7 +170,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  // 4) Credenciales correctas: se devuelve la sesion para que el cliente la instale.
+  // 5) Credenciales correctas: se devuelve la sesion para que el cliente la instale.
   return jsonResponse({
     access_token: sesion.session?.access_token,
     refresh_token: sesion.session?.refresh_token,

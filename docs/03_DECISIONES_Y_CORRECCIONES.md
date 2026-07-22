@@ -1412,7 +1412,7 @@ Un acceso perimetral pertenece al campus y a ningún edificio: es un caso legít
 excepción que hubiera que tolerar.
 
 
-## §D83 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
+## §D90 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
 
 **Conflicto:** las motos se podían **registrar** sin problema —`validarPlacaTipo('MOTOCICLETA')`
 acepta los dos formatos vigentes— pero en la garita no se leía ninguna. El alta funcionaba y la
@@ -1626,3 +1626,54 @@ De paso se corrige una regla que iba más lejos que la tabla: la RPC de alta exi
 fin fuese *estrictamente* posterior a la de inicio, y con las fechas heredadas eso dejaba fuera un
 caso normal en GPE, el memorando que autoriza una entrega para un único día. El CHECK de
 `persona_vehiculo` siempre admitió la igualdad; ahora la RPC también.
+
+## §D91 — Cada motivo de rechazo del login dice lo suyo
+
+**Conflicto:** a una cuenta bloqueada o dada de baja por un administrador, el login le
+respondía **"Correo o contraseña incorrectos. Le quedan N intentos..."**. Era falso en dos
+sentidos a la vez: la contraseña estaba bien, y el problema no se arreglaba tecleando mejor.
+
+**La cadena del fallo:**
+
+1. ADM bloquea a alguien → el trigger `sincronizar_estado_auth` (§bloqueo efectivo) escribe
+   `auth.users.banned_until`, que es lo que hace el bloqueo real.
+2. La persona intenta entrar → `iniciar-sesion` comprueba `bloqueado_hasta`, que es **NULL**
+   (esa columna es del bloqueo *temporal* por intentos, no del administrativo) → sigue adelante.
+3. Llama a GoTrue → GoTrue rechaza por `banned_until`.
+4. **La función no distinguía ese rechazo del de una contraseña equivocada** y lo devolvía como
+   `invalid_credentials`.
+5. Y antes de eso ya había llamado a `registrar_intento_login`, que **incrementaba el contador
+   de intentos fallidos** de alguien que había tecleado su contraseña correctamente.
+
+Medido en la base al diagnosticarlo: `jungkook.jeon` (BLOQUEADO) acumulaba **4 intentos
+fallidos de 5** y `gary.defas` (DADO_DE_BAJA) **1**, ninguno real. La cuenta bloqueada estaba a
+un intento de "bloquearse" otra vez, por un camino que nadie había recorrido.
+
+**Dónde estaba escondido:** la función ya leía `estado_usuario` en su `SELECT` desde el
+principio —y no lo usaba en ninguna parte—. Y `web/src/lib/errores.ts` ya tenía las traducciones
+de `user_banned` y `'user is banned'`, **inalcanzables**, porque la Edge Function convertía el
+error de GoTrue en `invalid_credentials` antes de que el cliente pudiera verlo. Dos piezas
+correctas que no se llamaban.
+
+**Decisión: el estado administrativo se comprueba ANTES de tocar GoTrue**, y cada causa tiene su
+código y su mensaje:
+
+| Situación | Código | Qué se le dice, y por qué |
+|---|---|---|
+| Bloqueado por un admin | `account_blocked` | Que **no es la contraseña** y que hable con el administrador |
+| Dado de baja | `account_disabled` | Que la cuenta ya no sirve. **No** se menciona desbloqueo: no va a llegar |
+| Inactivo | `account_inactive` | Que hay que reactivarla |
+| 5 intentos fallidos | `account_locked` | **Cuántos minutos faltan** — es el único caso donde esperar sirve |
+| Contraseña incorrecta | `invalid_credentials` | Cuántos intentos quedan |
+
+Comprobarlo antes de GoTrue es lo que además **deja de contar intentos falsos**: una cuenta
+bloqueada ya no acumula fallos que no cometió.
+
+**Los contadores inflados no se limpian a mano:** el trigger `trg_limpiar_bloqueo_al_activar` ya
+pone `intentos_fallidos = 0` cuando el administrador reactiva la cuenta. Verificado contra la
+base en una transacción con `ROLLBACK`.
+
+**Concesión deliberada:** distinguir estos casos revela que la cuenta existe. Se acepta a
+conciencia — es un sistema interno con correos institucionales predecibles, donde ocultar la
+existencia aporta poco frente a lo que cuesta que una persona pase media hora convencida de que
+olvidó su contraseña cuando en realidad la habían dado de baja.
