@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  VARIANTES_OCR, aplicarVariante, corregirPlacaOcr, extraerPlacaDeTexto, normalizarPlacaLeida,
-  pareceePlacaEcuatoriana, type ImagenCruda,
+  GEOMETRIA_PLACA, VARIANTES_OCR, aplicarVariante, corregirPlacaOcr, extraerPlacaDeTexto,
+  normalizarPlacaLeida, pareceePlacaEcuatoriana, type ImagenCruda,
 } from './placas'
 
 /**
@@ -172,5 +172,75 @@ describe('variantes de preprocesado', () => {
     // pruebas dice que SUAVIZADA es la que mejor se porta con fotos de pantalla.
     expect(VARIANTES_OCR.length).toBeGreaterThan(1)
     expect(VARIANTES_OCR[0]).toBe('SUAVIZADA')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Placas de motocicleta
+// ---------------------------------------------------------------------------
+
+describe('placa de moto: el código viene en dos líneas', () => {
+  // Una placa de moto ecuatoriana no es una de auto más pequeña: lleva el código repartido en
+  // dos renglones. El OCR devuelve entonces dos trozos de tres caracteres, y el filtro normal
+  // los descarta por cortos — por eso hace falta unirlos antes de buscar.
+  it('une los dos renglones cuando se pide modo multilínea', () => {
+    expect(extraerPlacaDeTexto('ECUADOR\nXLL\n446\nCOTOPAXI', true)).toBe('XLL446')
+    expect(extraerPlacaDeTexto('ECUADOR\nIA\n123B\nIMBABURA', true)).toBe('IA123B')
+  })
+
+  it('corrige las erratas del OCR también al unir los renglones', () => {
+    // La I de la segunda línea está en zona de dígitos: es un 1.
+    expect(extraerPlacaDeTexto('ECUADOR\nPCI\n5I4\nPICHINCHA', true)).toBe('PCI514')
+  })
+
+  it('no confunde ECUADOR ni la provincia con parte del código', () => {
+    // Están impresos en la placa; si se colaran en la unión formarían placas fantasma.
+    expect(extraerPlacaDeTexto('ECUADOR\nGUAYAS', true)).toBeNull()
+  })
+
+  it('sin modo multilínea, el formato de 2 letras devuelve una placa EQUIVOCADA', () => {
+    // Este es el caso que más importa de todos, y no es que "no lea": es que lee MAL.
+    //
+    // Sin unir renglones, el último recurso pega todo el texto —"ECUADORIA123BIMBABURA"— y
+    // busca el patrón dentro. Encuentra "RIA123", comiéndose la R final de ECUADOR y el
+    // último carácter de la placa. Devuelve con aplomo una placa que no existe.
+    //
+    // Una lectura equivocada es peor que ninguna: si esa placa fantasma existiera en la base,
+    // el sistema autorizaría al vehículo de otra persona.
+    expect(extraerPlacaDeTexto('ECUADOR\nIA\n123B\nIMBABURA', false)).toBe('RIA123')
+    expect(extraerPlacaDeTexto('ECUADOR\nIA\n123B\nIMBABURA', true)).toBe('IA123B')
+  })
+
+  it('el modo multilínea está apagado por defecto', () => {
+    // La garantía de que arreglar las motos no cambió el camino de los autos: quien llame sin
+    // el segundo argumento obtiene exactamente el comportamiento anterior.
+    const texto = 'ECUADOR\nPDF-1234\nPICHINCHA'
+    expect(extraerPlacaDeTexto(texto)).toBe(extraerPlacaDeTexto(texto, false))
+    expect(extraerPlacaDeTexto(texto)).toBe('PDF1234')
+  })
+})
+
+describe('geometría y modo de lectura por tipo de placa', () => {
+  it('el auto conserva exactamente el marco y el modo que ya tenía', () => {
+    // Si estos números cambian, el camino de auto —que funciona— se ha tocado.
+    expect(GEOMETRIA_PLACA.AUTO).toEqual({
+      anchoRel: 0.70, altoRel: 0.26, psm: '7', multilinea: false,
+    })
+  })
+
+  it('la moto usa un marco casi cuadrado y el modo que ve varias líneas', () => {
+    const moto = GEOMETRIA_PLACA.MOTO
+    // La placa de moto es ~1.33:1; el marco tiene que acercarse a esa forma para que la
+    // placa lo llene en vez de ocupar una cuarta parte.
+    const relacionMarco = (moto.anchoRel * 4) / (moto.altoRel * 3) // sobre un vídeo 4:3
+    expect(relacionMarco).toBeLessThan(1.6)
+    // PSM 7 significa "una sola línea" y con él se lee el 0 % de las motos.
+    expect(moto.psm).not.toBe('7')
+    expect(moto.multilinea).toBe(true)
+  })
+
+  it('el marco de la moto es más alto y más estrecho que el del auto', () => {
+    expect(GEOMETRIA_PLACA.MOTO.altoRel).toBeGreaterThan(GEOMETRIA_PLACA.AUTO.altoRel)
+    expect(GEOMETRIA_PLACA.MOTO.anchoRel).toBeLessThan(GEOMETRIA_PLACA.AUTO.anchoRel)
   })
 })

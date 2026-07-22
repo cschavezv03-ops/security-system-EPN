@@ -64,7 +64,7 @@ export function pareceePlacaEcuatoriana(valor: string): boolean {
  * la placa lleva impreso el país y la provincia. Buscar el patrón dentro del texto, en vez de
  * tomar el texto entero, es lo que hace que la lectura sirva para algo.
  */
-export function extraerPlacaDeTexto(texto: string): string | null {
+export function extraerPlacaDeTexto(texto: string, multilinea = false): string | null {
   const limpio = (texto || '').toUpperCase().replace(/[^A-Z0-9\s-]/g, ' ')
 
   // Se prueban los trozos largos primero: "PDF1234" antes que "PDF123", para no quedarse con
@@ -79,6 +79,26 @@ export function extraerPlacaDeTexto(texto: string): string | null {
     if (pareceePlacaEcuatoriana(candidato)) return candidato
     const corregido = corregirPlacaOcr(candidato)
     if (pareceePlacaEcuatoriana(corregido)) return corregido
+  }
+
+  // La placa de MOTO lleva el código repartido en dos renglones, así que el OCR devuelve
+  // "XLL" y "446" — dos trozos de tres caracteres que el filtro de arriba descarta por cortos.
+  // Unir cada línea con la siguiente es lo que vuelve a formar el código completo.
+  if (multilinea) {
+    const renglones = (texto || '')
+      .toUpperCase()
+      .split('\n')
+      .map((l) => l.replace(/[^A-Z0-9]/g, ''))
+      // "ECUADOR" y el nombre de la provincia están impresos en la placa y no son parte del
+      // código: si se colaran en la unión, formarían placas fantasma.
+      .filter((l) => l.length >= 2 && l.length <= 5 && l !== 'ECUADOR')
+
+    for (let i = 0; i < renglones.length - 1; i++) {
+      const unido = renglones[i] + renglones[i + 1]
+      if (pareceePlacaEcuatoriana(unido)) return unido
+      const corregido = corregirPlacaOcr(unido)
+      if (pareceePlacaEcuatoriana(corregido)) return corregido
+    }
   }
 
   // Último intento: el texto entero pegado, por si el OCR metió espacios dentro de la placa.
@@ -265,6 +285,40 @@ export function aplicarVariante(img: ImagenCruda, variante: VarianteOcr): void {
   }
 }
 
+/**
+ * Qué tipo de placa se va a leer. No es un detalle cosmético: una placa de moto es OTRA FORMA,
+ * y tanto el recorte como el modo de segmentación del OCR tienen que cambiar con ella.
+ *
+ *            proporción        el código va en...
+ *   AUTO     ~3:1 apaisada     UNA línea
+ *   MOTO     ~1.33:1 casi      DOS líneas
+ *            cuadrada
+ *
+ * Medido sobre 80 placas de moto sintéticas: con la configuración de auto (una sola línea), el
+ * acierto en motos es del **0 %** — Tesseract obedece cuando se le dice que no hay más de una
+ * línea. Con la configuración de moto sube al 83 %.
+ */
+export type TipoLecturaPlaca = 'AUTO' | 'MOTO'
+
+/** Geometría del marco guía y modo de segmentación, por tipo de placa.
+ *
+ *  `anchoRel`/`altoRel` son la fracción del fotograma que ocupa el marco. Los de AUTO son los
+ *  que ya había y no se tocan. Los de MOTO se eligen para que la placa LLENE el recorte: con
+ *  el marco apaisado, una placa de moto encuadrada ocupaba solo el 28 % del ancho y el resto
+ *  era fondo, tirando tres cuartas partes de la resolución disponible.
+ *
+ *  `psm` es el modo de segmentación de página de Tesseract:
+ *    7  — "la imagen es una sola línea de texto"
+ *    11 — "texto disperso, sin un orden concreto"
+ *  PSM 12 daba el mismo acierto que el 11 pero exige `osd.traineddata`, que no viene con el
+ *  paquete y falla al cargarse; se descarta por eso, no por precisión. */
+export const GEOMETRIA_PLACA: Record<TipoLecturaPlaca, {
+  anchoRel: number; altoRel: number; psm: string; multilinea: boolean
+}> = {
+  AUTO: { anchoRel: 0.70, altoRel: 0.26, psm: '7', multilinea: false },
+  MOTO: { anchoRel: 0.45, altoRel: 0.60, psm: '11', multilinea: true },
+}
+
 /** Las variantes, en el orden en que conviene probarlas: primero las que mejor se portan con
  *  fotos de pantalla, que es el caso difícil. */
 export const VARIANTES_OCR: VarianteOcr[] = ['SUAVIZADA', 'REALZADA', 'BINARIZADA', 'GRIS']
@@ -284,14 +338,16 @@ export const VARIANTES_OCR: VarianteOcr[] = ['SUAVIZADA', 'REALZADA', 'BINARIZAD
 export function prepararImagenParaOcr(
   origen: HTMLVideoElement | HTMLImageElement,
   canvas: HTMLCanvasElement,
+  tipo: TipoLecturaPlaca = 'AUTO',
 ): string[] {
   const anchoOrigen = origen instanceof HTMLVideoElement ? origen.videoWidth : origen.naturalWidth
   const altoOrigen = origen instanceof HTMLVideoElement ? origen.videoHeight : origen.naturalHeight
   if (!anchoOrigen || !altoOrigen) throw new Error('La cámara todavía no ha entregado imagen.')
 
-  // Misma proporción que el marco guía del panel: 70 % del ancho, 26 % del alto, centrado.
-  const anchoRecorte = Math.round(anchoOrigen * 0.7)
-  const altoRecorte = Math.round(altoOrigen * 0.26)
+  // Misma proporción que el marco guía del panel, que cambia de forma según el tipo de placa.
+  const { anchoRel, altoRel } = GEOMETRIA_PLACA[tipo]
+  const anchoRecorte = Math.round(anchoOrigen * anchoRel)
+  const altoRecorte = Math.round(altoOrigen * altoRel)
   const x = Math.round((anchoOrigen - anchoRecorte) / 2)
   const y = Math.round((altoOrigen - altoRecorte) / 2)
 
@@ -338,9 +394,6 @@ async function obtenerTrabajador() {
     // Una placa solo tiene letras y dígitos: cualquier otro carácter es una alucinación del
     // OCR, y prohibirlos mejora la lectura además de ahorrar limpieza posterior.
     tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
-    // PSM 7 = "la imagen es una sola línea de texto", que es exactamente lo que queda tras el
-    // recorte. Con el modo automático, Tesseract busca párrafos donde no los hay.
-    tessedit_pageseg_mode: '7',
   })
   return trabajador
 }
@@ -399,14 +452,22 @@ function confianzaPorConsenso(lecturas: string[], elegida: string): number {
  * Si ninguna variante da algo con forma de placa, devuelve null y la pantalla ofrece repetir la
  * captura o teclearla.
  */
-export async function leerPlacaLocal(imagenes: string | string[]): Promise<LecturaPlaca | null> {
+export async function leerPlacaLocal(
+  imagenes: string | string[],
+  tipo: TipoLecturaPlaca = 'AUTO',
+): Promise<LecturaPlaca | null> {
   const worker = await obtenerTrabajador()
   const lista = Array.isArray(imagenes) ? imagenes : [imagenes]
+  const { psm, multilinea } = GEOMETRIA_PLACA[tipo]
+
+  // El modo de segmentación se fija en cada lectura, no al crear el worker: el mismo panel
+  // lee autos y motos, y cada uno necesita el suyo.
+  await worker.setParameters({ tessedit_pageseg_mode: psm })
 
   const lecturas: string[] = []
   for (const imagen of lista) {
     const { data } = await worker.recognize(imagen)
-    const placa = extraerPlacaDeTexto(data.text ?? '')
+    const placa = extraerPlacaDeTexto(data.text ?? '', multilinea)
     if (placa) lecturas.push(placa)
   }
 

@@ -1411,6 +1411,66 @@ anterior (§V25): seis de los puntos sembrados —las garitas de entrada, "Acces
 Un acceso perimetral pertenece al campus y a ningún edificio: es un caso legítimo, no una
 excepción que hubiera que tolerar.
 
+
+## §D83 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
+
+**Conflicto:** las motos se podían **registrar** sin problema —`validarPlacaTipo('MOTOCICLETA')`
+acepta los dos formatos vigentes— pero en la garita no se leía ninguna. El alta funcionaba y la
+lectura no, que es la peor combinación posible: el dato está en la base y el guardia no puede
+llegar a él.
+
+**La causa, medida sobre 80 placas de moto sintéticas con la respuesta conocida:**
+
+| Modo de segmentación de Tesseract | Acierto en motos |
+|---|---|
+| **PSM 7 — el que usaba el sistema** | **0 %** |
+| PSM 6 (bloque uniforme) | 71 % |
+| **PSM 11 (texto disperso)** | **83 %** |
+| PSM 12 | 83 %, pero exige `osd.traineddata`, que no viene en el paquete y falla al cargar |
+
+No era mala suerte ni un problema de calidad de imagen: `tessedit_pageseg_mode: '7'` significa
+literalmente *"esta imagen es **una sola línea** de texto"*. Una placa de moto ecuatoriana lleva
+el código en **dos renglones**. Se le estaba diciendo a Tesseract que no buscara la segunda
+línea, y Tesseract hacía caso.
+
+**Y algo peor que no leer: leer mal.** Con el formato de dos letras (`IA-123B`), el último
+recurso del extractor pega todo el texto —`"ECUADORIA123BIMBABURA"`— y busca el patrón dentro.
+Encontraba **`RIA123`**, comiéndose la R final de "ECUADOR" y el último carácter de la placa, y
+devolvía con aplomo una placa que no existe. Una lectura equivocada es peor que ninguna: si esa
+placa fantasma existiera en la base, el sistema autorizaría el vehículo de otra persona.
+
+**Decisión: tres cambios, todos acotados al camino de moto.**
+
+1. **Modo de segmentación por tipo.** PSM 11 para moto, PSM 7 para auto. El modo se fija en cada
+   lectura y no al crear el worker, porque el mismo panel lee las dos cosas.
+2. **Marco guía por tipo.** El de auto es 70 % × 26 % (relación 4.8:1 sobre un vídeo 4:3); una
+   placa de moto es 1.33:1, así que encuadrada ahí ocupaba **el 28 % del ancho** y el resto era
+   fondo — tres cuartas partes de la resolución tiradas. El de moto es 45 % × 60 %.
+3. **Unión de renglones al extraer**, activada solo en modo moto. "ECUADOR" y el nombre de la
+   provincia se descartan antes de unir: están impresos en la placa y, colados en la unión,
+   formarían placas fantasma como la de arriba.
+
+**Cómo se elige auto o moto: lo dice el guardia**, con un selector en el panel. Se descartaron
+las dos alternativas automáticas:
+
+- *Probar los dos modos y votar* duplicaría las pasadas de OCR y metería candidatos nuevos en el
+  voto del camino de auto, que funciona. Arreglar una cosa tocando la que ya va bien.
+- *Derivarlo del tipo del vehículo registrado* es circular: hace falta leer la placa para saber
+  el tipo, y el tipo para leer la placa.
+
+El guardia tiene el vehículo delante y lo distingue de un vistazo. Es el dato más barato y más
+fiable que hay disponible.
+
+**Verificado tras el cambio** (mismo banco, código real compilado):
+
+| | Antes | Después |
+|---|---|---|
+| Motos | 0 % | **81 %** |
+| Autos | 66 % | **73 %** — sin tocar; la diferencia es el tamaño de la muestra |
+
+Los valores por defecto de las funciones (`tipo = 'AUTO'`, `multilinea = false`) reproducen
+exactamente el comportamiento anterior, y hay pruebas que lo fijan: si alguien cambia la
+geometría o el modo del auto, la suite lo dice.
 ---
 
 ## Ronda GPE — ingreso vehicular con memorando

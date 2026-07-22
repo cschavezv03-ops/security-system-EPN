@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera as CamIcon, Check, Image as ImageIcon, ScanLine, VideoOff, X } from 'lucide-react'
+import { Bike, Camera as CamIcon, Car, Check, Image as ImageIcon, ScanLine, VideoOff, X } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import {
-  corregirPlacaOcr, leerPlacaLocal, liberarLectorLocal, normalizarPlacaLeida,
-  prepararImagenParaOcr, type LecturaPlaca,
+  GEOMETRIA_PLACA, corregirPlacaOcr, leerPlacaLocal, liberarLectorLocal, normalizarPlacaLeida,
+  prepararImagenParaOcr, type LecturaPlaca, type TipoLecturaPlaca,
 } from '../lib/placas'
 import { formatearPlaca, validarPlacaTipo } from '../lib/validacion'
 import { mensajeDeErrorDeCamara } from '../lib/errores-camara'
@@ -62,6 +62,10 @@ export function LectorPlaca({
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [placaManual, setPlacaManual] = useState('')
+  // Auto o moto. Lo elige el guardia, que tiene el vehículo delante y lo sabe de un vistazo.
+  // No se adivina: una placa de moto lleva el código en dos líneas y necesita otro recorte y
+  // otro modo de OCR; con la configuración de auto se lee el 0 % de ellas (§D83).
+  const [tipoPlaca, setTipoPlaca] = useState<TipoLecturaPlaca>('AUTO')
 
   useEffect(() => {
     return () => {
@@ -142,7 +146,7 @@ export function LectorPlaca({
     setAviso(null)
     setLeyendo(true)
     try {
-      const variantes = prepararImagenParaOcr(origen, canvasRef.current!)
+      const variantes = prepararImagenParaOcr(origen, canvasRef.current!, tipoPlaca)
 
       // 1. Motor en la nube. Se le manda el recorte ya preparado, no la foto entera. Y de las
       //    variantes, la primera (SUAVIZADA): el lector de la nube localiza la placa por su
@@ -180,7 +184,7 @@ export function LectorPlaca({
         )
         // Al lector local sí se le dan todas: es gratis, corre aquí, y el acuerdo entre las
         // variantes es lo que da la confianza de la lectura.
-        const lectura = await leerPlacaLocal(variantes)
+        const lectura = await leerPlacaLocal(variantes, tipoPlaca)
         if (!lectura) {
           await registrarErrorTecnico(
             'PLACA_NO_LEGIBLE',
@@ -231,7 +235,7 @@ export function LectorPlaca({
     // ganar nada: la corrección no puede convertir una placa en otra placa válida distinta,
     // porque solo toca caracteres que estaban en la clase equivocada.
     const placa = corregirPlacaOcr(tecleada)
-    const errorFormato = validarPlacaTipo('AUTOMOVIL')(placa)
+    const errorFormato = validarPlacaTipo(tipoPlaca === 'MOTO' ? 'MOTOCICLETA' : 'AUTOMOVIL')(placa)
     if (errorFormato) { setError(errorFormato); return }
 
     setError(null)
@@ -251,8 +255,41 @@ export function LectorPlaca({
     }
   }
 
+  const cambiarTipo = (nuevo: TipoLecturaPlaca) => {
+    setTipoPlaca(nuevo)
+    setError(null)
+    setAviso(null)
+  }
+
   return (
     <div>
+      {/* Auto o moto. Cambia la forma del marco y el modo con el que se lee: no es una
+          preferencia, es lo que decide si la placa se puede leer o no. */}
+      <div className="mb-2 inline-flex rounded-lg border border-slate-300 bg-white p-1" role="group" aria-label="Tipo de vehículo">
+        <button
+          type="button"
+          aria-pressed={tipoPlaca === 'AUTO'}
+          onClick={() => cambiarTipo('AUTO')}
+          className={
+            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ' +
+            (tipoPlaca === 'AUTO' ? 'bg-navy text-white' : 'text-ink-soft hover:bg-slate-100')
+          }
+        >
+          <Car className="h-4 w-4" /> Auto
+        </button>
+        <button
+          type="button"
+          aria-pressed={tipoPlaca === 'MOTO'}
+          onClick={() => cambiarTipo('MOTO')}
+          className={
+            'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ' +
+            (tipoPlaca === 'MOTO' ? 'bg-navy text-white' : 'text-ink-soft hover:bg-slate-100')
+          }
+        >
+          <Bike className="h-4 w-4" /> Moto
+        </button>
+      </div>
+
       <div
         className="relative overflow-hidden rounded-lg border border-slate-300 bg-slate-900"
         style={{ aspectRatio: '4/3' }}
@@ -262,9 +299,17 @@ export function LectorPlaca({
         {activa && (
           // Marco guía: delimita exactamente lo que se recorta para el OCR.
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="rounded-md border-2 border-dashed border-emerald-400/80" style={{ width: '70%', height: '26%' }}>
+            <div
+              className="rounded-md border-2 border-dashed border-emerald-400/80"
+              style={{
+                width: `${GEOMETRIA_PLACA[tipoPlaca].anchoRel * 100}%`,
+                height: `${GEOMETRIA_PLACA[tipoPlaca].altoRel * 100}%`,
+              }}
+            >
               <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/60 px-2 py-0.5 text-[11px] text-white">
-                Encuadre la placa dentro del marco
+                {tipoPlaca === 'MOTO'
+                  ? 'Encuadre la placa de la moto: las dos líneas dentro del marco'
+                  : 'Encuadre la placa dentro del marco'}
               </span>
             </div>
           </div>
@@ -329,7 +374,7 @@ export function LectorPlaca({
             value={placaManual}
             onChange={(e) => setPlacaManual(e.target.value.toUpperCase())}
             onKeyDown={(e) => e.key === 'Enter' && usarPlacaManual()}
-            placeholder="PDF-1234"
+            placeholder={tipoPlaca === 'MOTO' ? 'IA-123B' : 'PDF-1234'}
             maxLength={9}
           />
           <Button variant="secondary" onClick={usarPlacaManual} loading={leyendo} disabled={!placaManual.trim()}>
