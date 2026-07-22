@@ -5,6 +5,7 @@ import { fromTable, mensajeError, supabase } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { useBorrador } from '../lib/useBorrador'
 import { validarCedula } from '../lib/validacion'
+import { normalizarBusqueda } from '../lib/busqueda'
 import { hoyISO } from '../lib/format'
 import type { FieldConfig, Opcion, ResourceConfig } from '../resources/types'
 import { BuscarPersonaPorCedula, type PersonaCedula } from './BuscarPersonaPorCedula'
@@ -127,14 +128,14 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
 
   const filtradas = useMemo(() => {
     let out = rows
-    const t = busqueda.trim().toLowerCase()
+    const t = normalizarBusqueda(busqueda.trim())
     // Segunda pasada ignorando separadores: la placa se guarda canónica ("PDF1234") pero el
     // usuario la teclea como la ve en el vehículo ("PDF-1234"). Mismo caso para MAC y cédula.
     const tPlano = t.replace(/[^a-z0-9]/g, '')
     if (t && config.buscarEn?.length) {
       out = out.filter((r) =>
         config.buscarEn!.some((campo) => {
-          const v = String(leerRuta(r, campo) ?? '').toLowerCase()
+          const v = normalizarBusqueda(leerRuta(r, campo))
           return v.includes(t) || (tPlano.length > 0 && v.replace(/[^a-z0-9]/g, '').includes(tPlano))
         }),
       )
@@ -208,6 +209,7 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
         {config.filtros?.map((f) => (
           <Select
             key={f.campo}
+            aria-label={f.label}
             value={filtrosValor[f.campo] ?? ''}
             onChange={(e) => setFiltrosValor((s) => ({ ...s, [f.campo]: e.target.value }))}
             placeholder={f.label}
@@ -331,7 +333,13 @@ export function ResourceScreen({ config }: { config: ResourceConfig }) {
                   actual de la fila. Antes solo existía el de baja, así que inactivar una zona
                   no tenía vuelta atrás desde la ficha (feedback PCO). */}
               {config.baja && puedeEditar && !estaDadoDeBaja(config, seleccion) && (
-                <Button variant="danger" className="flex-1" onClick={() => setBajaOpen(true)}>
+                <Button
+                  variant="danger"
+                  className="flex-1"
+                  disabled={!!config.baja.bloqueadaSi?.(seleccion)}
+                  title={config.baja.bloqueadaSi?.(seleccion) ?? undefined}
+                  onClick={() => setBajaOpen(true)}
+                >
                   <Ban className="h-4 w-4" /> {config.baja.etiqueta ?? 'Dar de baja'}
                 </Button>
               )}
@@ -428,14 +436,14 @@ function ListaSeleccionMultiple({
   const [filtro, setFiltro] = useState('')
 
   const visibles = useMemo(() => {
-    const t = filtro.trim().toLowerCase()
+    const t = normalizarBusqueda(filtro.trim())
     if (!t) return opciones
     // Sin quitar las tildes, buscar "amangandi" no encontraría a "Amangandí", que es justo lo
     // que se teclea cuando se copia una cédula de un papel y el apellido de memoria.
-    const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '')
+    const plano = (s: string) => normalizarBusqueda(s).replace(/[^a-z0-9]/g, '')
     const tPlano = plano(t)
     return opciones.filter((o) => {
-      const l = o.label.toLowerCase()
+      const l = normalizarBusqueda(o.label)
       return l.includes(t) || (tPlano.length > 0 && plano(l).includes(tPlano))
     })
   }, [opciones, filtro])

@@ -393,6 +393,21 @@ export function validarValorParametro(tipoDato: string, valor: string): string |
 /** El `required` del formulario deja pasar " ": esto no. */
 export const validarNoVacio: Validador = (v) => (v && !v.trim() ? 'No puede ser solo espacios.' : null)
 
+/** El código único empieza por el año de matrícula. El resto no tiene una longitud
+ *  institucional fijada, pero sí está formado por dígitos. El máximo avanza con el año para
+ *  que la validación no caduque al cambiar el calendario. */
+export const validarCodigoUnico: Validador = (v) => {
+  if (!v) return null
+  if (!/^[0-9]+$/.test(v)) return 'El código único solo puede contener números.'
+  if (v.length < 5) return 'El código único debe incluir el año de matrícula y al menos un número adicional.'
+  const anio = Number(v.slice(0, 4))
+  const actual = new Date().getFullYear()
+  if (anio < 1970 || anio > actual) {
+    return `Los primeros cuatro números deben ser un año de matrícula entre 1970 y ${actual}.`
+  }
+  return null
+}
+
 /** Espejo de `public.es_nombre_con_mayuscula`. PCO: "validar que todos los nombres empiecen con
  *  mayúscula en TODO el sistema" — aplicado por ahora a zona y punto de control, que es lo que
  *  trae ese documento (ver 99_DUDAS_PARA_EL_EQUIPO.md sobre el resto de módulos). */

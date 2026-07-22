@@ -147,29 +147,11 @@ export async function iniciarSesion(email: string, password: string): Promise<st
 
   // El mensaje se compone aquí para garantizar la ortografía en español.
   //
-  // Los tres estados administrativos se distinguen entre sí a propósito: para quien está
-  // delante de la pantalla no es lo mismo "el administrador te bloqueó" (se arregla llamándole)
-  // que "tu cuenta ya no existe para el sistema" (no se arregla). Antes los tres —y también la
+  // Cada estado administrativo tiene su mensaje a propósito: para quien está delante de la
+  // pantalla no es lo mismo "el administrador te bloqueó" (se arregla llamándole) que "tu
+  // cuenta ya no existe para el sistema" (no se arregla). Antes los tres —y también la
   // contraseña correcta de una cuenta bloqueada— caían en el mismo "correo o contraseña
   // incorrectos", que era falso y además no decía qué hacer.
-  if (datos.error_code === 'account_blocked') {
-    return (
-      'Su cuenta está bloqueada por un administrador. No es un problema de contraseña: ' +
-      'comuníquese con el administrador del sistema para que la desbloquee.'
-    )
-  }
-  if (datos.error_code === 'account_disabled') {
-    return (
-      'Su cuenta fue dada de baja y ya no permite el ingreso al sistema. ' +
-      'Si cree que es un error, comuníquese con el administrador del sistema.'
-    )
-  }
-  if (datos.error_code === 'account_inactive') {
-    return (
-      'Su cuenta está inactiva y no permite el ingreso. ' +
-      'Comuníquese con el administrador del sistema para reactivarla.'
-    )
-  }
   if (datos.error_code === 'account_locked') {
     const min = datos.minutos_restantes
     return (
@@ -179,6 +161,18 @@ export async function iniciarSesion(email: string, password: string): Promise<st
         : 'Podrá intentarlo más tarde, ') +
       'o solicitar el desbloqueo al administrador.'
     )
+  }
+  if (datos.error_code === 'account_blocked_by_admin') {
+    return 'La cuenta fue bloqueada por el administrador. Solicite su desbloqueo.'
+  }
+  if (datos.error_code === 'account_deactivated') {
+    return 'La cuenta fue dada de baja. Solicite su reactivación al administrador.'
+  }
+  if (datos.error_code === 'account_inactive') {
+    return 'La cuenta está inactiva. Solicite su activación al administrador.'
+  }
+  if (datos.error_code === 'account_state_unavailable') {
+    return 'No se pudo verificar el estado de la cuenta. Inténtelo nuevamente.'
   }
   if (datos.error_code === 'invalid_credentials') {
     const quedan = datos.intentos_restantes

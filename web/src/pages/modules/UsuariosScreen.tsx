@@ -9,6 +9,7 @@ import {
 } from '../../components/ui'
 import { ROL_LABEL, humanizar } from '../../lib/catalogos'
 import { validarCorreoInstitucional, validarNombreUsuario } from '../../lib/validacion'
+import { normalizarBusqueda } from '../../lib/busqueda'
 import { useBorrador } from '../../lib/useBorrador'
 import { BuscarPersonaPorCedula, type PersonaCedula } from '../../components/BuscarPersonaPorCedula'
 
@@ -117,7 +118,7 @@ export function UsuariosScreen() {
   }, [puedeLeer])
 
   const filtrados = useMemo(() => {
-    const t = busqueda.trim().toLowerCase()
+    const t = normalizarBusqueda(busqueda.trim())
     if (!t) return usuarios
     return usuarios.filter((u) =>
       [
@@ -127,7 +128,7 @@ export function UsuariosScreen() {
         u.persona?.apellidos,
         u.persona?.nombres,
         ...(u.roles ?? []).map(nombreRol),
-      ].some((c) => String(c ?? '').toLowerCase().includes(t)),
+      ].some((c) => normalizarBusqueda(c).includes(t)),
     )
   }, [usuarios, busqueda])
 
@@ -684,7 +685,7 @@ function CrearUsuarioPanel({
   // volver a entrar como administrador y repetir la búsqueda.
   const [cedulaSinPersona, setCedulaSinPersona] = useState<string | null>(null)
   const [categorias, setCategorias] = useState<{ id_categoria: string; codigo_categoria: string }[]>([])
-  const [nuevaPersona, setNuevaPersona] = useState({ nombres: '', apellidos: '', correo: '', id_categoria: '' })
+  const [nuevaPersona, setNuevaPersona] = useState({ nombres: '', apellidos: '', correo: '' })
   const [creandoPersona, setCreandoPersona] = useState(false)
 
   // Borrador: si el administrador cambia de pestaña a mitad del alta, al volver no tiene
@@ -744,9 +745,8 @@ function CrearUsuarioPanel({
     }
 
     if (!usuarioTocado) {
-      const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
-      const nombre = sinTildes(p.nombres.trim().split(/\s+/)[0] ?? '').toLowerCase()
-      const apellido = sinTildes(p.apellidos.trim().split(/\s+/)[0] ?? '').toLowerCase()
+      const nombre = normalizarBusqueda(p.nombres.trim().split(/\s+/)[0] ?? '')
+      const apellido = normalizarBusqueda(p.apellidos.trim().split(/\s+/)[0] ?? '')
       setNombreUsuario(`${nombre}.${apellido}`.replace(/[^a-z0-9._-]/g, ''))
     }
   }
@@ -761,6 +761,13 @@ function CrearUsuarioPanel({
    */
   const crearPersona = async () => {
     if (!cedulaSinPersona) return
+    const rol = roles.find((r) => r.id_rol === idRol)
+    const codigoCategoria = rol?.nombre_rol === 'GUARDIA_SEGURIDAD' ? 'TRABAJADOR' : 'ADMINISTRATIVO'
+    const idCategoria = categorias.find((c) => c.codigo_categoria === codigoCategoria)?.id_categoria
+    if (!idCategoria) {
+      setError('No se pudo resolver la categoría operativa para el rol seleccionado.')
+      return
+    }
     setCreandoPersona(true)
     setError(null)
     const { data, error: err } = await supabase
@@ -770,7 +777,7 @@ function CrearUsuarioPanel({
         nombres: nuevaPersona.nombres.trim(),
         apellidos: nuevaPersona.apellidos.trim(),
         correo: nuevaPersona.correo.trim().toLowerCase(),
-        id_categoria: nuevaPersona.id_categoria,
+        id_categoria: idCategoria,
         tipo_persona: 'INTERNA',
         estado: 'ACTIVO',
       } as never)
@@ -787,9 +794,8 @@ function CrearUsuarioPanel({
     setPersona(creada)
     if (creada.correo && !correoTocado) setCorreo(creada.correo)
     if (!usuarioTocado) {
-      const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
-      const nombre = sinTildes(creada.nombres.trim().split(/\s+/)[0] ?? '').toLowerCase()
-      const apellido = sinTildes(creada.apellidos.trim().split(/\s+/)[0] ?? '').toLowerCase()
+      const nombre = normalizarBusqueda(creada.nombres.trim().split(/\s+/)[0] ?? '')
+      const apellido = normalizarBusqueda(creada.apellidos.trim().split(/\s+/)[0] ?? '')
       setNombreUsuario(`${nombre}.${apellido}`.replace(/[^a-z0-9._-]/g, ''))
     }
   }
@@ -797,7 +803,8 @@ function CrearUsuarioPanel({
   const errorCorreoPersona = nuevaPersona.correo ? validarCorreoInstitucional(nuevaPersona.correo) : null
   const listoPersona =
     !!cedulaSinPersona && nuevaPersona.nombres.trim() && nuevaPersona.apellidos.trim() &&
-    nuevaPersona.correo && !errorCorreoPersona && nuevaPersona.id_categoria
+    nuevaPersona.correo && !errorCorreoPersona && idRol &&
+    categorias.some((c) => c.codigo_categoria === (roles.find((r) => r.id_rol === idRol)?.nombre_rol === 'GUARDIA_SEGURIDAD' ? 'TRABAJADOR' : 'ADMINISTRATIVO'))
 
   const errorUsuario = nombreUsuario ? validarNombreUsuario(nombreUsuario) : null
   const errorCorreo = correo ? validarCorreoInstitucional(correo) : null
@@ -845,6 +852,23 @@ function CrearUsuarioPanel({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
+          <Field
+            label="Rol"
+            required
+            htmlFor="alta-rol"
+            ayuda="Define qué módulos y acciones podrá usar. Un usuario sin rol no tiene ningún permiso y no vería nada al entrar. Si la persona aún no existe, también permite derivar su categoría operativa."
+          >
+            <Select
+              id="alta-rol"
+              value={idRol}
+              onChange={(e) => setIdRol(e.target.value)}
+              placeholder="— Seleccionar —"
+              options={roles.map((r) => ({ value: r.id_rol, label: ROL_LABEL[r.nombre_rol] ?? humanizar(r.nombre_rol) }))}
+            />
+          </Field>
+        </div>
+
+        <div className="sm:col-span-2">
           <BuscarPersonaPorCedula
             onSelect={alElegirPersona}
             onNoEncontrada={(cedula) => { setCedulaSinPersona(cedula); setPersona(null) }}
@@ -888,15 +912,10 @@ function CrearUsuarioPanel({
                     onChange={(e) => setNuevaPersona((v) => ({ ...v, correo: e.target.value.toLowerCase() }))}
                     placeholder="nombre.apellido@epn.edu.ec" />
                 </Field>
-                <Field label="Categoría" required htmlFor="np-categoria">
-                  <Select
-                    id="np-categoria"
-                    value={nuevaPersona.id_categoria}
-                    onChange={(e) => setNuevaPersona((v) => ({ ...v, id_categoria: e.target.value }))}
-                    placeholder="— Seleccionar —"
-                    options={categorias.map((c) => ({ value: c.id_categoria, label: humanizar(c.codigo_categoria) }))}
-                  />
-                </Field>
+                <p className="self-end rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800 sm:col-span-2">
+                  La categoría operativa se asigna automáticamente según el rol: Trabajador para
+                  Guardia de Seguridad y Administrativo para los demás roles.
+                </p>
               </div>
               <div className="flex gap-2">
                 <Button onClick={crearPersona} loading={creandoPersona} disabled={!listoPersona}>
@@ -934,23 +953,6 @@ function CrearUsuarioPanel({
             onChange={(e) => { setCorreoTocado(true); setCorreo(e.target.value.toLowerCase()) }}
             placeholder="nombre.apellido@epn.edu.ec" />
         </Field>
-
-        <div className="sm:col-span-2">
-          <Field
-            label="Rol"
-            required
-            htmlFor="alta-rol"
-            ayuda="Define qué módulos y acciones podrá usar. Un usuario sin rol no tiene ningún permiso y no vería nada al entrar."
-          >
-            <Select
-              id="alta-rol"
-              value={idRol}
-              onChange={(e) => setIdRol(e.target.value)}
-              placeholder="— Seleccionar —"
-              options={roles.map((r) => ({ value: r.id_rol, label: ROL_LABEL[r.nombre_rol] ?? humanizar(r.nombre_rol) }))}
-            />
-          </Field>
-        </div>
 
         <div className="sm:col-span-2 flex items-center gap-3 pt-1">
           <Button onClick={crear} loading={guardando} disabled={!listo}>Crear usuario</Button>

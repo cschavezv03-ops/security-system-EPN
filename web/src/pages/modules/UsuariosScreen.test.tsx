@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -127,6 +127,13 @@ const { supabase } = vi.hoisted(() => {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 ;(supabase as any).__set('usuario_sistema', { data: USUARIOS, error: null })
 ;(supabase as any).__setUnico('persona', { data: PERSONA_BUSCADA, error: null })
+;(supabase as any).__set('categoria_persona', {
+  data: [
+    { id_categoria: 'c-adm', codigo_categoria: 'ADMINISTRATIVO' },
+    { id_categoria: 'c-tra', codigo_categoria: 'TRABAJADOR' },
+  ],
+  error: null,
+})
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 vi.mock('../../lib/supabase', () => ({
@@ -147,6 +154,10 @@ vi.mock('../../auth/AuthProvider', () => ({
 }))
 
 const { UsuariosScreen } = await import('./UsuariosScreen')
+
+afterEach(() => {
+  ;(supabase as any).__setUnico('persona', { data: PERSONA_BUSCADA, error: null })
+})
 
 describe('UsuariosScreen', () => {
   it('muestra rol, cédula y fecha de asignación en la misma tabla', async () => {
@@ -200,6 +211,21 @@ describe('UsuariosScreen', () => {
     expect(await screen.findByLabelText(/cédula de la persona/i)).toBeInTheDocument()
     // El combo antiguo cargaba todas las personas del sistema: no debe volver.
     expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument()
+  })
+
+  it('el alta rápida de una persona no pide escoger categoría', async () => {
+    const usuario = userEvent.setup()
+    ;(supabase as any).__setUnico('persona', { data: null, error: null })
+    render(<UsuariosScreen />)
+
+    await usuario.click(await screen.findByRole('button', { name: /crear usuario/i }))
+    await usuario.type(await screen.findByLabelText(/cédula de la persona/i), '1750000117')
+    await usuario.click(screen.getByRole('button', { name: /buscar/i }))
+
+    expect(await screen.findByText(/Registrar a esta persona/i)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /categoría/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/se asigna automáticamente según el rol/i)).toBeInTheDocument()
+
   })
 
   it('propone el nombre de usuario a partir de la persona encontrada', async () => {

@@ -4,8 +4,8 @@
 
 # Manual de usuario — Sistema de Seguridad y Control de Accesos EPN
 
-**Versión:** 1.0<br>
-**Fecha:** 21 de julio de 2026<br>
+**Versión:** 1.1<br>
+**Fecha:** 22 de julio de 2026<br>
 **Aplicación:** [security-system-epn.vercel.app](https://security-system-epn.vercel.app)
 
 Este manual explica cómo realizar las tareas habituales del sistema de forma segura. Está
@@ -194,7 +194,8 @@ recargue la ficha y compruebe cuál es la información más reciente antes de vo
 2. Seleccione **Registrar Persona interna**.
 3. Elija primero la **Categoría**. Esta selección determina los campos posteriores.
 4. Ingrese cédula, nombres, apellidos, correo institucional, sexo y demás datos solicitados.
-5. Si la categoría es **Estudiante**, registre también el código único.
+5. Si la categoría es **Estudiante**, registre también el código único. Sus cuatro primeros
+   dígitos son el año de matrícula, entre 1970 y el año actual; todo el código es numérico.
 6. Si la categoría es **Empresa de servicio**, seleccione la empresa correspondiente.
 7. Seleccione **Guardar**.
 
@@ -213,7 +214,7 @@ después del registro.
    | Categoría | Datos que corresponden |
    |---|---|
    | Docente | Unidad, categoría académica y contrato. |
-   | Administrativo | Unidad, cargo y contrato. |
+   | Administrativo | Unidad EPN (única opción), cargo y contrato. |
    | Trabajador | Cargo y contrato. |
    | Empresa de servicio | Contrato. |
    | Estudiante EPN | Unidad EPN y carrera. |
@@ -337,12 +338,14 @@ Zona → Punto de control → Dispositivo → Asignación de guardia
 1. Abra **Puntos de Control → Zonas**.
 2. Seleccione **Registrar Zona**.
 3. Escoja el tipo y complete los campos mostrados.
-4. Para un edificio, seleccione su campus y asigne un número de edificio único.
+4. Para un edificio, seleccione su campus, asigne un número único y escriba solo la descripción,
+   por ejemplo `26` y `EARME`. El sistema compone `Edificio 26 – EARME`.
 5. Para un parqueadero, seleccione el edificio al que pertenece.
 6. Guarde.
 
 La jerarquía válida es **Campus → Edificio → Parqueadero**. Las zonas nuevas nacen activas. Use
-la ficha para inactivar o reactivar una zona.
+la ficha para inactivar o reactivar una zona. El campus es la raíz de toda la infraestructura y
+no se puede inactivar.
 
 ### 7.2 Registrar un punto de control
 
@@ -355,7 +358,8 @@ la ficha para inactivar o reactivar una zona.
 6. Guarde y compruebe la zona asociada.
 
 Los puntos nuevos nacen activos. Un punto inactivo o en mantenimiento impide operar al guardia
-asignado, aunque su turno esté vigente.
+asignado, aunque su turno esté vigente. El filtro **Filtrar por zona** usa los mismos tres tipos
+que el panel de Zonas: Campus, Edificio y Parqueadero.
 
 ### 7.3 Registrar un dispositivo
 
@@ -383,7 +387,8 @@ ficha si el equipo queda fuera de servicio.
 
 El turno puede cruzar la medianoche. No puede durar más de 12 horas; si supera 8 horas, el
 formulario advierte que excede la jornada ordinaria. La lista separa **Asignación** —su vigencia
-por fechas— de **Estado actual** —si está o no dentro del turno en este momento—.
+por fechas— de **Estado actual** —si está o no dentro del turno en este momento—. Use el filtro
+de **Asignación** para mostrar solo las activas o las finalizadas.
 
 Para terminarla antes de la fecha prevista, abra la ficha y seleccione **Finalizar asignación**.
 
@@ -511,13 +516,17 @@ movimiento. Úsela para confirmar que el evento quedó guardado y para evitar un
 
 ### 10.1 Crear una cuenta de usuario
 
-1. Confirme que la persona interna ya está registrada.
+1. Si es posible, confirme que la persona interna ya está registrada.
 2. Abra **Administración → Usuarios**.
 3. Seleccione **Registrar Usuario**.
-4. Busque a la persona por su cédula y compruebe su identidad.
-5. Complete nombre de usuario, correo y rol inicial.
+4. Elija el rol inicial.
+5. Busque a la persona por su cédula, compruebe su identidad y complete nombre de usuario y correo.
 6. Confirme el alta.
 7. Copie la contraseña temporal mostrada una sola vez y entréguela por un canal seguro.
+
+Si la cédula todavía no existe, el mismo panel permite registrar los datos mínimos de la persona.
+No se pide una categoría: se deriva del rol inicial —**Trabajador** para Guardia de Seguridad y
+**Administrativo** para los demás roles— para no duplicar una decisión entre persona y cuenta.
 
 La persona deberá cambiar esa contraseña en el primer ingreso. Nunca envíe la contraseña junto
 con otros datos de acceso en un canal público.
@@ -589,11 +598,12 @@ acciones formales permanecen en Control de Accesos.
 
 | Situación | Qué comprobar | Qué hacer |
 |---|---|---|
-| No puede iniciar sesión | Correo, mayúsculas y estado de la cuenta | Reintente con cuidado; tras cinco fallos, espere 15 minutos o contacte al administrador. |
+| No puede iniciar sesión | Lea el mensaje: credenciales incorrectas, bloqueo temporal, bloqueo administrativo, cuenta inactiva o dada de baja | Corrija las credenciales; si el estado de cuenta impide el acceso, solicite al administrador la acción indicada por el mensaje. |
 | La contraseña temporal no permite navegar | Cambio obligatorio pendiente | Complete la pantalla de cambio y vuelva a iniciar sesión. |
 | No llega el correo de recuperación | Dirección y carpeta de spam | Espere unos minutos, repita una vez y contacte al administrador sin enviar su contraseña. |
 | El panel aparece vacío o falta un botón | Rol o permiso insuficiente | Confirme el rol mostrado y solicite revisión al administrador. |
 | Una cédula no encuentra a la persona | Longitud, dígito verificador, ámbito y estado | Use 10 dígitos; compruebe si debía ser interna, externa o guardia y si está activa. |
+| Una búsqueda no coincide por una tilde | Texto y filtros activos | Puede escribir con o sin tildes; quite los demás filtros si no aparece el registro. |
 | Datos internos deja campos bloqueados | Categoría o unidad de la persona | Revise la categoría mostrada. En estudiantes, EPN habilita carrera y CEC habilita curso. |
 | La cámara no abre | Permiso del navegador, HTTPS, cámara ocupada | Autorice la cámara, cierre otras aplicaciones y recargue la página. |
 | No detecta el rostro | Luz, distancia, encuadre o varios rostros | Mire de frente, mejore la luz y deje una sola persona visible. |

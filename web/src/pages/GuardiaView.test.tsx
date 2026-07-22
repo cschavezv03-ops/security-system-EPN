@@ -18,8 +18,9 @@ import { MemoryRouter } from 'react-router-dom'
  *  - Los motivos se muestran en castellano (RNF-CA-004).
  */
 
-const { supabase, invocaciones, filasPorTabla } = vi.hoisted(() => {
+const { supabase, invocaciones, filasPorTabla, estadoTurno } = vi.hoisted(() => {
   const invocaciones: { funcion: string; body: any }[] = []
+  const estadoTurno = { permitido: true, motivo: null as string | null }
 
   const PERSONAS: Record<string, any> = {
     '1750000257': {
@@ -67,11 +68,12 @@ const { supabase, invocaciones, filasPorTabla } = vi.hoisted(() => {
   return {
     invocaciones,
     filasPorTabla,
+    estadoTurno,
     supabase: {
       from: (t: string) => cadena(t),
       rpc: (nombre: string) =>
         Promise.resolve({
-          data: nombre === 'verificar_turno_guardia_actual' ? { permitido: true, motivo: null } : [],
+          data: nombre === 'verificar_turno_guardia_actual' ? estadoTurno : [],
           error: null,
         }),
       functions: {
@@ -183,6 +185,8 @@ beforeEach(() => {
   window.localStorage.clear()
   invocaciones.length = 0
   filasPorTabla.error_reconocimiento = []
+  estadoTurno.permitido = true
+  estadoTurno.motivo = null
 })
 
 describe('navegación entre los dos tipos de ingreso', () => {
@@ -303,6 +307,16 @@ describe('flujo vehicular (RF-CA-015 a RF-CA-017)', () => {
 })
 
 describe('el turno del guardia', () => {
+  it('el encabezado muestra el turno real y no etiqueta Activo por el estado del punto', async () => {
+    estadoTurno.permitido = false
+    estadoTurno.motivo = 'Su turno no se encuentra habilitado a esta hora.'
+    montar()
+
+    const tarjeta = (await screen.findByText('Punto asignado')).parentElement!
+    expect(within(tarjeta).getByText('Fuera de turno')).toBeInTheDocument()
+    expect(within(tarjeta).queryByText('Activo')).not.toBeInTheDocument()
+  })
+
   it('registra los movimientos cuando el turno está habilitado', async () => {
     const usuario = userEvent.setup()
     montar()

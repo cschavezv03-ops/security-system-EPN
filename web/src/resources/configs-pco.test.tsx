@@ -27,12 +27,12 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
   // Una zona ya inactivada: es la que debe ofrecer "Reactivar" y no "Inactivar".
   const PARQUE = { id_zona: 'z-parq', nombre_zona: 'Parqueadero Subsuelo', tipo_zona: 'PARQUEADERO', estado_zona: 'INACTIVA', id_zona_padre: 'z-e20' }
 
-  const PUNTO_E20 = { id_punto_control: 'p-1', id_zona: 'z-e20', nombre_punto: 'Puerta Norte', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20' } }
+  const PUNTO_E20 = { id_punto_control: 'p-1', id_zona: 'z-e20', nombre_punto: 'Puerta Norte', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20', tipo_zona: 'EDIFICIO' } }
   // Una garita de entrada a la universidad: cuelga del CAMPUS, que es el tipo que se retiró del
   // formulario de alta. Este caso lo detectó TestSprite, no las pruebas de aquí (§V25).
-  const PUNTO_CAMPUS = { id_punto_control: 'p-2', id_zona: 'z-campus', nombre_punto: 'Acceso A', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Campus EPN' } }
+  const PUNTO_CAMPUS = { id_punto_control: 'p-2', id_zona: 'z-campus', nombre_punto: 'Acceso A', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Campus EPN', tipo_zona: 'CAMPUS' } }
   // Con la nomenclatura EPN (a diferencia de "Puerta Norte", que es de antes de esa regla).
-  const PUNTO_E20_EPN = { id_punto_control: 'p-4', id_zona: 'z-e20', nombre_punto: 'E20/P5/E010', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20' } }
+  const PUNTO_E20_EPN = { id_punto_control: 'p-4', id_zona: 'z-e20', nombre_punto: 'E20/P5/E010', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20', tipo_zona: 'EDIFICIO' } }
 
   const filasPorTabla: Record<string, Record<string, unknown>[]> = {
     zona: [CAMPUS, EDIF20, EDIF15, PARQUE],
@@ -251,7 +251,7 @@ describe('el Estado desaparece del alta pero sigue en la edición', () => {
 
     // Positiva primero: el formulario está en pantalla. Sin esto, la negativa de abajo se
     // cumpliría sola aunque no se hubiera abierto nada.
-    expect(screen.getByRole('textbox', { name: /Nombre/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /^Tipo/i })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /^Estado/i })).not.toBeInTheDocument()
   })
 
@@ -262,6 +262,7 @@ describe('el Estado desaparece del alta pero sigue en la edición', () => {
     await abrirEdicion(usuario, /Campus EPN/)
 
     const estado = await screen.findByRole('combobox', { name: /^Estado/i })
+    expect(estado).toBeDisabled()
     // Y solo con los dos estados que quedan: BLOQUEADA se retiró del catálogo.
     const opciones = within(estado).getAllByRole('option').map((o) => o.textContent)
     expect(opciones).toContain('Activa')
@@ -318,13 +319,13 @@ describe('jerarquía de zonas en el combo de zona padre', () => {
 })
 
 describe('inactivar tiene vuelta atrás', () => {
-  it('una zona activa ofrece Inactivar y no Reactivar', async () => {
+  it('el campus mantiene visible pero deshabilitada la acción Inactivar', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgZona)
 
     await usuario.click(await screen.findByText(/Campus EPN/))
 
-    expect(await screen.findByRole('button', { name: /Inactivar/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Inactivar/i })).toBeDisabled()
     expect(screen.queryByRole('button', { name: /Reactivar/i })).not.toBeInTheDocument()
   })
 
@@ -346,6 +347,14 @@ describe('inactivar tiene vuelta atrás', () => {
 })
 
 describe('asignaciones de guardia', () => {
+  it('permite filtrar por asignación activa o finalizada', async () => {
+    montar(cfgAsignacionGuardia)
+
+    const filtro = await screen.findByRole('combobox', { name: /Filtrar por asignación/i })
+    expect(within(filtro).getByRole('option', { name: 'Activa' })).toBeInTheDocument()
+    expect(within(filtro).getByRole('option', { name: 'Finalizada' })).toBeInTheDocument()
+  })
+
   it('muestra el nombre y la cédula del guardia, no un identificador de cuenta', async () => {
     montar(cfgAsignacionGuardia)
 
@@ -463,6 +472,21 @@ describe('nombre estándar EPN al registrar en un edificio', () => {
 })
 
 describe('nuevos requerimientos PCO', () => {
+  it('Puntos de control filtra por tipo de zona, igual que Zonas', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    const filtro = await screen.findByRole('combobox', { name: /Filtrar por zona/i })
+    expect(within(filtro).getByRole('option', { name: 'Campus' })).toBeInTheDocument()
+    expect(within(filtro).getByRole('option', { name: 'Edificio' })).toBeInTheDocument()
+    expect(within(filtro).getByRole('option', { name: 'Parqueadero' })).toBeInTheDocument()
+    expect(within(filtro).queryByRole('option', { name: 'Edificio 20' })).not.toBeInTheDocument()
+
+    await usuario.selectOptions(filtro, 'CAMPUS')
+    expect(await screen.findByText('Acceso A')).toBeInTheDocument()
+    expect(screen.queryByText('Puerta Norte')).not.toBeInTheDocument()
+  })
+
   it('el listado de dispositivos muestra el código y la zona, no la MAC', async () => {
     montar(cfgDispositivo)
 
@@ -506,6 +530,20 @@ describe('nuevos requerimientos PCO', () => {
 
     await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'EDIFICIO')
     expect(await screen.findByLabelText(/Número de edificio/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Descripción/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Nombre oficial/i)).toBeDisabled()
+  })
+
+  it('compone el nombre del edificio con el número y la descripción', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgZona)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
+    await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'EDIFICIO')
+    await usuario.type(await screen.findByLabelText(/Número de edificio/i), '26')
+    await usuario.type(screen.getByLabelText(/^Descripción/i), 'EARME')
+
+    await waitFor(() => expect(screen.getByLabelText(/Nombre oficial/i)).toHaveValue('Edificio 26 – EARME'))
   })
 
   it('el nombre de una zona debe empezar con mayúscula', async () => {
@@ -513,8 +551,8 @@ describe('nuevos requerimientos PCO', () => {
     montar(cfgZona)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
-    await usuario.type(screen.getByRole('textbox', { name: /Nombre/i }), 'parqueadero norte')
     await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'PARQUEADERO')
+    await usuario.type(await screen.findByRole('textbox', { name: /Nombre/i }), 'parqueadero norte')
     const padre = await screen.findByRole('combobox', { name: /Zona padre/i })
     await waitFor(() => expect(within(padre).getAllByRole('option').length).toBeGreaterThan(1))
     await usuario.selectOptions(padre, 'z-e20')
@@ -651,8 +689,9 @@ describe('persistencia del formulario', () => {
     const vista = montar(cfgZona)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
-    await usuario.type(screen.getByRole('textbox', { name: /Nombre/i }), 'Edificio 6 - Química')
     await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'EDIFICIO')
+    await usuario.type(await screen.findByLabelText(/Número de edificio/i), '6')
+    await usuario.type(screen.getByLabelText(/^Descripción/i), 'Química')
 
     // El borrador se guarda con retardo; sin esperar no habría llegado a localStorage.
     await waitFor(
@@ -667,9 +706,11 @@ describe('persistencia del formulario', () => {
     await usuario2.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
     await usuario2.click(await screen.findByRole('button', { name: /Recuperarlo/i }))
 
-    expect(screen.getByRole('textbox', { name: /Nombre/i })).toHaveValue('Edificio 6 - Química')
     // El tipo también se conserva: si no, la zona padre volvería a quedar sin opciones.
     expect(screen.getByRole('combobox', { name: /^Tipo/i })).toHaveValue('EDIFICIO')
+    expect(screen.getByLabelText(/Número de edificio/i)).toHaveValue(6)
+    expect(screen.getByLabelText(/^Descripción/i)).toHaveValue('Química')
+    expect(screen.getByLabelText(/Nombre oficial/i)).toHaveValue('Edificio 6 – Química')
   })
 
   it('no deja borrador si solo se abre el formulario y se cierra', async () => {

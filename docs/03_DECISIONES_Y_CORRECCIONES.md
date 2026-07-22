@@ -1412,7 +1412,7 @@ Un acceso perimetral pertenece al campus y a ningún edificio: es un caso legít
 excepción que hubiera que tolerar.
 
 
-## §D90 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
+## §D97 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
 
 **Conflicto:** las motos se podían **registrar** sin problema —`validarPlacaTipo('MOTOCICLETA')`
 acepta los dos formatos vigentes— pero en la garita no se leía ninguna. El alta funcionaba y la
@@ -1627,53 +1627,61 @@ fin fuese *estrictamente* posterior a la de inicio, y con las fechas heredadas e
 caso normal en GPE, el memorando que autoriza una entrega para un único día. El CHECK de
 `persona_vehiculo` siempre admitió la igualdad; ahora la RPC también.
 
-## §D91 — Cada motivo de rechazo del login dice lo suyo
+---
 
-**Conflicto:** a una cuenta bloqueada o dada de baja por un administrador, el login le
-respondía **"Correo o contraseña incorrectos. Le quedan N intentos..."**. Era falso en dos
-sentidos a la vez: la contraseña estaba bien, y el problema no se arreglaba tecleando mejor.
+## Ronda de revisión final (2026-07-22) — documentos de errores y correcciones
 
-**La cadena del fallo:**
+### D90 — La búsqueda visible ignora tildes, sin alterar los datos
 
-1. ADM bloquea a alguien → el trigger `sincronizar_estado_auth` (§bloqueo efectivo) escribe
-   `auth.users.banned_until`, que es lo que hace el bloqueo real.
-2. La persona intenta entrar → `iniciar-sesion` comprueba `bloqueado_hasta`, que es **NULL**
-   (esa columna es del bloqueo *temporal* por intentos, no del administrativo) → sigue adelante.
-3. Llama a GoTrue → GoTrue rechaza por `banned_until`.
-4. **La función no distinguía ese rechazo del de una contraseña equivocada** y lo devolvía como
-   `invalid_credentials`.
-5. Y antes de eso ya había llamado a `registrar_intento_login`, que **incrementaba el contador
-   de intentos fallidos** de alguien que había tecleado su contraseña correctamente.
+Los listados genéricos y el panel de Usuarios comparan una forma normalizada del texto: minúsculas
+y sin diacríticos. Buscar `Calderon` encuentra `Calderón`; el valor almacenado y mostrado conserva
+su ortografía. La misma normalización se reutiliza en listas de selección múltiples.
 
-Medido en la base al diagnosticarlo: `jungkook.jeon` (BLOQUEADO) acumulaba **4 intentos
-fallidos de 5** y `gary.defas` (DADO_DE_BAJA) **1**, ninguno real. La cuenta bloqueada estaba a
-un intento de "bloquearse" otra vez, por un camino que nadie había recorrido.
+### D91 — Cada estado de cuenta tiene su propio error de inicio de sesión
 
-**Dónde estaba escondido:** la función ya leía `estado_usuario` en su `SELECT` desde el
-principio —y no lo usaba en ninguna parte—. Y `web/src/lib/errores.ts` ya tenía las traducciones
-de `user_banned` y `'user is banned'`, **inalcanzables**, porque la Edge Function convertía el
-error de GoTrue en `invalid_credentials` antes de que el cliente pudiera verlo. Dos piezas
-correctas que no se llamaban.
+Supabase Auth representa como un mismo ban técnico el bloqueo administrativo y la baja de una
+cuenta. La Edge Function resuelve primero `estado_usuario` y devuelve códigos distintos para
+**bloqueada por ADM**, **dada de baja** e **inactiva**. El bloqueo temporal por intentos y las
+credenciales incorrectas mantienen sus códigos separados. La interfaz traduce cada uno en la
+acción que corresponde; ya no acusa a la contraseña cuando el problema es el estado de la cuenta.
+`iniciar-sesion` se declara además con `verify_jwt = false` en `config.toml`, porque quien llega al
+login todavía no posee un JWT de usuario. Si falla la consulta del perfil, se informa que no pudo
+verificarse el estado en vez de degradar el fallo a «contraseña incorrecta».
 
-**Decisión: el estado administrativo se comprueba ANTES de tocar GoTrue**, y cada causa tiene su
-código y su mensaje:
+### D92 — En el alta rápida de una cuenta, la categoría se deriva del rol
 
-| Situación | Código | Qué se le dice, y por qué |
-|---|---|---|
-| Bloqueado por un admin | `account_blocked` | Que **no es la contraseña** y que hable con el administrador |
-| Dado de baja | `account_disabled` | Que la cuenta ya no sirve. **No** se menciona desbloqueo: no va a llegar |
-| Inactivo | `account_inactive` | Que hay que reactivarla |
-| 5 intentos fallidos | `account_locked` | **Cuántos minutos faltan** — es el único caso donde esperar sirve |
-| Contraseña incorrecta | `invalid_credentials` | Cuántos intentos quedan |
+`persona.id_categoria` sigue siendo obligatoria: eliminarla del modelo rompería las reglas de
+acceso físico y §D76. Lo que se elimina es el combobox duplicado del alta de Usuarios. Para una
+persona que aún no existe, **GUARDIA_SEGURIDAD → TRABAJADOR** y los demás roles operativos →
+**ADMINISTRATIVO**. Una persona ya registrada conserva su categoría real, incluida DOCENTE.
 
-Comprobarlo antes de GoTrue es lo que además **deja de contar intentos falsos**: una cuenta
-bloqueada ya no acumula fallos que no cometió.
+### D93 — El código único y la unidad administrativa se validan también en la base
 
-**Los contadores inflados no se limpian a mano:** el trigger `trg_limpiar_bloqueo_al_activar` ya
-pone `intentos_fallidos = 0` cuando el administrador reactiva la cuenta. Verificado contra la
-base en una transacción con `ROLLBACK`.
+El código único es numérico y sus cuatro primeros dígitos son un año de matrícula entre 1970 y el
+año actual. No se fija la longitud del resto porque el requerimiento no define una. La categoría
+ADMINISTRATIVO solo admite unidad EPN; CEC desaparece de sus opciones. Ambos criterios viven en
+triggers para que una escritura REST no pueda saltarse el formulario. El selector de Unidad no
+muestra una explicación adicional: para un administrativo, la única alternativa visible es EPN.
 
-**Concesión deliberada:** distinguir estos casos revela que la cuenta existe. Se acepta a
-conciencia — es un sistema interno con correos institucionales predecibles, donde ocultar la
-existencia aporta poco frente a lo que cuesta que una persona pase media hora convencida de que
-olvidó su contraseña cuando en realidad la habían dado de baja.
+### D94 — El nombre de un edificio es un dato derivado
+
+`zona.descripcion` guarda solo el texto descriptivo y `numero_edificio` conserva el número. El
+trigger compone `nombre_zona` como **Edificio &lt;número&gt; – &lt;descripción&gt;**. Así `26` y `EARME`
+producen `Edificio 26 – EARME` sin pedir el mismo dato dos veces. La revisión confirma además el
+número 26 para EARME, que estaba pendiente en §V43.1.
+
+El CAMPUS no puede pasar a INACTIVA: es la raíz de la jerarquía y edificios, parqueaderos y puntos
+dependen de él. La acción queda deshabilitada en pantalla y un trigger impide el cambio directo.
+
+### D95 — Los filtros de PCO expresan el criterio que muestran
+
+**Puntos de control → Filtrar por zona** usa `tipo_zona`, con Campus/Edificio/Parqueadero, igual
+que el panel de Zonas; antes listaba nombres concretos de zona bajo la misma etiqueta. En
+Asignaciones de guardia se añade el filtro **Asignación** con Activa/Finalizada.
+
+### D96 — El encabezado del guardia informa su turno, no el estado del punto
+
+La insignia `Activo` junto al punto correspondía a `punto_control.estado_punto`, aunque visualmente
+parecía describir al guardia. Se sustituye por **En turno/Fuera de turno**, calculado por
+`verificar_turno_guardia_actual` con la hora del servidor. Si la comprobación aún no respondió no
+se inventa ningún estado.

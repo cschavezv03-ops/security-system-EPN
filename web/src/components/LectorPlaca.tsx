@@ -64,7 +64,7 @@ export function LectorPlaca({
   const [placaManual, setPlacaManual] = useState('')
   // Auto o moto. Lo elige el guardia, que tiene el vehículo delante y lo sabe de un vistazo.
   // No se adivina: una placa de moto lleva el código en dos líneas y necesita otro recorte y
-  // otro modo de OCR; con la configuración de auto se lee el 0 % de ellas (§D90).
+  // otro modo de OCR; con la configuración de auto se lee el 0 % de ellas (§D97).
   const [tipoPlaca, setTipoPlaca] = useState<TipoLecturaPlaca>('AUTO')
 
   useEffect(() => {
