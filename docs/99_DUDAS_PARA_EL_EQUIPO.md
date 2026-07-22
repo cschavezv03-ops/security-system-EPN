@@ -885,7 +885,7 @@ campus, quitar el ejemplo "Laboratorio Alan Turing" del placeholder, "ESTADO ACT
    autogenerada, BIO-0001/LPR-0001), no como borrar el dato de la MAC real de un aparato ya
    inventariado. `codigo_mac` pasó a ser opcional (`NOT NULL` retirado) y ya no aparece en el
    formulario ni en el listado, pero se conserva en la fila por si hace falta consultarlo.
-## V47 — ¿DIRECTOR_ADMINISTRATIVO también queda protegido de GPI/GPE, o solo los RESPONSABLE_*?
+## V48 — ¿DIRECTOR_ADMINISTRATIVO también queda protegido de GPI/GPE, o solo los RESPONSABLE_*?
 
 Reportado en pruebas (Sebastián, 20/07): una cuenta con solo `GPI_PERSONA_UPDATE` dio de baja a
 Carlos Chávez (cédula `1750000141`), que tiene la cuenta `carlos.chavez03` con el rol
