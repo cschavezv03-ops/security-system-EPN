@@ -975,3 +975,31 @@ garita sepa qué esperar, no para decidir.
 
 **Si el equipo quiere que sea una barrera**, hay que decidir antes qué pasa con los memorandos
 ya registrados que no la tienen marcada.
+
+## V47 — Qué se cambió en los datos antes de la entrega, y qué conviene revisar
+
+El saneamiento previo a la presentación (migraciones `20260722002000`, `003000` y `004000`) tocó
+datos que el equipo puede reconocer de sesiones anteriores. Se listan aquí para que nadie busque
+un registro que ya no está con el nombre que recordaba:
+
+- **Personas de prueba borradas:** "Impostor Uno", "Impostor Dos" y "TuRostro Muestra Dos", con su
+  evento de acceso, su alerta y su asociación a vehículo. Se usaron para calibrar el umbral
+  biométrico; el resultado de esa calibración vive en `parametro_sistema`, no en ellas.
+- **Personas de prueba convertidas en personas reales**, para no dejar sin historial la garita:
+  "Docente Demo" → Patricia Elena Rosero Guerrero; "Visitante Demo" → Andrea Carolina Suárez Mena;
+  "Guardia Demo" → Marco Andrés Villacís Ponce (su cuenta `guardia_demo` y su contraseña **no** se
+  tocaron); "Administrador del Sistema" → Diego Fernando Salazar Núñez (cuenta `admin` intacta).
+- **DILIPA:** "Rick Sanchez" y "Morty Smith" pasaron a llamarse Ricardo Javier Sánchez Peñafiel y
+  Mateo Andrés Salgado Mena. Conservan cédula, memorando, vehículo e historial: son los mismos
+  registros, con nombre verosímil.
+- **Vehículo duplicado:** PCR-1234 y PCZ-1234 eran el mismo camión registrado dos veces. Los
+  eventos de PCR-1234 se trasladaron a PCZ-1234 —el que ampara el memorando vigente— y el
+  duplicado se borró, junto con el memorando anulado que lo amparaba (EPN-DL-2026-002).
+- **Memorandos borrados:** dos vencidos que no autorizaban a ninguna persona
+  (EPN-DA-2026-0002-M, EPN-DA-2026-0003-M) y uno de prueba anulado (EPN-PRB-2026-0451).
+- **Memorando de DILIPA ampliado** hasta el 31/08/2026: vencía el 22/07 y es el caso que se
+  demuestra. Si la presentación se pasa de esa fecha, hay que volver a ampliarlo.
+- **Cédulas:** todas las de relleno (1750000xxx) se sustituyeron por cédulas que pasan el
+  algoritmo del Registro Civil. La de Carlos Chávez es la real facilitada por él; **las demás son
+  inventadas** y habría que sustituirlas si alguna de estas personas es real y va a usar el
+  sistema.
