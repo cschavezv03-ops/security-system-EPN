@@ -375,10 +375,13 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 # docs/01_AUTENTICACION_Y_ROLES.md §4: los dispositivos llaman a estas Edge
-# Functions sin JWT de usuario (no tienen sesion de guardia). verify_jwt=false
-# porque la autenticacion la hace la funcion misma: codigo_mac/direccion_ip
-# contra `dispositivo` para el camino AUTOMATICA, o el JWT del guardia (leido
-# manualmente del header Authorization) para el camino MANUAL.
+# Functions que reciben solicitudes antes de tener un JWT de usuario. En el login la
+# función valida las credenciales; en los dispositivos la autenticación se resuelve con
+# codigo_mac/direccion_ip o con el JWT del guardia leído manualmente del encabezado.
+[functions.iniciar-sesion]
+enabled = true
+verify_jwt = false
+
 [functions.validar-biometria]
 enabled = true
 verify_jwt = false

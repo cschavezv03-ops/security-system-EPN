@@ -54,16 +54,32 @@ Deno.serve(async (req) => {
 
   // Perfil del sistema asociado al correo. Si no existe, se deja que GoTrue
   // responda lo suyo: no se revela si la cuenta existe o no.
-  const { data: usuario } = await admin
+  const { data: usuario, error: errorUsuario } = await admin
     .from('usuario_sistema')
     .select('id_usuario, bloqueado_hasta, estado_usuario')
     .eq('correo_electronico', email)
     .maybeSingle();
 
+  // No se debe convertir un fallo al consultar el perfil en "contraseña incorrecta": eso
+  // ocultaría precisamente el estado administrativo que este proxy debe comunicar. Ante un
+  // problema de base se devuelve un error operativo y no se intenta autenticar a ciegas.
+  if (errorUsuario) {
+    console.error('No se pudo consultar el estado de la cuenta:', errorUsuario.message);
+    return jsonResponse(
+      {
+        error_code: 'account_state_unavailable',
+        message: 'No se pudo verificar el estado de la cuenta. Inténtelo nuevamente.',
+      },
+      503,
+    );
+  }
+
+  const estadoUsuario = usuario?.estado_usuario?.trim().toUpperCase();
+
   // Los estados administrativos son causas distintas de rechazo. GoTrue los representa a
   // todos como un ban y devolvería el mismo error genérico; se resuelven antes para que la
   // persona sepa si debe pedir desbloqueo o reactivación de la cuenta.
-  if (usuario?.estado_usuario === 'BLOQUEADO') {
+  if (estadoUsuario === 'BLOQUEADO') {
     return jsonResponse(
       {
         error_code: 'account_blocked_by_admin',
@@ -72,7 +88,7 @@ Deno.serve(async (req) => {
       423,
     );
   }
-  if (usuario?.estado_usuario === 'DADO_DE_BAJA') {
+  if (estadoUsuario === 'DADO_DE_BAJA') {
     return jsonResponse(
       {
         error_code: 'account_deactivated',
@@ -81,7 +97,7 @@ Deno.serve(async (req) => {
       403,
     );
   }
-  if (usuario?.estado_usuario === 'INACTIVO') {
+  if (estadoUsuario === 'INACTIVO') {
     return jsonResponse(
       {
         error_code: 'account_inactive',

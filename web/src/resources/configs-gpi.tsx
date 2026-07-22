@@ -211,7 +211,6 @@ export const cfgPersonaInternaDetalle: ResourceConfig = {
         : opcionesCatalogo(CAT.unidad),
       visibleSi: (v) => CATEGORIAS_UNIDAD.includes(v._categoria),
       alCambiarLimpiar: ['carrera', 'curso'],
-      hint: 'EPN o Centro de Educación Continua (CEC). Al cambiarla se limpian los datos académicos incompatibles.',
     },
     { name: 'cargo', label: 'Cargo', visibleSi: (v) => CATEGORIAS_CARGO.includes(v._categoria) },
     {

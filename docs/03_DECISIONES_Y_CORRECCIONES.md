@@ -1644,6 +1644,9 @@ cuenta. La Edge Function resuelve primero `estado_usuario` y devuelve códigos d
 **bloqueada por ADM**, **dada de baja** e **inactiva**. El bloqueo temporal por intentos y las
 credenciales incorrectas mantienen sus códigos separados. La interfaz traduce cada uno en la
 acción que corresponde; ya no acusa a la contraseña cuando el problema es el estado de la cuenta.
+`iniciar-sesion` se declara además con `verify_jwt = false` en `config.toml`, porque quien llega al
+login todavía no posee un JWT de usuario. Si falla la consulta del perfil, se informa que no pudo
+verificarse el estado en vez de degradar el fallo a «contraseña incorrecta».
 
 ### D92 — En el alta rápida de una cuenta, la categoría se deriva del rol
 
@@ -1657,7 +1660,8 @@ persona que aún no existe, **GUARDIA_SEGURIDAD → TRABAJADOR** y los demás ro
 El código único es numérico y sus cuatro primeros dígitos son un año de matrícula entre 1970 y el
 año actual. No se fija la longitud del resto porque el requerimiento no define una. La categoría
 ADMINISTRATIVO solo admite unidad EPN; CEC desaparece de sus opciones. Ambos criterios viven en
-triggers para que una escritura REST no pueda saltarse el formulario.
+triggers para que una escritura REST no pueda saltarse el formulario. El selector de Unidad no
+muestra una explicación adicional: para un administrativo, la única alternativa visible es EPN.
 
 ### D94 — El nombre de un edificio es un dato derivado
 

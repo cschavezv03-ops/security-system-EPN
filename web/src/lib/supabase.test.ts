@@ -15,6 +15,7 @@ describe('mensajes de estado al iniciar sesión', () => {
     ['account_blocked_by_admin', /bloqueada por el administrador/i],
     ['account_deactivated', /dada de baja/i],
     ['account_inactive', /cuenta está inactiva/i],
+    ['account_state_unavailable', /no se pudo verificar el estado/i],
   ])('distingue %s de credenciales incorrectas', async (codigo, texto) => {
     responder(codigo)
     await expect(iniciarSesion('persona@epn.edu.ec', 'clave')).resolves.toMatch(texto)

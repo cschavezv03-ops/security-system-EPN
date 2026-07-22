@@ -165,6 +165,9 @@ export async function iniciarSesion(email: string, password: string): Promise<st
   if (datos.error_code === 'account_inactive') {
     return 'La cuenta está inactiva. Solicite su activación al administrador.'
   }
+  if (datos.error_code === 'account_state_unavailable') {
+    return 'No se pudo verificar el estado de la cuenta. Inténtelo nuevamente.'
+  }
   if (datos.error_code === 'invalid_credentials') {
     const quedan = datos.intentos_restantes
     return quedan != null && quedan > 0

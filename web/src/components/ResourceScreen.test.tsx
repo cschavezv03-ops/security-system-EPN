@@ -243,9 +243,10 @@ describe('datos internos por perfil (últimos cambios GPI)', () => {
     await buscarPersonaInterna(usuario, '1750000257')
 
     const unidad = await screen.findByRole('combobox', { name: /^Unidad/i })
-    await waitFor(() => expect(within(unidad).getAllByRole('option').length).toBeGreaterThan(1))
+    await waitFor(() => expect(within(unidad).getAllByRole('option')).toHaveLength(2))
     expect(within(unidad).getByRole('option', { name: 'EPN' })).toBeInTheDocument()
     expect(within(unidad).queryByRole('option', { name: 'CEC' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/EPN o Centro de Educación Continua/i)).not.toBeInTheDocument()
   })
 
   it('el detalle docente omite Cargo aunque exista como dato histórico', async () => {
