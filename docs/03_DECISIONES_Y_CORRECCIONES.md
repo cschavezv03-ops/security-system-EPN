@@ -1412,7 +1412,7 @@ Un acceso perimetral pertenece al campus y a ningún edificio: es un caso legít
 excepción que hubiera que tolerar.
 
 
-## §D83 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
+## §D97 — Las placas de motocicleta: el lector leía el 0 %, y a veces leía mal
 
 **Conflicto:** las motos se podían **registrar** sin problema —`validarPlacaTipo('MOTOCICLETA')`
 acepta los dos formatos vigentes— pero en la garita no se leía ninguna. El alta funcionaba y la

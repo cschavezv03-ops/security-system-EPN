@@ -146,6 +146,12 @@ export async function iniciarSesion(email: string, password: string): Promise<st
   }
 
   // El mensaje se compone aquí para garantizar la ortografía en español.
+  //
+  // Cada estado administrativo tiene su mensaje a propósito: para quien está delante de la
+  // pantalla no es lo mismo "el administrador te bloqueó" (se arregla llamándole) que "tu
+  // cuenta ya no existe para el sistema" (no se arregla). Antes los tres —y también la
+  // contraseña correcta de una cuenta bloqueada— caían en el mismo "correo o contraseña
+  // incorrectos", que era falso y además no decía qué hacer.
   if (datos.error_code === 'account_locked') {
     const min = datos.minutos_restantes
     return (
