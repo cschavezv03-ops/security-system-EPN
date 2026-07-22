@@ -848,3 +848,158 @@ sistema, y cualquier edición que le toque las horas o el estado ya obligará a 
 **✅ Cerrado en la sesión final (20/07/2026):** se fija `fecha_fin = 2026-12-31`, que cubre con
 holgura el periodo de la defensa del prototipo. Aplicado en
 `scripts/ajustes_datos_demo_prototipo3.sql`; ya no hay ninguna asignación activa sin fecha de fin.
+
+## V43 — Nuevos requerimientos PCO (documento `Nuevos_Requerimientos_PCO`, 21/07): decisiones tomadas sin poder preguntar
+
+Implementado en la rama `feat/pco-nuevos-requerimientos`. La mayoría del documento era clara y se
+aplicó tal cual (IP única de dispositivo, código legible BIO-/LPR- autogenerado, columna Zona en
+Dispositivos, número de edificio para no elegir la zona de una lista, "Acceso X" automático en el
+campus, quitar el ejemplo "Laboratorio Alan Turing" del placeholder, "ESTADO ACTUAL" en vez de
+"AHORA MISMO"). Quedan cuatro puntos donde tocó decidir sin poder preguntarle al equipo:
+
+1. **`Edificio EARME` se queda sin número de edificio.** El backfill de `numero_edificio` se hizo
+   con una expresión regular sobre `nombre_zona` ("Edificio 20 - ..." → 20), pero
+   "Edificio EARME - Aulas y Relación con el Medio Externo" no lleva ningún número en su nombre y
+   no hay ningún documento de la universidad a mano que se lo asigne. Se dejó en `NULL` a
+   propósito (no se inventó un número) — hoy no bloquea nada porque EARME no tiene ningún punto de
+   control propio (su único punto, "Garita - Subsuelo EARME", cuelga del *parqueadero*, no del
+   edificio). El día que alguien quiera registrar un punto de control dentro del edificio EARME
+   mismo, hace falta editar esa zona y ponerle un número real antes.
+
+2. **`Edificioflnd 21` no se tocó.** Es una fila que ya existía en el remoto, con un nombre que
+   huele a dato de prueba mal tecleado ("Edificioflnd" no es ningún edificio real de la EPN). Se
+   le asignó `numero_edificio = 21` por el mismo backfill automático (el único número que aparece
+   en su nombre), pero no se renombró ni se dio de baja porque no es parte de lo que pidió este
+   documento y no hay certeza de si es basura de prueba o un edificio real mal escrito. Si el
+   equipo confirma que es basura, se puede dar de baja (`estado_zona = 'INACTIVA'`) sin más.
+
+3. **"Validar que todos los nombres empiecen con mayúscula en TODO el sistema"** se implementó
+   solo para `zona.nombre_zona` y `punto_control.nombre_punto`, que es lo que trae este documento
+   (PCO). Extenderlo a `persona`, `empresa`, `categoria_persona`, `parametro_sistema`, etc. es un
+   cambio más grande — cada uno con sus propios datos y pantallas, y `persona` ya tiene su propio
+   validador de nombres (`validarNombre`) que hoy sí permite empezar en minúscula. No se tocó para
+   no arrastrar un cambio de comportamiento a módulos que no pidieron esto en esta ronda.
+
+4. **La MAC deja de ser la identidad del dispositivo, pero no se borra.** "En vez de MAC trabajar
+   con un ID" se leyó como un cambio de identificador (columna nueva `codigo_dispositivo`,
+   autogenerada, BIO-0001/LPR-0001), no como borrar el dato de la MAC real de un aparato ya
+   inventariado. `codigo_mac` pasó a ser opcional (`NOT NULL` retirado) y ya no aparece en el
+   formulario ni en el listado, pero se conserva en la fila por si hace falta consultarlo.
+## V47 — ¿DIRECTOR_ADMINISTRATIVO también queda protegido de GPI/GPE, o solo los RESPONSABLE_*?
+
+Reportado en pruebas (Sebastián, 20/07): una cuenta con solo `GPI_PERSONA_UPDATE` dio de baja a
+Carlos Chávez (cédula `1750000141`), que tiene la cuenta `carlos.chavez03` con el rol
+`RESPONSABLE_CONTROL_ACCESOS` activo — un Responsable de otro módulo, no un subordinado de GPI.
+El reporte fue explícito: *"el único que puede revocar permisos a los Responsables o
+administradores es el Administrador del Sistema"*.
+
+Se implementó la migración `20260720220000_gpi_proteger_responsables_y_administradores.sql`: un
+trigger `BEFORE UPDATE OF estado ON persona` bloquea a cualquiera sin `ADM_PERSONA_UPDATE` que
+intente cambiar el estado de una persona con rol activo `ADMINISTRADOR_SISTEMA` o cualquier
+`RESPONSABLE_*`. Verificado contra el remoto (rollback): GPI bloqueado sobre Chávez, ADM permitido,
+GPI sin restricción sobre personal operativo normal.
+
+**La inferencia:** se incluyó también `DIRECTOR_ADMINISTRATIVO` en el conjunto protegido, aunque el
+reporte solo nombró "Responsables o administradores". Director es de solo lectura (sin ningún
+`_INSERT`/`_UPDATE`, doc02 §Notas), así que nunca sería el *actor* de este problema — pero sí podría
+ser el *objetivo*: sin esta inclusión, GPI podría dar de baja al Director de la misma forma que le
+pasó a Chávez. Se optó por la opción conservadora (protegerlo también) por ser el mismo nivel
+jerárquico de supervisión transversal.
+
+**Qué hace falta decidir:** si el equipo prefiere que la protección sea *estrictamente* la nombrada
+(solo `RESPONSABLE_*` + `ADMINISTRADOR_SISTEMA`, dejando a Director fuera), hay que quitar
+`'DIRECTOR_ADMINISTRATIVO'` de la lista en `public.persona_tiene_rol_privilegiado()`.
+
+## V44 — "No se puede reactivar a nadie" era la lectura equivocada → CORREGIDA
+
+Primera lectura de "no se puede volver a activarle" (Dax, 20/07): una regla a **imponer**. Se
+implementó `20260720230000_gpi_baja_de_persona_es_permanente.sql`, un trigger que bloqueaba volver
+a `ACTIVO` para **cualquier** actor, incluido ADM.
+
+Era la lectura equivocada. Con una captura de la pantalla real de GPI (`/m/GPI/personas`, ficha de
+Carlos Chávez, solo botón "Editar" y ningún "Reactivar") quedó claro que la frase describía una
+**carencia**, no una regla: al frontend le faltaba el botón, no había que prohibir la acción.
+Confirmado con el equipo: **"cada módulo reactiva lo suyo"**, simétrico con "Dar de baja" — GPI
+reactiva personal interno, GPE personal externo, ADM cualquiera.
+
+**Corregido** en `20260720240000_gpi_permitir_reactivar_persona.sql`: se elimina el trigger y la
+función de la migración anterior. La RLS existente (`GPI_PERSONA_UPDATE` / `GPE_PERSONA_UPDATE` /
+`ADM_PERSONA_UPDATE`) ya autorizaba esto sin necesidad de un trigger nuevo — lo único que sobraba
+era el bloqueo. Verificado contra el remoto (rollback): GPI reactiva personal ordinario; ADM
+reactiva a cualquiera.
+
+**Lo que SÍ se mantiene, sin cambios:** `proteger_personal_privilegiado` (V43) sigue bloqueando
+tanto la baja como la reactivación de una persona con rol de Responsable/Director/Administrador
+para quien no tenga `ADM_PERSONA_UPDATE` — verificado que GPI sigue sin poder reactivar a Chávez.
+Ese es un problema distinto (par jerárquico) del de "¿se puede deshacer una baja?", y no se tocó.
+
+Frontend: se agregó `reactivar: { valorActivo: 'ACTIVO' }` a `cfgPersonaInterna` (`configs-gpi.tsx`)
+y `cfgPersonaExterna` (`configs.tsx`) — mismo patrón ya usado en zona/regla_acceso. La vista global
+de ADM (`cfgPersonaADM`, `configs-lectura.tsx`) vuelve a su combo de Estado sin restricción (se
+revirtió el cambio de la ronda anterior).
+
+**Hallazgo relacionado, ya no es una brecha:** `usuario_sistema.estado_usuario` (doc03 §D29) tiene
+el mismo patrón — solo `ADMINISTRADOR_SISTEMA` puede volver a `ACTIVO` una cuenta `DADO_DE_BAJA`, y
+la RLS ya lo permite sin trigger adicional. Con esta corrección, ese comportamiento es coherente
+con la decisión tomada aquí (quien tiene el permiso de `UPDATE` puede mover el estado en cualquier
+dirección) y no un descuido — se cierra sin cambios.
+## V45 — ¿Un acompañante externo con visita diaria puede entrar en el coche?
+
+La regla implementada (§D84) exige **memorando vigente a todo ocupante externo** de un vehículo,
+no solo al conductor. Sale de cómo se formuló el encargo: *"no se permite el ingreso vehicular
+de personal externo sin un memorando asignado, para ese tipo de personal externo solamente se
+permite el ingreso a pie."*
+
+Eso estrecha RF-CA-017, que dice que los pasajeros cumplen las reglas del ingreso peatonal. Bajo
+esa regla, un externo con autorización de visita diaria podía entrar de pasajero; ahora tiene
+que bajarse y entrar a pie.
+
+Se implementó así por ser lo que dice el encargo y lo más restrictivo de las dos lecturas —ante
+la duda, en control de accesos conviene equivocarse hacia el lado que no deja entrar a nadie de
+más—. **Si el equipo prefiere lo contrario**, es cambiar una condición en la Edge Function: que
+la exigencia de memorando se aplique solo cuando `es_conductor` sea cierto.
+
+Lo que no cambiaría en ningún caso: el **conductor** externo siempre necesita memorando, y ese
+memorando tiene que amparar la placa concreta.
+
+## V46 — `permite_acompanantes` es informativo, no una barrera
+
+La casilla "ingresa con acompañantes" del memorando se guarda y se muestra al guardia, pero **no
+deniega nada por sí sola**: un acompañante entra o no según su propia vigencia, que es como
+funciona todo el sistema (cada ocupante se valida por separado).
+
+Se dejó así a propósito, en vez de convertirla en una restricción dura: un memorando que ampara
+a cinco personas y que alguien olvidó marcar como "con acompañantes" dejaría a cuatro de ellas
+fuera por un descuido administrativo, cuando el oficio las nombra. La casilla sirve para que la
+garita sepa qué esperar, no para decidir.
+
+**Si el equipo quiere que sea una barrera**, hay que decidir antes qué pasa con los memorandos
+ya registrados que no la tienen marcada.
+
+## V47 — Qué se cambió en los datos antes de la entrega, y qué conviene revisar
+
+El saneamiento previo a la presentación (migraciones `20260722002000`, `003000` y `004000`) tocó
+datos que el equipo puede reconocer de sesiones anteriores. Se listan aquí para que nadie busque
+un registro que ya no está con el nombre que recordaba:
+
+- **Personas de prueba borradas:** "Impostor Uno", "Impostor Dos" y "TuRostro Muestra Dos", con su
+  evento de acceso, su alerta y su asociación a vehículo. Se usaron para calibrar el umbral
+  biométrico; el resultado de esa calibración vive en `parametro_sistema`, no en ellas.
+- **Personas de prueba convertidas en personas reales**, para no dejar sin historial la garita:
+  "Docente Demo" → Patricia Elena Rosero Guerrero; "Visitante Demo" → Andrea Carolina Suárez Mena;
+  "Guardia Demo" → Marco Andrés Villacís Ponce (su cuenta `guardia_demo` y su contraseña **no** se
+  tocaron); "Administrador del Sistema" → Diego Fernando Salazar Núñez (cuenta `admin` intacta).
+- **DILIPA:** "Rick Sanchez" y "Morty Smith" pasaron a llamarse Ricardo Javier Sánchez Peñafiel y
+  Mateo Andrés Salgado Mena. Conservan cédula, memorando, vehículo e historial: son los mismos
+  registros, con nombre verosímil.
+- **Vehículo duplicado:** PCR-1234 y PCZ-1234 eran el mismo camión registrado dos veces. Los
+  eventos de PCR-1234 se trasladaron a PCZ-1234 —el que ampara el memorando vigente— y el
+  duplicado se borró, junto con el memorando anulado que lo amparaba (EPN-DL-2026-002).
+- **Memorandos borrados:** dos vencidos que no autorizaban a ninguna persona
+  (EPN-DA-2026-0002-M, EPN-DA-2026-0003-M) y uno de prueba anulado (EPN-PRB-2026-0451).
+- **Memorando de DILIPA ampliado** hasta el 31/08/2026: vencía el 22/07 y es el caso que se
+  demuestra. Si la presentación se pasa de esa fecha, hay que volver a ampliarlo.
+- **Cédulas:** todas las de relleno (1750000xxx) se sustituyeron por cédulas que pasan el
+  algoritmo del Registro Civil. La de Carlos Chávez es la real facilitada por él; **las demás son
+  inventadas** y habría que sustituirlas si alguna de estas personas es real y va a usar el
+  sistema.

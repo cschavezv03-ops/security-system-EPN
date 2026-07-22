@@ -51,7 +51,7 @@ export const MODULOS: ModuloDef[] = [
     icono: <UserCog className="h-7 w-7" />,
     submodulos: [
       sub('personas', 'Personal interno', 'Registro y consulta de personas internas.', <Users className="h-6 w-6" />, cfgPersonaInterna),
-      sub('detalle', 'Datos internos', 'Cargo, unidad, carrera, escalafón.', <Contact className="h-6 w-6" />, cfgPersonaInternaDetalle),
+      sub('detalle', 'Datos internos', 'Cargo, unidad, carrera y categoría.', <Contact className="h-6 w-6" />, cfgPersonaInternaDetalle),
       // GPE §7 / GPI: las descripciones nombraban el algoritmo ("Enrolamiento facial 1:N") en
       // vez de la tarea. A quien registra una cara no le sirve saber que la búsqueda es 1:N.
       { key: 'biometria', titulo: 'Biometría', descripcion: 'Registrar el rostro del personal interno.', icono: <Fingerprint className="h-6 w-6" />, permisoVer: ['GPI_BIOMETRIA_SELECT'], render: () => <BiometriaScreen /> },
@@ -85,7 +85,7 @@ export const MODULOS: ModuloDef[] = [
       sub('zonas', 'Zonas', 'Campus, edificios y parqueaderos.', <LayoutGrid className="h-6 w-6" />, cfgZona),
       sub('puntos', 'Puntos de control', 'Garitas y accesos.', <Shield className="h-6 w-6" />, cfgPuntoControl),
       sub('dispositivos', 'Dispositivos', 'Cámaras, torniquetes y lectores.', <Cpu className="h-6 w-6" />, cfgDispositivo),
-      sub('asignaciones', 'Asignaciones de guardia', 'Guardia ↔ punto de control.', <UserCog className="h-6 w-6" />, cfgAsignacionGuardia),
+      sub('asignaciones', 'Asignaciones de guardia', 'Qué guardia cubre cada garita y en qué turno.', <UserCog className="h-6 w-6" />, cfgAsignacionGuardia),
     ],
   },
   {
@@ -132,7 +132,7 @@ export const MODULOS: ModuloDef[] = [
       // desde la misma vista". Las asociaciones se gestionan dentro del detalle del
       // vehículo, así que ADM ya no necesita una tarjeta aparte (GPI y GPE mantienen la
       // suya: ahí el alta de vínculos es parte de su flujo diario).
-      sub('vehiculos', 'Vehículos', 'Ciclo de vida de vehículos y sus personas asociadas.', <Car className="h-6 w-6" />, cfgVehiculo('ADM')),
+      sub('vehiculos', 'Vehículos', 'Vehículos registrados y quién los conduce.', <Car className="h-6 w-6" />, cfgVehiculo('ADM')),
       sub('bitacora', 'Auditoría', 'Quién hizo qué, sobre quién y cuándo.', <ScrollText className="h-6 w-6" />, cfgBitacora),
       sub('sesiones', 'Sesiones', 'Registro de sesiones.', <History className="h-6 w-6" />, cfgSesion),
     ],

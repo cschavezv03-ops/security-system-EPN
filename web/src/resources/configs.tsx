@@ -11,18 +11,23 @@ import { AnularMemorando } from '../components/AnularMemorando'
 import { GaritasDeRegla } from '../components/GaritasDeRegla'
 import {
   opcionesCatalogo, optCategorias, optEmpresas, optPuntosControl, optZonas,
-  opcionesTabla, optZonasPorTipo, optZonasPadrePara, optPuntosPorZona, optGuardiasDisponibles,
+  optZonasPorTipo, optZonasPadrePara, optPuntosPorZona, optGuardiasDisponibles,
   optPersonasExternasConEmpresa, optMemorandosVigentes, humanizarNombreCuenta,
+  zonaEdificioPorNumero,
 } from './opciones'
 import { supabase } from '../lib/supabase'
 import { hoyISO } from '../lib/format'
 import {
   formatearPlaca, formatearPlacaInput, normalizarPlaca, normalizarTelefono,
   validarCedula, validarCodigoParametro, validarCodigoPermiso, validarCorreo,
-  validarFechaNacimiento, validarIp, validarMac, validarNoVacio, validarNombre,
+  validarFechaNacimiento, validarIp, validarNoVacio, validarNombre, validarMayusculaInicial,
   validarNumeroMemorando, validarPlaca, validarRuc, validarTelefono, validarValorParametro,
-  componerNombrePuntoEPN, partesUbicacionEPN,
+  componerNombrePuntoEPN, partesUbicacionEPN, componerNombrePuntoCampus, partesAccesoCampus,
 } from '../lib/validacion'
+
+/** Nombre de zona/punto: no vacío y con mayúscula inicial (PCO: "validar que todos los nombres
+ *  empiecen con mayúscula en TODO el sistema"). Espejo de `es_nombre_con_mayuscula`. */
+const validarNombreLugar = (v: string) => validarNoVacio(v) || validarMayusculaInicial(v)
 
 const d = (v: any) => (v == null || v === '' ? '—' : String(v))
 
@@ -269,7 +274,11 @@ export function cfgVehiculo(modulo: 'ADM' | 'GPI' | 'GPE'): ResourceConfig {
     // registra vehículo y propietario en una sola transacción (RPC crear_vehiculo_con_propietario),
     // en vez del formulario genérico, que insertaba la fila suelta y dejaba vehículos huérfanos.
     // La restricción diferida de la base lo respalda para cualquier otra vía.
-    altaRuta: '/vehiculos/nuevo',
+    // El módulo viaja en la ruta para que el alta unificada sepa con qué población trabaja:
+    // GPI registra vehículos de personal interno y GPE de personal externo. Sin esto, la
+    // pantalla de alta buscaba al propietario entre TODAS las personas y se colaban vehículos
+    // de un docente dados de alta desde GPE (y al revés).
+    altaRuta: `/vehiculos/nuevo?modulo=${modulo}`,
     buscarEn: ['placa', 'marca', 'modelo', 'color', 'relaciones.persona.apellidos', 'relaciones.persona.cedula'],
     columnas: [
       { key: 'placa', label: 'Placa', render: (r) => (r.placa ? formatearPlaca(r.placa) : '—'), valorExport: (r) => (r.placa ? formatearPlaca(r.placa) : '') },
@@ -432,8 +441,8 @@ export const cfgZona: ResourceConfig = {
   ],
   filtros: [{ campo: 'tipo_zona', label: 'Filtrar por zona', opciones: opcionesCatalogo(CAT.zona_tipo) }],
   campos: [
-    { name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio },
-    { name: 'tipo_zona', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona_padre'] },
+    { name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2, validar: validarNombreLugar },
+    { name: 'tipo_zona', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona_padre', 'numero_edificio'] },
     // Jerarquía CAMPUS -> EDIFICIO -> PARQUEADERO (feedback PCO): el combo ofrecía todas las
     // zonas, así que un parqueadero podía colgar de otro parqueadero. Ahora solo se ofrece el
     // nivel inmediatamente superior. El trigger validar_jerarquia_zona lo vuelve a comprobar.
@@ -442,6 +451,14 @@ export const cfgZona: ResourceConfig = {
       opcionesDependientes: (v) => optZonasPadrePara(v.tipo_zona),
       visibleSi: (v) => v.tipo_zona === 'PARQUEADERO' || v.tipo_zona === 'EDIFICIO',
       hint: 'Un edificio pertenece a un campus; un parqueadero, a un edificio.',
+    },
+    // Nuevos requerimientos PCO: el número estructurado del edificio, para que un punto de
+    // control pueda resolver solo su zona a partir de este número (sin elegirla de una lista).
+    // El trigger validar_numero_edificio lo vuelve a exigir en la base.
+    {
+      name: 'numero_edificio', label: 'Número de edificio', type: 'number', required: true,
+      visibleSi: (v) => v.tipo_zona === 'EDIFICIO',
+      placeholder: '20', hint: 'Único por edificio. Al registrar una garita bastará con escribir este número.',
     },
     // Sin combo de Estado al registrar (feedback PCO): una zona nueva nace en servicio. Cambiarlo
     // es una decisión posterior, y para eso está la ficha —con Inactivar y Reactivar—.
@@ -452,17 +469,35 @@ export const cfgZona: ResourceConfig = {
   reactivar: { valorActivo: 'ACTIVA', etiqueta: 'Reactivar' },
 }
 
-/** Siguiente nombre sugerido para un punto de control tipo CAMPUS (feedback PCO #7):
- *  si ya hay "Acceso A".."Acceso D", sugiere "Acceso E". Solo aplica a zonas CAMPUS. */
-async function sugerirNombrePuntoCampus(idZona: string, valores: Record<string, any>): Promise<string | null> {
+/** Sentinela que enseña "este número no corresponde a ningún edificio registrado", sin usar una
+ *  cadena vacía (que significaría "todavía no ha escrito nada" para el required-check). */
+const SIN_EDIFICIO = '__SIN_EDIFICIO__'
+
+/** El id de zona que resuelve un número de edificio, o "" si ninguno lo tiene. Alimenta el campo
+ *  oculto `id_zona` real (el que de verdad se guarda) cuando la zona es un Edificio. */
+async function idZonaPorNumeroEdificio(numero: string): Promise<string> {
+  const zona = await zonaEdificioPorNumero(numero)
+  return zona?.id_zona ?? ''
+}
+
+/** El nombre de zona que confirma en pantalla cuál edificio resolvió el número tecleado, o el
+ *  sentinela `SIN_EDIFICIO` si no existe ninguno con ese número. */
+async function nombreZonaPorNumeroEdificio(numero: string): Promise<string> {
+  const zona = await zonaEdificioPorNumero(numero)
+  return zona?.nombre_zona ?? SIN_EDIFICIO
+}
+
+/** Siguiente letra de acceso sugerida para un punto de control tipo CAMPUS (feedback PCO): si ya
+ *  hay "Acceso A".."Acceso D", sugiere "E". Solo aplica a zonas CAMPUS. */
+async function sugerirLetraCampus(idZona: string, valores: Record<string, any>): Promise<string | null> {
   if (valores._filtro_tipo_zona !== 'CAMPUS') return null
   const { data } = await (supabase as any).from('punto_control').select('nombre_punto').eq('id_zona', idZona)
   const letras = ((data as { nombre_punto: string }[]) ?? [])
-    .map((r) => /^Acceso ([A-Z])$/i.exec(r.nombre_punto.trim())?.[1]?.toUpperCase())
+    .map((r) => partesAccesoCampus(r.nombre_punto)?.letra)
     .filter((l): l is string => !!l)
     .map((l) => l.charCodeAt(0))
   const siguiente = letras.length ? Math.max(...letras) + 1 : 'A'.charCodeAt(0)
-  return `Acceso ${String.fromCharCode(siguiente)}`
+  return String.fromCharCode(siguiente)
 }
 
 export const cfgPuntoControl: ResourceConfig = {
@@ -513,47 +548,124 @@ export const cfgPuntoControl: ResourceConfig = {
         return (data as { tipo_zona: string } | null)?.tipo_zona ?? ''
       },
     },
-    { name: 'id_zona', label: 'Zona', type: 'select', required: true, opcionesDependientes: (v) => optZonasPorTipo(v._filtro_tipo_zona) },
+    {
+      name: 'id_zona', label: 'Zona', type: 'select', required: true,
+      // El tercer caso (Edificio "legado") son los puntos anteriores a la nomenclatura EPN —
+      // "Puerta - Laboratorio de Suelos" en Edificio 15, por ejemplo—, cuyo nombre no trae el
+      // número de edificio para resolverlo solo. Se siguen editando eligiendo la zona de una
+      // lista, como antes de esta regla.
+      visibleSi: (v) => v._filtro_tipo_zona === 'CAMPUS' || v._filtro_tipo_zona === 'PARQUEADERO'
+        || (v._filtro_tipo_zona === 'EDIFICIO' && !!v._es_edificio_legado),
+      opcionesDependientes: (v) => optZonasPorTipo(v._filtro_tipo_zona),
+    },
+    // Campo oculto que distingue los puntos de un edificio anteriores a la nomenclatura EPN (su
+    // nombre no tiene E<edificio>/P<piso>/E<espacio> del que sacar el número): esos se editan
+    // eligiendo la zona de una lista, como hasta ahora, en vez de resolverla sola.
+    {
+      name: '_es_edificio_legado', label: '', persistir: false, visibleSi: () => false,
+      derivarDeRegistro: (r) => (r?.nombre_punto && !partesUbicacionEPN(r.nombre_punto) ? '1' : ''),
+    },
+    // Resoluciones ocultas del edificio a partir del número, con nombre propio (no "id_zona"):
+    // `derivarSiempreDesde` se recalcula SIEMPRE que cambia `_edificio`, sin mirar si el campo
+    // está visible — si escribiera directo sobre "id_zona" pisaría, en cualquier zona que no sea
+    // un Edificio, el valor que sí eligió el combo de arriba (comparten el mismo nombre de
+    // columna). Por eso viven en campos aparte y solo se copian a "id_zona" más abajo con
+    // `componerDesde`, que si respeta la visibilidad.
+    {
+      name: '_id_zona_edificio', label: '', persistir: false, visibleSi: () => false,
+      derivarSiempreDesde: { campo: '_edificio', calcular: idZonaPorNumeroEdificio },
+    },
+    {
+      name: '_nombre_zona_edificio', label: '', persistir: false, visibleSi: () => false,
+      derivarSiempreDesde: { campo: '_edificio', calcular: nombreZonaPorNumeroEdificio },
+    },
 
     /* Nomenclatura oficial de la EPN dentro de un edificio (PCO v2). El usuario teclea solo
        números y una descripción; los separadores los pone el sistema, que es lo que pedía el
        documento («no estos caracteres: "/, -"»). Espejo de `componer_nombre_punto_epn()`. */
     {
       name: '_edificio', label: 'Edificio', type: 'number', required: true, persistir: false,
-      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO',
-      placeholder: '20', hint: 'Solo el número.',
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
+      placeholder: '20', hint: 'Solo el número: resuelve la zona sin tener que elegirla.',
       derivarDeRegistro: (r) => partesUbicacionEPN(r.nombre_punto)?.edificio ?? '',
+    },
+    // Nuevos requerimientos PCO: "que no nos haga escoger qué edificio es". Cuando la zona es un
+    // Edificio (y no es uno de los puntos anteriores a la nomenclatura EPN), "Zona" deja de ser
+    // un desplegable: es la confirmación (en gris) de a qué edificio corresponde el número de
+    // arriba. Si no corresponde a ninguno, lo dice aquí en vez de fallar en silencio al guardar.
+    {
+      name: 'id_zona', label: 'Zona', colSpan: 2, soloLectura: true, required: true,
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
+      valorCalculado: (v) => (v._nombre_zona_edificio === SIN_EDIFICIO
+        ? 'No existe ningún edificio registrado con ese número.'
+        : v._nombre_zona_edificio || 'Escriba el número del edificio de arriba.'),
+      aviso: (_v, todos) => (todos._nombre_zona_edificio === SIN_EDIFICIO
+        ? 'Regístrelo primero en Zonas antes de poder usarlo aquí.'
+        : null),
+      componerDesde: { campos: ['_id_zona_edificio'], componer: (v) => v._id_zona_edificio || '' },
     },
     {
       name: '_piso', label: 'Piso', type: 'number', required: true, persistir: false,
-      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO',
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
       placeholder: '4', hint: 'Planta baja es 0.',
       derivarDeRegistro: (r) => partesUbicacionEPN(r.nombre_punto)?.piso ?? '',
     },
     {
       name: '_espacio', label: 'Aula o espacio', type: 'number', required: true, persistir: false,
-      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO',
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
       placeholder: '4', hint: 'Se completa a tres dígitos: 4 → 004.',
       derivarDeRegistro: (r) => partesUbicacionEPN(r.nombre_punto)?.espacio ?? '',
     },
     {
       name: '_descripcion', label: 'Descripción', colSpan: 2, persistir: false,
-      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO',
-      placeholder: 'Laboratorio Alan Turing', hint: 'Cómo se conoce al sitio. Opcional.',
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
+      hint: 'Cómo se conoce al sitio. Opcional.',
       derivarDeRegistro: (r) => partesUbicacionEPN(r.nombre_punto)?.descripcion ?? '',
     },
 
-    // En un edificio el nombre lo compone el sistema y se muestra en gris; en un campus o un
-    // parqueadero se escribe a mano, porque ahí los puntos son garitas y accesos perimetrales
-    // que no ocupan un aula. Es el mismo criterio que aplica el trigger de la base.
+    // Campus, punto nuevo: solo se pide la descripción; el "Acceso X" se asigna solo (PCO:
+    // "automáticamente el nombre oficial se le asigne el Acceso correspondiente").
     {
-      name: 'nombre_punto', label: 'Nombre', required: true, colSpan: 2, validar: validarNoVacio,
-      visibleSi: (v) => v._filtro_tipo_zona !== 'EDIFICIO',
-      autoSugerenciaDesde: { campo: 'id_zona', calcular: sugerirNombrePuntoCampus },
+      name: '_letra_acceso', label: 'Acceso', persistir: false, soloLectura: true, required: true,
+      visibleSi: (v) => v._filtro_tipo_zona === 'CAMPUS' && !v._es_campus_legado,
+      valorCalculado: (v) => (v._letra_acceso ? `Acceso ${v._letra_acceso}` : 'Se asigna al guardar.'),
+      derivarDeRegistro: (r) => partesAccesoCampus(r.nombre_punto)?.letra ?? null,
+      autoSugerenciaDesde: { campo: 'id_zona', calcular: sugerirLetraCampus },
+    },
+    {
+      name: '_descripcion_campus', label: 'Descripción', colSpan: 2, persistir: false, required: true,
+      visibleSi: (v) => v._filtro_tipo_zona === 'CAMPUS' && !v._es_campus_legado,
+      hint: 'Qué acceso es, ej. Av. Ladrón de Guevara (Sur).',
+      validar: validarNombreLugar,
+      derivarDeRegistro: (r) => partesAccesoCampus(r.nombre_punto)?.descripcion ?? null,
     },
     {
       name: 'nombre_punto', label: 'Nombre del punto', colSpan: 2,
-      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO',
+      visibleSi: (v) => v._filtro_tipo_zona === 'CAMPUS' && !v._es_campus_legado,
+      componerDesde: {
+        campos: ['_letra_acceso', '_descripcion_campus'],
+        componer: (v) => componerNombrePuntoCampus(v._letra_acceso, v._descripcion_campus),
+      },
+      hint: 'Lo arma el sistema con el acceso y la descripción.',
+    },
+    // Campo oculto que distingue los puntos del campus anteriores a esta regla (ej. "Garita
+    // Principal (demo)", que no sigue el patrón "Acceso X - descripción"): esos se editan a mano,
+    // como hasta ahora, para no reescribirles el nombre solos al abrir su ficha.
+    {
+      name: '_es_campus_legado', label: '', persistir: false, visibleSi: () => false,
+      derivarDeRegistro: (r) => (r?.nombre_punto && !partesAccesoCampus(r.nombre_punto) ? '1' : ''),
+    },
+    // Parqueadero, campus anterior a esta regla, y edificio anterior a la nomenclatura EPN: el
+    // nombre se escribe a mano, porque esos puntos no tienen un patrón que reconstruir.
+    {
+      name: 'nombre_punto', label: 'Nombre', required: true, colSpan: 2, validar: validarNombreLugar,
+      visibleSi: (v) => v._filtro_tipo_zona === 'PARQUEADERO'
+        || (v._filtro_tipo_zona === 'CAMPUS' && !!v._es_campus_legado)
+        || (v._filtro_tipo_zona === 'EDIFICIO' && !!v._es_edificio_legado),
+    },
+    {
+      name: 'nombre_punto', label: 'Nombre del punto', colSpan: 2,
+      visibleSi: (v) => v._filtro_tipo_zona === 'EDIFICIO' && !v._es_edificio_legado,
       componerDesde: {
         campos: ['_edificio', '_piso', '_espacio', '_descripcion'],
         componer: (v) => componerNombrePuntoEPN(v._edificio, v._piso, v._espacio, v._descripcion),
@@ -572,31 +684,39 @@ export const cfgDispositivo: ResourceConfig = {
   titulo: 'Dispositivos',
   singular: 'Dispositivo',
   idField: 'id_dispositivo',
-  select: '*, punto:punto_control(nombre_punto)',
+  select: '*, punto:punto_control(nombre_punto, zona:zona(nombre_zona))',
   permisos: { select: ['PCO_DISPOSITIVO_SELECT'], insert: ['PCO_DISPOSITIVO_INSERT'], update: ['PCO_DISPOSITIVO_UPDATE'] },
-  buscarEn: ['codigo_mac'],
+  buscarEn: ['codigo_dispositivo'],
   filtros: [
     { campo: 'tipo_tecnologia', label: 'Filtrar por tecnología', opciones: opcionesCatalogo(CAT.dispositivo_tecnologia) },
     { campo: 'estado_dispositivo', label: 'Filtrar por estado', opciones: opcionesCatalogo(CAT.dispositivo_estado) },
   ],
+  // Nuevos requerimientos PCO: "en vez de MAC trabajar con un ID" (BIO-0001, LPR-0001...) y
+  // "añadir una columna más... la ZONA, ligado al Punto de Control. Cambiar 'PUNTO' por 'PUNTO
+  // DE CONTROL'". El código lo asigna solo la base (trigger asignar_codigo_dispositivo); aquí ya
+  // no se elige ni se muestra la MAC.
   columnas: [
-    { key: 'codigo_mac', label: 'MAC' },
+    { key: 'codigo_dispositivo', label: 'Código' },
     { key: 'direccion_ip', label: 'IP' },
     { key: 'tipo_tecnologia', label: 'Tecnología' },
-    { key: 'punto', label: 'Punto', render: (r) => r.punto?.nombre_punto ?? '—' },
+    { key: 'punto', label: 'Punto de control', render: (r) => r.punto?.nombre_punto ?? '—' },
+    { key: 'zona', label: 'Zona', render: (r) => r.punto?.zona?.nombre_zona ?? '—' },
     { key: 'estado_dispositivo', label: 'Estado', badge: true },
   ],
-  campoTituloDetalle: (r) => r.codigo_mac,
+  campoTituloDetalle: (r) => r.codigo_dispositivo,
   campoSubtituloDetalle: (r) => <Badge value={r.estado_dispositivo} />,
   detalle: [
     { label: 'IP', render: (r) => r.direccion_ip },
     { label: 'Tecnología', render: (r) => humanizar(r.tipo_tecnologia) },
     { label: 'Punto de control', render: (r) => r.punto?.nombre_punto ?? '—' },
+    { label: 'Zona', render: (r) => r.punto?.zona?.nombre_zona ?? '—' },
   ],
   campos: [
-    // Orden pedido (feedback PCO #9): tecnología primero, luego MAC/IP con autoformato.
+    // El código (BIO-0001, LPR-0001...) lo asigna la base al registrar, no se teclea: solo se
+    // enseña, ya con su valor, al editar un dispositivo existente.
+    { name: 'codigo_dispositivo', label: 'Código', soloLectura: true, hideOnInsert: true, valorCalculado: (v) => v.codigo_dispositivo ?? '' },
+    // Orden pedido (feedback PCO #9): tecnología primero, luego IP con autoformato.
     { name: 'tipo_tecnologia', label: 'Tecnología', type: 'select', required: true, options: opcionesCatalogo(CAT.dispositivo_tecnologia), alCambiarLimpiar: ['_filtro_zona', 'id_punto_control'] },
-    { name: 'codigo_mac', label: 'Código MAC', required: true, placeholder: 'AA:BB:CC:DD:EE:FF', formatear: formatearMac, validar: validarMac, ayuda: 'Seis pares de dígitos hexadecimales (0-9 y A-F) separados por dos puntos: AA:BB:CC:DD:EE:FF. Los dos puntos se añaden solos mientras escribes.' },
     { name: 'direccion_ip', label: 'Dirección IP', required: true, placeholder: '10.0.0.10', formatear: formatearIp, validar: validarIp, ayuda: 'Dirección IPv4 con cuatro números de 0 a 255 separados por puntos (10.0.0.10). También se acepta IPv6.' },
     // Cascada (feedback PCO #10): zona → punto de control, ya filtrada por compatibilidad
     // tecnología↔zona (LPR_PLACAS solo PARQUEADERO). El trigger validar_asignacion_dispositivo
@@ -655,7 +775,8 @@ export const cfgAsignacionGuardia: ResourceConfig = {
     // cuál: son cosas diferentes. Una asignación VIGENTE de 22:00–06:00 lo está también a
     // mediodía, con el guardia en su casa.
     { key: 'estado_asignacion', label: 'Asignación', badge: true },
-    { key: '_ahora', label: 'Ahora mismo', render: (r) => <EnTurnoAhora fila={r} />, valorExport: (r) => etiquetaTurnoAhora(r) },
+    // PCO: "Quitar 'AHORA MISMO' y poner 'ESTADO ACTUAL'".
+    { key: '_ahora', label: 'Estado actual', render: (r) => <EnTurnoAhora fila={r} />, valorExport: (r) => etiquetaTurnoAhora(r) },
   ],
   campoTituloDetalle: (r) => nombreGuardia(r),
   campoSubtituloDetalle: (r) => <>Punto {r.punto?.nombre_punto ?? '—'} · <Badge value={r.estado_asignacion} /></>,
@@ -664,7 +785,7 @@ export const cfgAsignacionGuardia: ResourceConfig = {
     { label: 'Correo', render: (r) => d(r.guardia?.correo_electronico) },
     { label: 'Punto de control', render: (r) => r.punto?.nombre_punto ?? '—' },
     { label: 'Horario', render: (r) => d(r.turno) },
-    { label: 'Ahora mismo', render: (r) => <EnTurnoAhora fila={r} /> },
+    { label: 'Estado actual', render: (r) => <EnTurnoAhora fila={r} /> },
     { label: 'Vigencia', render: (r) => `${fmtFechaDia(r.fecha_inicio)} → ${r.fecha_fin ? fmtFechaDia(r.fecha_fin) : 'indefinida'}` },
   ],
   campos: [
@@ -938,7 +1059,7 @@ export const cfgMemorando: ResourceConfig = {
   titulo: 'Memorandos',
   singular: 'Memorando',
   idField: 'id_memorando',
-  select: '*, empresa:empresa(nombre)',
+  select: '*, empresa:empresa(nombre), vehiculos:memorando_vehiculo(id_memorando_vehiculo, vehiculo:vehiculo(id_vehiculo, placa, tipo_vehiculo, marca, modelo, color, estado_vehiculo))',
   orderBy: { columna: 'fecha_registro', ascendente: false },
   permisos: { select: ['GPE_MEMORANDO_SELECT'], insert: ['GPE_MEMORANDO_INSERT'], update: ['GPE_MEMORANDO_UPDATE'] },
   autoUsuarioRegistro: ['id_usuario_registro'],
@@ -948,6 +1069,21 @@ export const cfgMemorando: ResourceConfig = {
     { key: 'empresa', label: 'Empresa', render: (r) => r.empresa?.nombre ?? '—' },
     { key: 'dependencia_autorizada', label: 'Dependencia' },
     { key: 'vigencia', label: 'Vigencia', render: (r) => `${fmtFecha(r.fecha_inicio)} → ${fmtFecha(r.fecha_fin)}` },
+    {
+      key: 'ingreso', label: 'Ingreso',
+      render: (r) => {
+        if (!r.permite_vehiculo) return <span className="text-xs text-ink-soft">A pie</span>
+        const placas = ((r.vehiculos ?? []) as { vehiculo?: { placa?: string } }[])
+          .map((v) => (v.vehiculo?.placa ? formatearPlaca(v.vehiculo.placa) : null))
+          .filter(Boolean)
+        return placas.length > 0
+          ? <span className="text-xs text-navy">{placas.join(', ')}</span>
+          : <span className="text-xs text-red">Vehículo sin placa registrada</span>
+      },
+      valorExport: (r) => (r.permite_vehiculo
+        ? ((r.vehiculos ?? []) as { vehiculo?: { placa?: string } }[]).map((v) => v.vehiculo?.placa ?? '').join(' ')
+        : 'A pie'),
+    },
     { key: 'estado_memorando', label: 'Estado', render: (r) => <Badge value={estadoMemorandoEfectivo(r)} /> },
   ],
   campoTituloDetalle: (r) => r.numero_memorando,
@@ -971,6 +1107,45 @@ export const cfgMemorando: ResourceConfig = {
         if (estado === 'VENCIDO') return <span className="text-red">Venció el {fmtFecha(r.fecha_fin)}. Ya no autoriza el ingreso.</span>
         if (estado === 'PROGRAMADO') return <span>Todavía no empieza: autoriza el ingreso desde el {fmtFecha(r.fecha_inicio)}.</span>
         return <span className="text-emerald-700">Autoriza el ingreso hasta el {vigenteHastaTexto(r.fecha_fin)} inclusive.</span>
+      },
+    },
+    {
+      label: 'Forma de ingreso',
+      render: (r) => {
+        const vehiculos = (r.vehiculos ?? []) as { vehiculo?: any }[]
+        if (!r.permite_vehiculo) {
+          return <span>Solo a pie. Este memorando no autoriza el ingreso en vehículo.</span>
+        }
+        return (
+          <div className="space-y-1.5">
+            <p>
+              En vehículo{r.permite_acompanantes ? ', con acompañantes' : ', sin acompañantes declarados'}.
+            </p>
+            {vehiculos.length === 0 ? (
+              <p className="text-xs text-red">
+                Autoriza vehículo pero no tiene ninguna placa registrada: la garita no dejará
+                entrar el coche hasta que se registre.
+              </p>
+            ) : (
+              <ul className="space-y-1">
+                {vehiculos.map((v, i) => (
+                  <li key={i} className="flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="font-medium text-navy">
+                      {v.vehiculo?.placa ? formatearPlaca(v.vehiculo.placa) : '—'}
+                    </span>
+                    <span className="text-ink-soft">
+                      {humanizar(v.vehiculo?.tipo_vehiculo)}
+                      {v.vehiculo?.marca ? ` · ${v.vehiculo.marca}` : ''}
+                      {v.vehiculo?.modelo ? ` ${v.vehiculo.modelo}` : ''}
+                      {v.vehiculo?.color ? ` · ${v.vehiculo.color}` : ''}
+                    </span>
+                    <Badge value={v.vehiculo?.estado_vehiculo} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
       },
     },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
@@ -1003,6 +1178,11 @@ export const cfgMemorando: ResourceConfig = {
     // vigente." El estado no es una elección: sale de las fechas. Se muestra en gris con el
     // valor real, y para anularlo antes de tiempo está el botón del pie de la ficha.
     {
+      name: 'permite_vehiculo', label: '¿Ingresa con vehículo?', type: 'checkbox',
+      hint: 'Sin esto, la garita solo autoriza el ingreso a pie.',
+    },
+    { name: 'permite_acompanantes', label: '¿Ingresa con acompañantes?', type: 'checkbox' },
+    {
       name: 'estado_memorando', label: 'Estado', soloLectura: true, hideOnInsert: true,
       valorCalculado: (v) => humanizar(estadoMemorandoEfectivo(v as any)),
       hint: 'Lo calculan las fechas de vigencia. Para retirar la autorización antes de tiempo, usa "Anular memorando".',
@@ -1011,7 +1191,11 @@ export const cfgMemorando: ResourceConfig = {
   campoEstado: 'estado_memorando',
   // Cambiar las fechas de vigencia o la empresa altera quién puede entrar al campus y hasta
   // cuándo (GPE §5).
-  camposSensibles: ['fecha_inicio', 'fecha_fin', 'id_empresa'],
+  camposSensibles: ['fecha_inicio', 'fecha_fin', 'id_empresa', 'permite_vehiculo'],
+  // Un memorando con vehículo son tres filas que nacen juntas (memorando, vehículo y su
+  // responsable), así que el alta no puede ser el formulario genérico. Mismo motivo que en
+  // vehículos, y misma solución.
+  altaRuta: '/memorandos/nuevo',
   accionDetalle: (r, ctx) => <AnularMemorando memorando={r} {...ctx} />,
 }
 
@@ -1179,7 +1363,7 @@ export const cfgAutorizacion: ResourceConfig = {
   titulo: 'Autorizaciones de visita',
   singular: 'Autorización',
   idField: 'id_autorizacion',
-  select: '*, persona:persona(nombres, apellidos, cedula)',
+  select: '*, persona:persona(id_persona, nombres, apellidos, cedula, correo, tipo_persona, estado, categoria:categoria_persona(codigo_categoria))',
   orderBy: { columna: 'fecha_visita', ascendente: false },
   permisos: { select: ['GPE_AUTORIZACION_SELECT'], insert: ['GPE_AUTORIZACION_INSERT'], update: ['GPE_AUTORIZACION_UPDATE'] },
   autoUsuarioRegistro: ['id_usuario_registro'],
@@ -1220,7 +1404,11 @@ export const cfgAutorizacion: ResourceConfig = {
     { label: 'Registrada', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   campos: [
-    { name: 'id_persona', label: 'Visitante (persona externa)', type: 'select', required: true, editable: false, options: opcionesTabla('persona', 'id_persona', (p) => `${p.apellidos} ${p.nombres} · ${p.cedula}`, { tipo_persona: 'EXTERNA' }), colSpan: 2 },
+    {
+      name: 'id_persona', label: 'Cédula del visitante', type: 'cedula-busqueda', required: true,
+      editable: false, buscarPersona: { soloTipo: 'EXTERNA', soloActivas: true }, colSpan: 2,
+      hint: 'Busca una persona externa registrada; se mostrará su categoría antes de autorizarla.',
+    },
     {
       name: 'fecha_visita', label: 'Fecha de visita', type: 'date', required: true, default: hoyISO(),
       hint: 'La autorización vale solo ese día.',

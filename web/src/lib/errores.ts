@@ -112,6 +112,8 @@ const CONSTRAINTS: Record<string, string> = {
   dispositivo_mac_valida: 'La dirección MAC no es válida.',
   dispositivo_ip_valida: 'La dirección IP no es válida.',
   dispositivo_codigo_mac_key: 'Ya existe un dispositivo con esa dirección MAC.',
+  dispositivo_direccion_ip_key: 'Ya existe un dispositivo registrado con esa dirección IP.',
+  dispositivo_codigo_dispositivo_key: 'Ya existe un dispositivo con ese código.',
   parametro_sistema_valor_coherente: 'El valor no corresponde al tipo de dato del parámetro.',
   parametro_sistema_codigo_valido: 'El código del parámetro solo admite mayúsculas, dígitos y guion bajo.',
   permiso_codigo_valido: 'El código de permiso debe seguir el formato MODULO_ENTIDAD_ACCION.',
@@ -121,6 +123,9 @@ const CONSTRAINTS: Record<string, string> = {
   sesion_cierre_coherente: 'El estado de la sesión no es coherente con su fecha de cierre.',
   zona_nombre_zona_key: 'Ya existe una zona con ese nombre.',
   punto_control_nombre_punto_key: 'Ya existe un punto de control con ese nombre.',
+  zona_numero_edificio_unico: 'Ya existe un edificio registrado con ese número.',
+  zona_nombre_zona_con_mayuscula: 'El nombre debe empezar con mayúscula.',
+  punto_control_nombre_punto_con_mayuscula: 'El nombre debe empezar con mayúscula.',
 }
 
 /** Extrae el nombre del constraint de un mensaje de PostgreSQL. */

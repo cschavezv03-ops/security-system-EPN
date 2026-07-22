@@ -39,6 +39,22 @@ export async function optZonasPorTipo(tipoZona: string): Promise<Opcion[]> {
   return ((data as any[]) ?? []).map((r) => ({ value: r.id_zona, label: r.nombre_zona }))
 }
 
+/** El edificio que tiene ese número, o null si ninguno lo tiene todavía.
+ *
+ *  PCO: "que no nos haga escoger qué edificio es. Mejor... nos debe permitir ingresar el número
+ *  del edificio". Con `numero_edificio` (único por edificio) el punto de control ya no elige la
+ *  zona de una lista: solo teclea el número y el sistema resuelve cuál es. */
+export async function zonaEdificioPorNumero(numero: unknown): Promise<{ id_zona: string; nombre_zona: string } | null> {
+  const n = numero === '' || numero == null ? null : Number(numero)
+  if (n == null || Number.isNaN(n)) return null
+  const { data } = await fromTable('zona')
+    .select('id_zona, nombre_zona')
+    .eq('tipo_zona', 'EDIFICIO')
+    .eq('numero_edificio', n)
+    .maybeSingle()
+  return (data as { id_zona: string; nombre_zona: string } | null) ?? null
+}
+
 /** Tipo de zona que puede ser padre de cada tipo. Espejo de `validar_jerarquia_zona()`:
  *  CAMPUS es la raíz, un EDIFICIO cuelga del CAMPUS y un PARQUEADERO de un EDIFICIO. */
 const PADRE_DE: Record<string, string | undefined> = {

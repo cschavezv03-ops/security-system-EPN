@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, LogOut, ShieldCheck, UserCircle } from 'lucide-react'
+import { ChevronRight, LogOut, UserCircle } from 'lucide-react'
 import { useAuth } from '../../auth/AuthProvider'
+import { Logo } from '../Logo'
 import { Button } from '../ui'
 import { EncabezadoUsuarioActual } from '../EncabezadoUsuario'
 
@@ -11,7 +12,7 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-navy-700/40 bg-navy px-4 text-white">
       <Link to="/" className="flex items-center gap-2.5">
-        <ShieldCheck className="h-6 w-6 text-gold" />
+        <Logo className="h-7 w-7" />
         <div className="leading-tight">
           <p className="text-sm font-semibold">Sistema de Seguridad — EPN</p>
           <p className="text-[11px] text-white/60">Control de Accesos</p>

@@ -4,7 +4,8 @@ import { supabase, mensajeError } from '../../lib/supabase'
 import { fmtFechaHora } from '../../lib/format'
 import { formatearPlaca } from '../../lib/validacion'
 import { humanizar, MOTIVO_LEGIBLE } from '../../lib/catalogos'
-import { Badge, Card, CenterSpinner, EmptyState, ErrorBanner } from '../../components/ui'
+import { Badge, Card, CenterSpinner, EmptyState, ErrorBanner, SidePanel } from '../../components/ui'
+import { DetalleEvento } from '../../components/DetalleEvento'
 
 interface VehiculoDentro {
   id_vehiculo: string
@@ -198,36 +199,23 @@ export function MonitoreoView() {
         </Card>
       </div>
 
-      {seleccionado && seleccionado.tipo === 'error' && (
-        <Card className="mt-6 p-5">
-          <h3 className="mb-3 text-sm font-semibold text-navy">Detalle del error de reconocimiento</h3>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-ink-soft">Punto de control</dt><dd className="text-navy">{seleccionado.punto?.nombre_punto ?? '—'}</dd></div>
+      <SidePanel
+        open={seleccionado !== null}
+        onClose={() => setSeleccionado(null)}
+        title={seleccionado?.tipo === 'error' ? 'Error de reconocimiento' : 'Detalle del movimiento'}
+      >
+        {seleccionado?.tipo === 'error' && (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div><dt className="text-xs text-ink-soft">Garita</dt><dd className="text-navy">{seleccionado.punto?.nombre_punto ?? '—'}</dd></div>
             <div><dt className="text-xs text-ink-soft">Fecha y hora</dt><dd className="text-navy">{fmtFechaHora(seleccionado.fecha_hora)}</dd></div>
             <div><dt className="text-xs text-ink-soft">Reconocimiento</dt><dd><Badge value={seleccionado.tipo_reconocimiento} /></dd></div>
             <div><dt className="text-xs text-ink-soft">Tipo de fallo</dt><dd className="text-navy">{humanizar(seleccionado.codigo_error)}</dd></div>
-            <div className="col-span-2 sm:col-span-4"><dt className="text-xs text-ink-soft">Detalle</dt><dd className="text-navy">{seleccionado.descripcion}</dd></div>
+            <div className="col-span-2"><dt className="text-xs text-ink-soft">Detalle</dt><dd className="text-navy">{seleccionado.descripcion}</dd></div>
           </dl>
-        </Card>
-      )}
+        )}
+        {seleccionado?.tipo === 'evento' && <DetalleEvento idEvento={seleccionado.id_evento} />}
+      </SidePanel>
 
-      {seleccionado && seleccionado.tipo === 'evento' && (
-        <Card className="mt-6 p-5">
-          <h3 className="mb-3 text-sm font-semibold text-navy">Detalle del evento seleccionado</h3>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-ink-soft">Persona</dt><dd className="text-navy">{seleccionado.persona ? `${seleccionado.persona.apellidos} ${seleccionado.persona.nombres}` : '—'}</dd></div>
-            <div><dt className="text-xs text-ink-soft">Cédula</dt><dd className="text-navy">{seleccionado.persona?.cedula ?? '—'}</dd></div>
-            <div><dt className="text-xs text-ink-soft">Punto de control</dt><dd className="text-navy">{seleccionado.punto?.nombre_punto ?? '—'}</dd></div>
-            <div><dt className="text-xs text-ink-soft">Fecha y hora</dt><dd className="text-navy">{fmtFechaHora(seleccionado.fecha_hora)}</dd></div>
-            <div><dt className="text-xs text-ink-soft">Movimiento</dt><dd><Badge value={seleccionado.tipo_movimiento} /></dd></div>
-            <div><dt className="text-xs text-ink-soft">Resultado</dt><dd><Badge value={seleccionado.resultado} /></dd></div>
-            <div><dt className="text-xs text-ink-soft">Origen de registro</dt><dd><Badge value={seleccionado.origen_registro} /></dd></div>
-            <div><dt className="text-xs text-ink-soft">Vehículo</dt><dd className="text-navy">{seleccionado.vehiculo?.placa ? formatearPlaca(seleccionado.vehiculo.placa) : '— (peatonal)'}</dd></div>
-            {seleccionado.vehiculo && <div><dt className="text-xs text-ink-soft">Es conductor</dt><dd className="text-navy">{seleccionado.es_conductor ? 'Sí' : 'No'}</dd></div>}
-            {seleccionado.motivo_resultado && <div className="col-span-2 sm:col-span-4"><dt className="text-xs text-ink-soft">Motivo</dt><dd className="text-navy">{seleccionado.motivo_resultado}</dd></div>}
-          </dl>
-        </Card>
-      )}
       <p className="mt-3 text-xs text-slate-400">Se actualiza automáticamente cada 30 segundos.</p>
     </div>
   )

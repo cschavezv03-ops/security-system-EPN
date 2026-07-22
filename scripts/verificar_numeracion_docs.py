@@ -58,7 +58,7 @@ def numeros_definidos(doc: pathlib.Path, patron: re.Pattern) -> list[int]:
     return [int(n) for n in patron.findall(doc.read_text(encoding='utf-8'))]
 
 
-def revisar(nombre: str, doc: pathlib.Path, enc: re.Pattern, ref: re.Pattern) -> tuple[list[str], list[str]]:
+def revisar(nombre: str, prefijo: str, doc: pathlib.Path, enc: re.Pattern, ref: re.Pattern) -> tuple[list[str], list[str]]:
     fallos: list[str] = []
     avisos: list[str] = []
     definidos = numeros_definidos(doc, enc)
@@ -89,14 +89,17 @@ def revisar(nombre: str, doc: pathlib.Path, enc: re.Pattern, ref: re.Pattern) ->
             if n not in conjunto:
                 rotas.setdefault(n, set()).add(str(p.relative_to(RAIZ)))
     for n, donde in sorted(rotas.items()):
-        fallos.append(f'{nombre}: se cita §{nombre[0]}{n}, que no existe — en {", ".join(sorted(donde))}')
+        # `nombre` es "Decisiones" o "Dudas", pero el prefijo de la referencia es D o V. Tomar
+        # la inicial del nombre hacía que una §V rota se anunciara como §D, y quien la buscaba
+        # la encontraba existiendo tan campante en el otro documento.
+        fallos.append(f'{nombre}: se cita §{prefijo}{n}, que no existe — en {", ".join(sorted(donde))}')
 
     return fallos, avisos
 
 
 def main() -> int:
-    fallos, avisos = revisar('Decisiones', DOC_DECISIONES, ENC_DECISION, REF_DECISION)
-    f2, a2 = revisar('Dudas', DOC_DUDAS, ENC_DUDA, REF_DUDA)
+    fallos, avisos = revisar('Decisiones', 'D', DOC_DECISIONES, ENC_DECISION, REF_DECISION)
+    f2, a2 = revisar('Dudas', 'V', DOC_DUDAS, ENC_DUDA, REF_DUDA)
     fallos += f2
     avisos += a2
 

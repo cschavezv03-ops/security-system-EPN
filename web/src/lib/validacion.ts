@@ -393,6 +393,14 @@ export function validarValorParametro(tipoDato: string, valor: string): string |
 /** El `required` del formulario deja pasar " ": esto no. */
 export const validarNoVacio: Validador = (v) => (v && !v.trim() ? 'No puede ser solo espacios.' : null)
 
+/** Espejo de `public.es_nombre_con_mayuscula`. PCO: "validar que todos los nombres empiecen con
+ *  mayúscula en TODO el sistema" — aplicado por ahora a zona y punto de control, que es lo que
+ *  trae ese documento (ver 99_DUDAS_PARA_EL_EQUIPO.md sobre el resto de módulos). */
+export const validarMayusculaInicial: Validador = (v) => {
+  if (!v || !v.trim()) return null
+  return /^[A-ZÁÉÍÓÚÜÑ]/.test(v.trim()) ? null : 'Debe empezar con mayúscula.'
+}
+
 export function normalizarEspacios(v: string): string {
   return v.replace(/\s+/g, ' ').trim()
 }
@@ -463,4 +471,25 @@ export const validarUbicacionEPN: Validador = (v) => {
   return esUbicacionEPN(normalizarUbicacionEPN(v))
     ? null
     : 'Formato de la EPN: edificio/piso/espacio, con el espacio a tres dígitos (ej. E20/P3/E004).'
+}
+
+/** Arma "Acceso A - Av. Ladrón de Guevara (Sur)" a partir de la letra y la descripción (PCO:
+ *  "ingresemos en un campo Nombre solo el nombre y automáticamente el nombre oficial se le
+ *  asigne el Acceso correspondiente"). Devuelve "" mientras falte alguna de las dos partes, para
+ *  no enseñar un nombre a medias como "Acceso A -". */
+export function componerNombrePuntoCampus(letra: unknown, descripcion: unknown): string {
+  const l = typeof letra === 'string' ? letra.trim().toUpperCase() : ''
+  const desc = typeof descripcion === 'string' ? descripcion.trim() : ''
+  if (!l || !desc) return ''
+  return `Acceso ${l} - ${desc}`
+}
+
+/** Lo contrario: descompone un nombre ya guardado para rellenar el formulario al editar.
+ *  Devuelve null si no sigue el patrón "Acceso X - descripción" — son los puntos del campus
+ *  anteriores a esta regla (ej. "Garita Principal (demo)"), que se siguen editando a mano. */
+export function partesAccesoCampus(nombre: unknown): { letra: string; descripcion: string } | null {
+  if (typeof nombre !== 'string') return null
+  const m = /^Acceso ([A-Z]) - (.+)$/.exec(nombre.trim())
+  if (!m) return null
+  return { letra: m[1], descripcion: m[2].trim() }
 }

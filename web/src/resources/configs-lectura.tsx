@@ -3,6 +3,7 @@ import { fmtFecha, fmtFechaHora } from '../lib/format'
 import { formatearPlaca } from '../lib/validacion'
 import { describirDispositivo } from '../lib/dispositivo'
 import { Badge } from '../components/ui'
+import { DetalleEvento } from '../components/DetalleEvento'
 import { BotonCerrarSesion } from '../components/BotonCerrarSesion'
 import { opcionesCatalogo } from './opciones'
 import { etiquetaCampo, humanizar, MOTIVO_LEGIBLE, CAT } from '../lib/catalogos'
@@ -102,7 +103,7 @@ function lugarAlmacenamiento(r: any): string {
  */
 export const cfgBiometriaADM: ResourceConfig = {
   tabla: 'registro_biometrico',
-  titulo: 'Biometría (metadatos)',
+  titulo: 'Biometría',
   singular: 'Registro biométrico',
   idField: 'id_registro',
   // `descriptor_facial` se pide solo para saber SI existe (lugarAlmacenamiento); el vector
@@ -415,6 +416,15 @@ export function cfgEventoAcceso(): ResourceConfig {
       { label: 'Origen', render: (r) => humanizar(r.origen_registro) },
       { label: 'Motivo', render: (r) => motivoLegible(r) },
     ],
+    // La ficha de arriba resume el movimiento; esto responde lo que hace falta para auditarlo:
+    // con qué aparato se leyó, quién lo registró y quién cubría la garita a esa hora. Nada de
+    // eso se podía saber desde aquí, había que cruzar turnos y bitácora a mano.
+    detalleExtra: (r) => (
+      <div className="mt-5 border-t border-slate-100 pt-4">
+        <p className="mb-3 text-sm font-semibold text-navy">Trazabilidad del movimiento</p>
+        <DetalleEvento idEvento={r.id_evento} />
+      </div>
+    ),
     campos: [],
   }
 }

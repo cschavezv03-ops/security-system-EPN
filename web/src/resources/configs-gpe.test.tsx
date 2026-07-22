@@ -84,7 +84,7 @@ vi.mock('../auth/AuthProvider', () => ({
 
 const { ResourceScreen } = await import('../components/ResourceScreen')
 const { ToastProvider } = await import('../components/ui')
-const { cfgPersonaMemorando } = await import('./configs')
+const { cfgAutorizacion, cfgPersonaMemorando } = await import('./configs')
 
 function montar() {
   return render(
@@ -147,5 +147,17 @@ describe('personas por memorando: la ficha no miente sobre si puede entrar (INT-
 
     expect(await screen.findByText('Vínculo con el memorando')).toBeInTheDocument()
     expect(screen.getAllByText(/acceso retirado/i).length).toBeGreaterThan(0)
+  })
+})
+
+describe('selección individual de visitantes', () => {
+  it('la autorización busca una persona externa por cédula en vez de cargar un combo', () => {
+    const visitante = cfgAutorizacion.campos.find((campo) => campo.name === 'id_persona')
+
+    expect(visitante).toMatchObject({
+      type: 'cedula-busqueda',
+      buscarPersona: { soloTipo: 'EXTERNA', soloActivas: true },
+    })
+    expect(visitante?.options).toBeUndefined()
   })
 })

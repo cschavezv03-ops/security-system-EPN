@@ -1,7 +1,27 @@
 /** Formateo de fechas/horas para la UI (locale es-EC). */
 
+/** `2026-07-21` — una fecha sin hora, tal como devuelve PostgREST una columna `date`. */
+const SOLO_FECHA = /^\d{4}-\d{2}-\d{2}$/
+
 export function fmtFecha(v?: string | null): string {
   if (!v) return '—'
+
+  // Una cadena "2026-07-21" es un DÍA, no un instante, y así hay que mostrarla.
+  //
+  // `new Date('2026-07-21')` la interpreta como medianoche UTC (lo dice la norma de JavaScript
+  // para las formas de solo fecha), y `toLocaleDateString` la vuelve a expresar en la zona del
+  // navegador. En Ecuador, cinco horas por detrás, eso son las 19:00 del día ANTERIOR: un
+  // memorando con vigencia del 21 al 22 se leía "20/07 → 21/07" en el listado, un día menos que
+  // lo tecleado. La base guardaba bien el dato; solo la pantalla mentía.
+  //
+  // Es el error de medianoche de §D52, §D59 y §D69 una vez más. Se ataja aquí, en la única
+  // función por la que pasan todas las fechas, en lugar de ir corrigiendo llamada por llamada:
+  // ninguna zona horaria puede alterar un día que viene ya escrito.
+  if (SOLO_FECHA.test(v)) {
+    const [anio, mes, dia] = v.split('-')
+    return `${dia}/${mes}/${anio}`
+  }
+
   const d = new Date(v)
   if (Number.isNaN(d.getTime())) return v
   return d.toLocaleDateString('es-EC', { year: 'numeric', month: '2-digit', day: '2-digit' })

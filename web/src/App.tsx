@@ -16,6 +16,9 @@ const GuardiaView = lazy(() => import('./pages/GuardiaView').then((m) => ({ defa
 const VehiculoPropietarioPage = lazy(() =>
   import('./pages/VehiculoPropietarioPage').then((m) => ({ default: m.VehiculoPropietarioPage })),
 )
+const MemorandoNuevoPage = lazy(() =>
+  import('./pages/MemorandoNuevoPage').then((m) => ({ default: m.MemorandoNuevoPage })),
+)
 const OlvidoPasswordPage = lazy(() => import('./pages/PasswordPages').then((m) => ({ default: m.OlvidoPasswordPage })))
 const RestablecerPasswordPage = lazy(() =>
   import('./pages/PasswordPages').then((m) => ({ default: m.RestablecerPasswordPage })),
@@ -90,6 +93,7 @@ export default function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/cuenta" element={<CuentaPage />} />
                 <Route path="/vehiculos/nuevo" element={<VehiculoPropietarioPage />} />
+                <Route path="/memorandos/nuevo" element={<MemorandoNuevoPage />} />
                 <Route path="/m/:codigo" element={<ModuleHome />} />
                 <Route path="/m/:codigo/:sub" element={<ScreenPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

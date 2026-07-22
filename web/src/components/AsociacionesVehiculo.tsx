@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link2, Plus, X } from 'lucide-react'
+import { FileText, Link2, Plus, X } from 'lucide-react'
 import { supabase, mensajeError } from '../lib/supabase'
 import { useAuth } from '../auth/AuthProvider'
 import { CAT, humanizar } from '../lib/catalogos'
-import { fmtFecha, hoyISO } from '../lib/format'
-import { Badge, Button, Field, Select, useToast } from './ui'
+import { fmtFecha, fmtFechaDia, hoyISO } from '../lib/format'
+import { Badge, Button, Field, Input, Select, useToast } from './ui'
 import { BuscarPersonaPorCedula, type PersonaCedula } from './BuscarPersonaPorCedula'
 
 interface Relacion {
@@ -14,7 +14,15 @@ interface Relacion {
   fecha_inicio: string | null
   fecha_fin: string | null
   es_responsable_tramite: boolean
-  persona?: { nombres: string; apellidos: string; cedula: string } | null
+  persona?: { nombres: string; apellidos: string; cedula: string; tipo_persona: string } | null
+}
+
+/** Memorando que ampara a la persona CON este vehículo, tal como lo devuelve la base. */
+interface MemorandoVigente {
+  id_memorando: string
+  numero_memorando: string
+  fecha_inicio: string
+  fecha_fin: string
 }
 
 /**
@@ -59,12 +67,41 @@ export function AsociacionesVehiculo({
   const [guardando, setGuardando] = useState(false)
   const [persona, setPersona] = useState<PersonaCedula | null>(null)
   const [tipoRelacion, setTipoRelacion] = useState('PROPIETARIO')
+  const [fechaInicio, setFechaInicio] = useState(hoyISO())
+  const [fechaFin, setFechaFin] = useState('')
+  const [memorando, setMemorando] = useState<MemorandoVigente | null>(null)
+
+  /**
+   * Al elegir a la persona se busca el memorando que la ampara CON este vehículo.
+   *
+   * Si existe, sus fechas son las de la asociación y los campos quedan bloqueados: el permiso
+   * del vehículo caduca con el memorando, así que una relación que empiece antes o termine
+   * después sería un permiso que nadie firmó. Antes se tecleaban a mano y no había nada que
+   * las atara al oficio. El backend impone lo mismo (trigger
+   * alinear_persona_vehiculo_con_memorando) para las escrituras que no pasen por aquí.
+   */
+  const elegirPersona = async (p: PersonaCedula | null) => {
+    setPersona(p)
+    setMemorando(null)
+    setFechaInicio(hoyISO())
+    setFechaFin('')
+    if (!p) return
+    const { data } = await supabase.rpc('memorandos_de_persona_y_vehiculo', {
+      p_id_persona: p.id_persona,
+      p_id_vehiculo: idVehiculo,
+    } as never)
+    const m = (data as unknown as MemorandoVigente[] | null)?.[0]
+    if (!m) return
+    setMemorando(m)
+    setFechaInicio(m.fecha_inicio)
+    setFechaFin(m.fecha_fin)
+  }
 
   const cargar = async () => {
     setCargando(true)
     const { data, error: err } = await supabase
       .from('persona_vehiculo')
-      .select('id_persona_vehiculo, tipo_relacion, estado_relacion, fecha_inicio, fecha_fin, es_responsable_tramite, persona:persona(nombres, apellidos, cedula)')
+      .select('id_persona_vehiculo, tipo_relacion, estado_relacion, fecha_inicio, fecha_fin, es_responsable_tramite, persona:persona(nombres, apellidos, cedula, tipo_persona)')
       .eq('id_vehiculo', idVehiculo)
       .order('fecha_inicio', { ascending: false })
     if (err) setError(mensajeError(err))
@@ -78,10 +115,27 @@ export function AsociacionesVehiculo({
     // buscada quedaría colgando sobre una ficha distinta.
     setAnadiendo(false)
     setPersona(null)
+    setMemorando(null)
+    setFechaInicio(hoyISO())
+    setFechaFin('')
   }, [idVehiculo])
 
   const vincular = async () => {
     if (!persona) return
+    if (!fechaInicio) {
+      setError('Ingrese la fecha de inicio de la relación.')
+      return
+    }
+    if (!fechaFin) {
+      setError('Ingrese la fecha de fin de la relación.')
+      return
+    }
+    // La igualdad se admite: un memorando puede autorizar la entrada de un solo día, y esa es
+    // exactamente la vigencia que hereda la asociación.
+    if (fechaFin < fechaInicio) {
+      setError('La fecha de fin no puede ser anterior a la fecha de inicio.')
+      return
+    }
     setGuardando(true)
     setError(null)
     // id_usuario_registro es NOT NULL en persona_vehiculo y no tiene default: sin él el INSERT
@@ -93,7 +147,8 @@ export function AsociacionesVehiculo({
       id_vehiculo: idVehiculo,
       tipo_relacion: tipoRelacion,
       estado_relacion: 'ACTIVA',
-      fecha_inicio: hoyISO(),
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
       id_usuario_registro: session?.user.id,
     } as never)
     setGuardando(false)
@@ -104,6 +159,9 @@ export function AsociacionesVehiculo({
     toast('ok', `${persona.nombres} ${persona.apellidos} quedó vinculada al vehículo.`)
     setAnadiendo(false)
     setPersona(null)
+    setMemorando(null)
+    setFechaInicio(hoyISO())
+    setFechaFin('')
     await cargar()
     await onCambio()
   }
@@ -124,30 +182,54 @@ export function AsociacionesVehiculo({
     await onCambio()
   }
 
+  // Un vehículo no mezcla personal interno y externo (lo impone el trigger
+  // validar_ambito_persona_vehiculo). Si el que se está viendo ya es de la otra población, este
+  // módulo no puede añadirle a nadie: mejor decirlo que ofrecer un botón que siempre fallará.
+  const deOtroAmbito =
+    !!soloTipo &&
+    relaciones.some((r) => r.estado_relacion === 'ACTIVA' && r.persona && r.persona.tipo_persona !== soloTipo)
+
   return (
     <div className="mt-5 border-t border-slate-100 pt-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-navy">
           <Link2 className="h-4 w-4" /> Personas asociadas
         </h3>
-        {puedeVincular && !anadiendo && (
+        {puedeVincular && !anadiendo && !deOtroAmbito && (
           <Button variant="secondary" onClick={() => setAnadiendo(true)}>
             <Plus className="h-4 w-4" /> Vincular persona
           </Button>
         )}
       </div>
 
+      {deOtroAmbito && (
+        <p className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Este vehículo está asignado a {soloTipo === 'INTERNA' ? 'personal externo' : 'personal interno'}, así que sus
+          personas se gestionan desde {soloTipo === 'INTERNA' ? 'Personal Externo' : 'Personal Interno'}.
+        </p>
+      )}
+
       {error && <p className="mb-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
       {anadiendo && (
         <div className="mb-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
           <BuscarPersonaPorCedula
-            onSelect={setPersona}
+            onSelect={elegirPersona}
             soloActivas
             soloTipo={soloTipo}
             label={soloTipo === 'INTERNA' ? 'Cédula de la persona interna' : soloTipo === 'EXTERNA' ? 'Cédula de la persona externa' : 'Cédula de la persona'}
           />
-          <Field label="Tipo de relación" htmlFor="tipo-relacion">
+          {memorando && (
+            <p className="flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Este vehículo entra amparado por el memorando <strong>{memorando.numero_memorando}</strong>, vigente
+                del {fmtFecha(memorando.fecha_inicio)} al {fmtFecha(memorando.fecha_fin)}. La asociación toma esas
+                mismas fechas: el permiso del vehículo caduca con el memorando.
+              </span>
+            </p>
+          )}
+          <Field label="Tipo de relación" htmlFor="tipo-relacion" required>
             <Select
               id="tipo-relacion"
               value={tipoRelacion}
@@ -155,9 +237,43 @@ export function AsociacionesVehiculo({
               options={CAT.persona_vehiculo_tipo.map((v) => ({ value: v, label: humanizar(v) }))}
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Fecha de inicio"
+              htmlFor="fecha-inicio-relacion"
+              required
+              hint={memorando ? `Fecha de inicio del memorando ${memorando.numero_memorando}.` : undefined}
+            >
+              <Input
+                id="fecha-inicio-relacion"
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                // El memorando puede empezar en el futuro; cuando manda él, el tope de "hoy"
+                // no aplica.
+                max={memorando ? undefined : hoyISO()}
+                disabled={!!memorando}
+              />
+            </Field>
+            <Field
+              label="Fecha de fin"
+              htmlFor="fecha-fin-relacion"
+              required
+              hint={memorando ? `Fecha de fin del memorando ${memorando.numero_memorando}.` : 'No puede ser anterior a la fecha de inicio.'}
+            >
+              <Input
+                id="fecha-fin-relacion"
+                type="date"
+                value={fechaFin}
+                onChange={(e) => setFechaFin(e.target.value)}
+                min={fechaInicio || undefined}
+                disabled={!!memorando}
+              />
+            </Field>
+          </div>
           <div className="flex gap-2">
             <Button onClick={vincular} loading={guardando} disabled={!persona}>Vincular</Button>
-            <Button variant="ghost" onClick={() => { setAnadiendo(false); setPersona(null) }}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => { setAnadiendo(false); setPersona(null); setMemorando(null); setFechaInicio(hoyISO()); setFechaFin('') }}>Cancelar</Button>
           </div>
         </div>
       )}
@@ -177,7 +293,8 @@ export function AsociacionesVehiculo({
                 <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
                   {r.persona?.cedula} <Badge value={r.tipo_relacion} /> <Badge value={r.estado_relacion} />
                   {r.es_responsable_tramite && <span>· responsable del trámite</span>}
-                  <span>· desde {fmtFecha(r.fecha_inicio)}</span>
+                  <span>· desde {fmtFechaDia(r.fecha_inicio)}</span>
+                  <span>· hasta {r.fecha_fin ? fmtFechaDia(r.fecha_fin) : 'sin definir'}</span>
                 </p>
               </div>
               {puedeRevocar && r.estado_relacion === 'ACTIVA' && (

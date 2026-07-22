@@ -242,7 +242,7 @@ describe('flujo vehicular (RF-CA-015 a RF-CA-017)', () => {
 
     // Se añade por cédula, no por rostro: es el caso que la doble autenticación debe atajar.
     await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000257')
-    await usuario.click(screen.getAllByRole('button', { name: '' })[0] ?? screen.getByLabelText(/Cédula del pasajero/i))
+    await usuario.click(screen.getByRole('button', { name: /Buscar pasajero por cédula/i }))
     await usuario.keyboard('{Enter}')
 
     // El primero en subir queda marcado como conductor, y por eso salta el aviso.
@@ -255,7 +255,11 @@ describe('flujo vehicular (RF-CA-015 a RF-CA-017)', () => {
 
     await usuario.click(await screen.findByRole('tab', { name: /Ingreso vehicular/i }))
     await usuario.click(await screen.findByRole('button', { name: /Capturar placa/i }))
-    await usuario.click(await screen.findByRole('button', { name: /^Añadir$/i }))
+    // El botón "Añadir" del recuadro de la placa desapareció: metía a alguien de un clic y eso
+    // dejaba sin efecto el reconocimiento facial del personal interno. Ahora el guardia teclea
+    // la cédula, que es lo que hace frente al documento.
+    await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000257')
+    await usuario.click(screen.getByRole('button', { name: /Buscar pasajero por cédula/i }))
 
     // Un segundo ocupante, por cédula.
     await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000208')
@@ -265,7 +269,7 @@ describe('flujo vehicular (RF-CA-015 a RF-CA-017)', () => {
     await usuario.click(await screen.findByRole('button', { name: /Registrar ingreso/i }))
 
     // El doble tiene preparado un veredicto distinto por ocupante, y los dos deben verse.
-    await waitFor(() => expect(screen.getByText(/Acceso autorizado/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Ingreso autorizado/i)).toBeInTheDocument())
 
     // El motivo del segundo llega traducido, no como código en mayúsculas (RNF-CA-004). El
     // titular y la explicación dicen los dos "fuera del horario", así que se busca el titular
@@ -280,7 +284,11 @@ describe('flujo vehicular (RF-CA-015 a RF-CA-017)', () => {
 
     await usuario.click(await screen.findByRole('tab', { name: /Ingreso vehicular/i }))
     await usuario.click(await screen.findByRole('button', { name: /Capturar placa/i }))
-    await usuario.click(await screen.findByRole('button', { name: /^Añadir$/i }))
+    // El botón "Añadir" del recuadro de la placa desapareció: metía a alguien de un clic y eso
+    // dejaba sin efecto el reconocimiento facial del personal interno. Ahora el guardia teclea
+    // la cédula, que es lo que hace frente al documento.
+    await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000257')
+    await usuario.click(screen.getByRole('button', { name: /Buscar pasajero por cédula/i }))
     await usuario.click(await screen.findByRole('button', { name: /Registrar ingreso/i }))
 
     await waitFor(() => {
@@ -301,7 +309,11 @@ describe('el turno del guardia', () => {
 
     await usuario.click(await screen.findByRole('tab', { name: /Ingreso vehicular/i }))
     await usuario.click(await screen.findByRole('button', { name: /Capturar placa/i }))
-    await usuario.click(await screen.findByRole('button', { name: /^Añadir$/i }))
+    // El botón "Añadir" del recuadro de la placa desapareció: metía a alguien de un clic y eso
+    // dejaba sin efecto el reconocimiento facial del personal interno. Ahora el guardia teclea
+    // la cédula, que es lo que hace frente al documento.
+    await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000257')
+    await usuario.click(screen.getByRole('button', { name: /Buscar pasajero por cédula/i }))
 
     const boton = await screen.findByRole('button', { name: /Registrar ingreso/i })
     expect(boton).not.toBeDisabled()
@@ -336,5 +348,43 @@ describe('movimientos recientes (RF-CA-025)', () => {
 
     expect(await screen.findByText(/Error de reconocimiento facial/i)).toBeInTheDocument()
     expect(screen.getByText(/Rostro no detectado/i)).toBeInTheDocument()
+  })
+})
+
+describe('lo que el guardia lee tras registrar', () => {
+  it('una salida dice "Salida autorizada", no "Acceso autorizado"', async () => {
+    // Sin esto los dos movimientos daban el mismo mensaje, y al repasar lo ocurrido en la
+    // garita no había forma de saber si esa persona entró o salió.
+    const usuario = userEvent.setup()
+    montar()
+
+    await usuario.click(await screen.findByRole('tab', { name: /Ingreso vehicular/i }))
+    await usuario.click(await screen.findByRole('button', { name: /Capturar placa/i }))
+    await usuario.type(await screen.findByLabelText(/Cédula del pasajero/i), '1750000257')
+    await usuario.click(screen.getByRole('button', { name: /Buscar pasajero por cédula/i }))
+    await usuario.click(await screen.findByRole('button', { name: /Registrar salida/i }))
+
+    await waitFor(() => expect(screen.getByText(/Salida autorizada/i)).toBeInTheDocument())
+    expect(screen.queryByText(/Acceso autorizado/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('el personal interno no se añade desde la placa', () => {
+  it('no ofrece "Añadir" y explica que se identifica por rostro', async () => {
+    // El botón metía a la persona de un clic. Para el personal interno eso deja sin efecto el
+    // reconocimiento facial, que es su única forma de identificarse (§D20) y el segundo factor
+    // que RNF-CA-005 exige a quien conduce.
+    const usuario = userEvent.setup()
+    montar()
+
+    await usuario.click(await screen.findByRole('tab', { name: /Ingreso vehicular/i }))
+    await usuario.click(await screen.findByRole('button', { name: /Capturar placa/i }))
+
+    // La persona asociada a la placa sigue viéndose: el guardia necesita saber de quién es.
+    expect(await screen.findByText(/Guerra/)).toBeInTheDocument()
+    // Pero no hay forma de añadirla desde ahí.
+    expect(screen.queryByRole('button', { name: /^Añadir$/i })).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Se identifica por rostro/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/se añade por reconocimiento facial/i)).toBeInTheDocument()
   })
 })

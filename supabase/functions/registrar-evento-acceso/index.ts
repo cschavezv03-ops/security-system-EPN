@@ -372,6 +372,27 @@ async function validarIngresoOcupante(
   // sin poder entrar a cualquiera que llegue en el coche de un compañero, que es la mitad de
   // los ingresos vehiculares de una universidad. La placa autoriza al vehiculo y responsabiliza
   // a quien lo conduce (§D22); a los pasajeros los autoriza su propia vigencia.
+  // Un externo solo circula por el campus amparado por un memorando. Una autorizacion de visita
+  // diaria le permite entrar A PIE, no conduciendo ni de acompañante: el memorando es el
+  // documento por el que la institucion sabe que ese vehiculo y esa gente tienen algo que hacer
+  // dentro. Se comprueba a TODOS los ocupantes externos, no solo al conductor, porque la regla
+  // que dio el equipo habla del personal externo y no del volante.
+  //
+  // Es mas estricto que RF-CA-017 (los pasajeros siguen las reglas del ingreso peatonal): ahi
+  // se decidio para no dejar fuera a quien llega en el coche de un compañero, pero eso se penso
+  // para personal interno. Ver §D84.
+  if (contexto.esVehicular && persona.tipo_persona !== 'INTERNA') {
+    const vigencia = await obtenerVigenciaExterna(supabase, persona.id_persona);
+    if (vigencia?.via_vigencia !== 'MEMORANDO') {
+      return {
+        autorizado: false,
+        motivo:
+          'MEMORANDO_VENCIDO: el personal externo necesita un memorando vigente para entrar en vehiculo; sin el, puede ingresar a pie',
+        ...conRegla,
+      };
+    }
+  }
+
   if (contexto.esVehicular && contexto.idVehiculo && ocupante.es_conductor === true) {
     const asociada = await supabase.rpc('persona_asociada_a_vehiculo', {
       p_id_persona: persona.id_persona,
@@ -396,6 +417,27 @@ async function validarIngresoOcupante(
         motivo: 'DOBLE_AUTENTICACION_FALLIDA: el conductor debe identificarse tambien por reconocimiento facial',
         ...conRegla,
       };
+    }
+
+    // El segundo factor del conductor EXTERNO no puede ser el rostro (§D20: no tiene registro
+    // biometrico), asi que lo es el memorando: tiene que amparar precisamente este vehiculo.
+    // Sin esto, un externo con memorando podria entrar conduciendo cualquier coche del que
+    // figure como propietario, que es justo lo que el memorando no dice.
+    if (persona.tipo_persona !== 'INTERNA') {
+      const amparado = await supabase.rpc('vehiculo_amparado_por_memorando', {
+        p_id_persona: persona.id_persona,
+        p_id_vehiculo: contexto.idVehiculo,
+      });
+      if (amparado.error) throw new Error(amparado.error.message);
+
+      if (amparado.data !== true) {
+        return {
+          autorizado: false,
+          motivo:
+            'DOBLE_AUTENTICACION_FALLIDA: su memorando vigente no ampara este vehiculo; la placa debe estar registrada en el memorando',
+          ...conRegla,
+        };
+      }
     }
   }
 
@@ -534,6 +576,11 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  // Se comprueba la identidad del lector antes de aceptar nada, pero hasta ahora no se anotaba
+  // CUAL era. Si una camara empieza a autorizar lo que no debe, el historico tiene que poder
+  // decir que aparato lo hizo.
+  let idDispositivo: string | null = null;
+
   // ---- Autenticacion del llamador (docs/01_AUTENTICACION_Y_ROLES.md §4) ----
   if (origen_registro === 'AUTOMATICA') {
     if (!body.codigo_mac || !body.direccion_ip) {
@@ -548,6 +595,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (dispError) return errorResponse(dispError.message, 500);
+
+    idDispositivo = dispositivo?.id_dispositivo ?? null;
 
     if (!dispositivo || dispositivo.estado_dispositivo !== 'OPERATIVO') {
       // Sin evento real que referenciar todavia: se deja constancia en bitacora_sistema
@@ -700,6 +749,11 @@ Deno.serve(async (req) => {
         placa_detectada: placaDetectada,
         confianza_placa: typeof body.confianza_placa === 'number' ? body.confianza_placa : null,
         confianza_biometria: typeof ocupante.confidence === 'number' ? ocupante.confidence : null,
+        // La atribucion vive en el evento y no solo en una fila suelta de la bitacora con los
+        // ids concatenados por comas: asi "quien dejo entrar a esta persona" se responde desde
+        // la pantalla y no rastreando a mano.
+        id_dispositivo: idDispositivo,
+        id_usuario_registro: idUsuarioGuardia,
       })
       .select('id_evento')
       .single();

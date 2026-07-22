@@ -1471,3 +1471,158 @@ fiable que hay disponible.
 Los valores por defecto de las funciones (`tipo = 'AUTO'`, `multilinea = false`) reproducen
 exactamente el comportamiento anterior, y hay pruebas que lo fijan: si alguien cambia la
 geometría o el modo del auto, la suite lo dice.
+---
+
+## Ronda GPE — ingreso vehicular con memorando
+
+### D83 — Una fecha sin hora es un día, y ninguna zona horaria puede moverla
+
+Reportado desde Memorandos: se registra uno con vigencia del 21/07 al 22/07 y el listado lo
+muestra como "20/07 → 21/07".
+
+Lo primero fue descartar el backend, porque de eso dependía si había gente quedándose fuera del
+campus. No la había: la base guardaba `2026-07-21` y `2026-07-22`, exactamente lo tecleado, y la
+validación de acceso compara columnas `date` contra `hoy_ecuador()` dentro de SQL, sin pasar por
+el navegador. **Mentía solo la presentación.**
+
+La causa es la de siempre: `new Date('2026-07-21')` es medianoche UTC por norma de JavaScript, y
+`toLocaleDateString` la reexpresa en la zona del navegador; en Ecuador eso son las 19:00 del día
+anterior. Es §D52, §D59 y §D69 otra vez, ahora en la vista.
+
+Se arregla **en `fmtFecha`**, por donde pasan todas las fechas, y no en cada llamada: una cadena
+`AAAA-MM-DD` ya viene escrita, y convertirla de zona no tiene ningún significado correcto. Con
+eso quedaron bien de golpe la ficha del memorando de la garita, las autorizaciones de visita y
+"Personas por memorando", que arrastraban el mismo desfase sin que nadie lo hubiera reportado.
+
+`fmtFechaDia` sigue existiendo para las columnas `timestamptz` que representan un día; una
+prueba fija que ambas den el mismo resultado, para que no aparezcan dos criterios en pantalla.
+
+### D84 — Para un externo en vehículo, el segundo factor es el memorando
+
+RF-CA-016 exige dos validaciones en el ingreso vehicular. Para el personal interno son la placa
+y el rostro. Un externo **no tiene registro biométrico** (§D20), así que ese segundo factor no
+existía para él: hasta ahora un conductor externo entraba solo con la placa.
+
+El equipo cerró la regla: **la placa y el memorando vigente**. Y su corolario, que es lo que
+convierte esto en una regla de seguridad y no en un trámite: **sin memorando, un externo no
+entra conduciendo**; puede entrar a pie con su autorización de visita, pero no al volante.
+
+Dos comprobaciones distintas, y conviene no confundirlas:
+
+| A quién | Qué se exige |
+|---|---|
+| Cualquier ocupante externo | Memorando vigente. Una autorización de visita diaria no basta. |
+| Además, al conductor externo | Que su memorando ampare **esa placa concreta**, no cualquier vehículo suyo. |
+
+Sin la segunda, un externo con memorando podría entrar conduciendo cualquier coche del que
+figure como propietario, que es justo lo que el oficio no dice.
+
+**Esto es más estricto que RF-CA-017**, que dice que los pasajeros cumplen las reglas del
+ingreso peatonal. Aquella decisión se tomó para no dejar fuera a quien llega en el coche de un
+compañero, y se pensó para personal interno. La regla nueva la estrecha solo para externos. Ver
+§V45: si el equipo prefiere que un acompañante externo con visita diaria pueda entrar en el
+coche, es cambiar una condición.
+
+### D85 — El vehículo se cuelga del memorando, no de la persona
+
+`memorando_vehiculo` referencia la maestra `vehiculo` (CLAUDE.md: sin entidades duplicadas; aquí
+no se repiten ni la placa ni las características).
+
+Se colgó del memorando y no de la persona porque **así el permiso caduca solo**: cuando el
+memorando vence o se anula, el vehículo deja de estar amparado sin que nadie tenga que acordarse
+de revocar nada. Es el mismo criterio de §D47 —lo que depende del calendario se calcula— llevado
+al permiso vehicular. El script de aserciones lo comprueba en los dos sentidos.
+
+Es tabla y no una columna en `memorando` porque una empresa puede acudir con más de un vehículo
+amparado por el mismo oficio.
+
+### D86 — El alta del memorando con vehículo es una transacción, y por eso tiene pantalla propia
+
+El equipo pidió que las preguntas "¿entra con vehículo?" y "¿con acompañantes?" formen parte de
+la **creación** del memorando. Pero un memorando con vehículo son tres filas que tienen que
+nacer juntas: el memorando, el vehículo y la persona que lo conduce — porque `vehiculo` no
+admite quedarse sin propietario (RF-CA-018, trigger diferido).
+
+Hacerlo en dos llamadas desde el navegador deja un hueco desagradable: si la segunda falla
+(placa repetida, la persona ya tiene dos vehículos, RLS), queda un memorando creado a medias y
+quien reintenta choca contra "ese número ya existe" sin entender por qué. Con
+`crear_memorando_con_vehiculo` en una sola transacción, o queda todo o no queda nada y el número
+sigue libre.
+
+Eso obliga a salir del formulario genérico, que solo sabe insertar en una tabla. Se reutiliza
+`ResourceConfig.altaRuta`, el mismo mecanismo que ya usaba el alta de vehículo con propietario.
+
+### D87 — Un evento de acceso tiene que poder explicarse solo
+
+Al revisar el panel de monitoreo se vio que una fila decía quién, dónde y con qué resultado, pero
+no respondía lo que se pregunta quien audita: **por dónde salió** quien entró por otra garita,
+**qué aparato** hizo la lectura y **quién respondía** de ese punto a esa hora.
+
+Dos de esas tres cosas ni siquiera se guardaban:
+
+- **El dispositivo.** La Edge Function comprueba la MAC y la IP del lector antes de aceptar un
+  registro automático, pero después no anotaba cuál era. Si una cámara empezara a autorizar lo
+  que no debe, el histórico no permitía señalarla.
+- **El guardia.** En un registro manual quedaba una fila en la bitácora con los ids de evento
+  concatenados por comas. Servía para rastrear a mano, no para responder desde la pantalla.
+
+Ahora `evento_acceso` guarda `id_dispositivo` y `id_usuario_registro`, y `detalle_evento_acceso()`
+devuelve el evento entero —persona, garita y zona, aparato, quién lo registró, quién estaba de
+turno, el ingreso emparejado con las horas dentro, la regla aplicada y el documento que lo
+amparó— en una sola consulta.
+
+Se resuelve en SQL y no en el navegador por dos razones: serían seis consultas encadenadas, y
+"quién estaba de turno" no se puede contestar sin repetir la lógica de los turnos que cruzan la
+medianoche, que ya se equivocó tres veces en este proyecto (§D59, §D69, §D83).
+
+La ficha se muestra en el panel de monitoreo y en el historial de accesos de CAC, que son las dos
+pantallas desde las que se audita.
+
+### D88 — Cada módulo asocia vehículos a su propia población
+
+GPI gestiona a docentes, estudiantes, administrativos y trabajadores; GPE gestiona a visitantes,
+proveedores y contratistas. Al vincular una persona a un vehículo, sin embargo, esa frontera solo
+existía en una pantalla: el buscador por cédula de la ficha del vehículo filtraba por
+`tipo_persona`, pero el alta unificada de vehículo + propietario (`/vehiculos/nuevo`) no filtraba
+nada, y la API REST y la RPC tampoco. Desde GPE se podía registrar el coche de un docente.
+
+Se decide bajar la regla a la base, con dos comprobaciones que se complementan:
+
+1. **Por quién escribe.** `validar_ambito_persona_vehiculo` deduce el ámbito de los permisos
+   efectivos del usuario (no de un parámetro que mande el cliente): GPI solo puede vincular
+   personas internas y GPE solo externas. ADM, que es la maestra de las tres tablas, puede
+   vincular a cualquiera.
+2. **Por coherencia del vehículo.** Ningún vehículo puede tener a la vez personas internas y
+   externas con relación ACTIVA, lo escriba quien lo escriba. Un vehículo mixto no es un permiso
+   más amplio, es un dato que nadie sabe interpretar: el ingreso de un interno se decide por su
+   categoría y el de un externo por su memorando, y el guardia no tendría forma de saber cuál de
+   las dos vías aplica.
+
+El frontend sigue filtrando (el módulo viaja en `altaRuta` como `?modulo=GPI`), pero ya solo para
+avisar antes y no dejar que el usuario llegue al final del formulario para descubrirlo.
+
+### D89 — La vigencia de una asociación persona-vehículo la manda el memorando
+
+Un externo entra al campus porque un memorando lo ampara, y entra **con** un vehículo porque ese
+mismo memorando ampara la placa (§D85). Las fechas de la relación persona-vehículo, en cambio, se
+tecleaban a mano: se podía dejar a un proveedor asociado al camión hasta 2027 cuando su memorando
+terminaba pasado mañana. Dos fuentes de verdad para el mismo permiso.
+
+A partir de esta ronda el memorando manda:
+
+- al elegir a la persona, la pantalla busca el memorando que la ampara **con ese vehículo**
+  (`memorandos_de_persona_y_vehiculo`), rellena las dos fechas y las deja en solo lectura, con el
+  número del memorando y su vigencia a la vista;
+- el trigger `alinear_persona_vehiculo_con_memorando` rellena las fechas que lleguen vacías y
+  rechaza cualquier vigencia que se salga del memorando, venga de donde venga la escritura;
+- el alta del vehículo desde el propio memorando (`registrar_vehiculo_de_memorando`) hereda las
+  fechas en vez de usar `now()` y dejar la relación abierta, que era el caso más frecuente y el
+  que nacía peor.
+
+Cuando el vehículo de un externo **no** está amparado por ningún memorando (una visita de un solo
+día, por ejemplo) no hay nada que heredar y las fechas se siguen tecleando.
+
+De paso se corrige una regla que iba más lejos que la tabla: la RPC de alta exigía que la fecha de
+fin fuese *estrictamente* posterior a la de inicio, y con las fechas heredadas eso dejaba fuera un
+caso normal en GPE, el memorando que autoriza una entrega para un único día. El CHECK de
+`persona_vehiculo` siempre admitió la igualdad; ahora la RPC también.

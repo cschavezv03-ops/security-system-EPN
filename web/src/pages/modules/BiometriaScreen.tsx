@@ -3,7 +3,8 @@ import { Fingerprint, ScanFace, Trash2 } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthProvider'
 import { CameraPanel, type CameraHandle } from '../../components/Camera'
-import { Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Field, Modal, Select, useToast } from '../../components/ui'
+import { BuscarPersonaPorCedula } from '../../components/BuscarPersonaPorCedula'
+import { Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, Modal, useToast } from '../../components/ui'
 
 const BUCKET = 'registro-biometrico'
 
@@ -39,6 +40,7 @@ export function BiometriaScreen() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sel, setSel] = useState('')
+  const [revisionBuscador, setRevisionBuscador] = useState(0)
   const [enrolando, setEnrolando] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [aBorrar, setABorrar] = useState<PersonaInterna | null>(null)
@@ -107,7 +109,7 @@ export function BiometriaScreen() {
       if (up.error) throw new Error('Storage: ' + up.error.message)
       const { data: listado, error: listError } = await supabase.storage.from(BUCKET).list(carpeta, { search: archivo })
       if (!listError && listado?.some((f) => f.name === archivo)) return
-      if (intento === 2) throw new Error('La foto no se confirmó en Storage tras 2 intentos. Vuelve a intentar el enrolamiento.')
+      if (intento === 2) throw new Error('No se pudo guardar la foto. Inténtalo de nuevo.')
     }
   }
 
@@ -133,6 +135,7 @@ export function BiometriaScreen() {
       setPreviewUrl(URL.createObjectURL(jpeg))
       toast('ok', 'Biometría enrolada correctamente: foto confirmada en Storage.')
       setSel('')
+      setRevisionBuscador((v) => v + 1)
       await cargar()
     } catch (e) {
       setError(mensajeError(e))
@@ -216,22 +219,21 @@ export function BiometriaScreen() {
           <EmptyState title="No puedes registrar rostros" hint="Puedes consultar los registros, pero no añadir ninguno. Pide acceso al administrador del sistema." />
         ) : (
           <div className="space-y-3">
-            <Field label="Persona interna" required>
-              <Select
-                value={sel}
-                onChange={(e) => setSel(e.target.value)}
-                placeholder="— Seleccionar —"
-                options={personas.map((p) => ({ value: p.id_persona, label: `${p.apellidos} ${p.nombres} · ${p.cedula}` }))}
-              />
-            </Field>
+            <BuscarPersonaPorCedula
+              key={revisionBuscador}
+              label="Cédula de la persona interna"
+              soloTipo="INTERNA"
+              soloActivas
+              onSelect={(persona) => setSel(persona?.id_persona ?? '')}
+            />
             <CameraPanel ref={camRef} />
             <Button onClick={enrolar} loading={enrolando} className="w-full">
               <Fingerprint className="h-4 w-4" /> Capturar y enrolar
             </Button>
             {previewUrl && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-center">
-                <img src={previewUrl} alt="Última foto enrolada" className="mx-auto h-24 rounded object-cover" />
-                <p className="mt-1 text-[11px] text-emerald-700">Foto confirmada en Storage.</p>
+                <img src={previewUrl} alt="Última foto registrada" className="mx-auto h-24 rounded object-cover" />
+                <p className="mt-1 text-[11px] text-emerald-700">Foto guardada correctamente.</p>
               </div>
             )}
           </div>
@@ -241,7 +243,7 @@ export function BiometriaScreen() {
       <Modal
         open={!!aBorrar}
         onClose={() => (borrando ? undefined : setABorrar(null))}
-        title="Borrar enrolamiento"
+        title="Borrar el rostro registrado"
         footer={
           <>
             <Button variant="ghost" onClick={() => setABorrar(null)} disabled={borrando}>Cancelar</Button>

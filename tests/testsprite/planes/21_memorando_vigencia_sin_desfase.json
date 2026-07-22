@@ -1,0 +1,43 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Memorandos — la vigencia que se muestra es la que se guardó",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente joel.velastegui@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Externo. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a joel.velastegui@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Externo'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir el módulo 'Personal Externo' y luego la tarjeta 'Memorandos'"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar 'Registrar Memorando' y anotar las fechas que se van a escribir"
+    },
+    {
+      "type": "action",
+      "description": "Rellenar el número de memorando 'EPN-PRB-2026-0451', elegir cualquier empresa, poner como inicio de vigencia el 21/07/2026 y como fin de vigencia el 22/07/2026, sin marcar el ingreso en vehículo, y pulsar 'Registrar memorando'"
+    },
+    {
+      "type": "assertion",
+      "description": "El memorando 'EPN-PRB-2026-0451' aparece en la tabla"
+    },
+    {
+      "type": "assertion",
+      "description": "Su columna 'Vigencia' muestra exactamente 21/07/2026 → 22/07/2026, es decir las MISMAS fechas que se escribieron, sin restar un día"
+    },
+    {
+      "type": "action",
+      "description": "Pulsar sobre la fila del memorando 'EPN-PRB-2026-0451' para abrir su ficha"
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha muestra la vigencia del 21/07/2026 al 22/07/2026, coincidiendo con el listado"
+    }
+  ]
+}

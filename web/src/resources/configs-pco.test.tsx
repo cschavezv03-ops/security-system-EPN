@@ -22,8 +22,8 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
   const updatesHechos: { tabla: string; valores: unknown }[] = []
 
   const CAMPUS = { id_zona: 'z-campus', nombre_zona: 'Campus EPN', tipo_zona: 'CAMPUS', estado_zona: 'ACTIVA', id_zona_padre: null }
-  const EDIF20 = { id_zona: 'z-e20', nombre_zona: 'Edificio 20', tipo_zona: 'EDIFICIO', estado_zona: 'ACTIVA', id_zona_padre: 'z-campus' }
-  const EDIF15 = { id_zona: 'z-e15', nombre_zona: 'Edificio 15', tipo_zona: 'EDIFICIO', estado_zona: 'ACTIVA', id_zona_padre: 'z-campus' }
+  const EDIF20 = { id_zona: 'z-e20', nombre_zona: 'Edificio 20', tipo_zona: 'EDIFICIO', estado_zona: 'ACTIVA', id_zona_padre: 'z-campus', numero_edificio: 20 }
+  const EDIF15 = { id_zona: 'z-e15', nombre_zona: 'Edificio 15', tipo_zona: 'EDIFICIO', estado_zona: 'ACTIVA', id_zona_padre: 'z-campus', numero_edificio: 15 }
   // Una zona ya inactivada: es la que debe ofrecer "Reactivar" y no "Inactivar".
   const PARQUE = { id_zona: 'z-parq', nombre_zona: 'Parqueadero Subsuelo', tipo_zona: 'PARQUEADERO', estado_zona: 'INACTIVA', id_zona_padre: 'z-e20' }
 
@@ -31,14 +31,16 @@ const { supabase, updatesHechos } = vi.hoisted(() => {
   // Una garita de entrada a la universidad: cuelga del CAMPUS, que es el tipo que se retiró del
   // formulario de alta. Este caso lo detectó TestSprite, no las pruebas de aquí (§V25).
   const PUNTO_CAMPUS = { id_punto_control: 'p-2', id_zona: 'z-campus', nombre_punto: 'Acceso A', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Campus EPN' } }
+  // Con la nomenclatura EPN (a diferencia de "Puerta Norte", que es de antes de esa regla).
+  const PUNTO_E20_EPN = { id_punto_control: 'p-4', id_zona: 'z-e20', nombre_punto: 'E20/P5/E010', estado_punto: 'ACTIVO', fecha_registro: '2026-07-01T00:00:00Z', zona: { nombre_zona: 'Edificio 20' } }
 
   const filasPorTabla: Record<string, Record<string, unknown>[]> = {
     zona: [CAMPUS, EDIF20, EDIF15, PARQUE],
-    punto_control: [PUNTO_E20, PUNTO_CAMPUS],
+    punto_control: [PUNTO_E20, PUNTO_CAMPUS, PUNTO_E20_EPN],
     dispositivo: [{
-      id_dispositivo: 'd-1', id_punto_control: 'p-1', codigo_mac: 'AA:BB:CC:DD:EE:FF',
+      id_dispositivo: 'd-1', id_punto_control: 'p-1', codigo_dispositivo: 'BIO-0001',
       direccion_ip: '10.0.0.10', tipo_tecnologia: 'BIOMETRIA_FACIAL', estado_dispositivo: 'OPERATIVO',
-      punto: { nombre_punto: 'Puerta Norte' },
+      punto: { nombre_punto: 'Puerta Norte', zona: { nombre_zona: 'Edificio 20' } },
     }],
     guardia_punto_control: [{
       id_asignacion: 'a-1', id_usuario: 'u-g1', id_punto_control: 'p-1',
@@ -167,7 +169,10 @@ afterEach(() => {
 })
 
 describe('cascada al editar (el bug de los combos vacíos)', () => {
-  it('al editar un punto de control, la Zona viene resuelta y con opciones', async () => {
+  it('al editar un punto de control anterior a la nomenclatura EPN, la Zona viene resuelta y con opciones', async () => {
+    // "Puerta Norte" no trae E<edificio>/P<piso>/E<espacio> del que sacar el número de edificio
+    // (es de antes de esa regla, como "Puerta - Laboratorio de Suelos" en el remoto): se sigue
+    // editando eligiendo la zona de una lista, no resolviéndola sola.
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPuntoControl)
 
@@ -182,6 +187,23 @@ describe('cascada al editar (el bug de los combos vacíos)', () => {
     const zona = screen.getByRole('combobox', { name: /^Zona/i })
     await waitFor(() => expect(zona).toHaveValue('z-e20'))
     expect(within(zona).getAllByRole('option').length).toBeGreaterThan(1)
+  })
+
+  it('al editar un punto con la nomenclatura EPN, la Zona se resuelve sola (nuevos requerimientos PCO)', async () => {
+    // A diferencia de "Puerta Norte" (legado), este punto sí sigue el estándar E20/P.../E...:
+    // el número de edificio se puede sacar de su propio nombre, así que "Zona" ya no es un
+    // desplegable que elegir, es la confirmación de a qué edificio corresponde.
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPuntoControl)
+
+    await abrirEdicion(usuario, /E20\/P5\/E010/)
+
+    const tipo = await screen.findByRole('combobox', { name: /Tipo de zona/i })
+    await waitFor(() => expect(tipo).toHaveValue('EDIFICIO'))
+
+    const zona = screen.getByLabelText(/^Zona/i)
+    expect(zona).toBeDisabled()
+    await waitFor(() => expect(zona).toHaveValue('Edificio 20'))
   })
 
   it('al editar una garita que cuelga del campus, el Tipo de zona no se queda vacío', async () => {
@@ -202,7 +224,7 @@ describe('cascada al editar (el bug de los combos vacíos)', () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgDispositivo)
 
-    await abrirEdicion(usuario, /AA:BB:CC:DD:EE:FF/)
+    await abrirEdicion(usuario, /BIO-0001/)
 
     await waitFor(() => expect(screen.getByRole('combobox', { name: /^Zona/i })).toHaveValue('z-e20'))
     const punto = screen.getByRole('combobox', { name: /Punto de control/i })
@@ -335,11 +357,12 @@ describe('asignaciones de guardia', () => {
 
   it('separa la vigencia de la asignación de si está en turno ahora', async () => {
     // El v2 pedía que no se confundieran las dos cosas. Van en columnas distintas: "Asignación"
-    // dice si está en vigor estos días, "Ahora mismo" si el guardia está cubriendo el punto.
+    // dice si está en vigor estos días, "Estado actual" si el guardia está cubriendo el punto
+    // (nuevos requerimientos PCO: "quitar 'AHORA MISMO' y poner 'ESTADO ACTUAL'").
     montar(cfgAsignacionGuardia)
 
     expect(await screen.findByRole('columnheader', { name: /Asignación/i })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /Ahora mismo/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Estado actual/i })).toBeInTheDocument()
 
     // Son las 12:00 en Ecuador y el turno de Guardia Demo es 07:00–17:00: vigente y en turno.
     const fila = (await screen.findByText(/Guardia Demo/)).closest('tr') as HTMLElement
@@ -405,19 +428,30 @@ describe('nombre estándar EPN al registrar en un edificio', () => {
     expect(screen.getByLabelText(/Nombre del punto/i)).toBeDisabled()
   })
 
-  it('en un campus el nombre se escribe a mano', async () => {
-    // Ahí los puntos son garitas perimetrales, que no ocupan un aula.
+  it('en un campus nuevo el "Acceso X" se asigna solo, a partir de la descripción (nuevos requerimientos PCO)', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPuntoControl)
 
     await usuario.click(await screen.findByRole('button', { name: /Registrar Punto de control/i }))
     await usuario.selectOptions(screen.getByRole('combobox', { name: /Tipo de zona/i }), 'CAMPUS')
+    const zona = await screen.findByRole('combobox', { name: /^Zona/i })
+    await waitFor(() => expect(within(zona).getAllByRole('option').length).toBeGreaterThan(1))
+    await usuario.selectOptions(zona, 'z-campus')
 
-    expect(await screen.findByRole('textbox', { name: /^Nombre/i })).toBeEnabled()
     expect(screen.queryByLabelText(/Aula o espacio/i)).not.toBeInTheDocument()
+
+    await usuario.type(await screen.findByLabelText(/^Descripción/i), 'Av. Ladrón de Guevara (Este)')
+
+    // "Acceso A" (sin guion) es de antes de esta regla y no cuenta: la primera con el patrón
+    // nuevo vuelve a empezar en A.
+    await waitFor(() => expect(screen.getByLabelText(/^Acceso/i)).toHaveValue('Acceso A'))
+    await waitFor(() =>
+      expect(screen.getByLabelText(/Nombre del punto/i)).toHaveValue('Acceso A - Av. Ladrón de Guevara (Este)'),
+    )
+    expect(screen.getByLabelText(/Nombre del punto/i)).toBeDisabled()
   })
 
-  it('al editar una garita del campus, el nombre sigue siendo editable', async () => {
+  it('al editar una garita del campus anterior a esta regla, el nombre sigue siendo editable', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPuntoControl)
 
@@ -425,6 +459,68 @@ describe('nombre estándar EPN al registrar en un edificio', () => {
 
     await waitFor(() => expect(screen.getByRole('combobox', { name: /Tipo de zona/i })).toHaveValue('CAMPUS'))
     expect(screen.getByRole('textbox', { name: /^Nombre/i })).toHaveValue('Acceso A')
+  })
+})
+
+describe('nuevos requerimientos PCO', () => {
+  it('el listado de dispositivos muestra el código y la zona, no la MAC', async () => {
+    montar(cfgDispositivo)
+
+    expect(await screen.findByRole('columnheader', { name: /^Código$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^Zona$/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /Punto de control/i })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /^MAC$/i })).not.toBeInTheDocument()
+
+    expect(await screen.findByText('BIO-0001')).toBeInTheDocument()
+    expect(screen.getByText('Edificio 20')).toBeInTheDocument()
+  })
+
+  it('registrar un dispositivo no pide MAC: el código lo asigna la base', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgDispositivo)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Dispositivo/i }))
+
+    expect(screen.queryByLabelText(/MAC/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Código/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Dirección IP/i })).toBeInTheDocument()
+  })
+
+  it('al editar un dispositivo, el código se ve pero no se puede cambiar', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgDispositivo)
+
+    await abrirEdicion(usuario, /BIO-0001/)
+
+    const codigo = screen.getByLabelText(/^Código/i)
+    expect(codigo).toHaveValue('BIO-0001')
+    expect(codigo).toBeDisabled()
+  })
+
+  it('registrar un edificio pide su número, único', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgZona)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
+    expect(screen.queryByLabelText(/Número de edificio/i)).not.toBeInTheDocument()
+
+    await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'EDIFICIO')
+    expect(await screen.findByLabelText(/Número de edificio/i)).toBeInTheDocument()
+  })
+
+  it('el nombre de una zona debe empezar con mayúscula', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgZona)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Zona/i }))
+    await usuario.type(screen.getByRole('textbox', { name: /Nombre/i }), 'parqueadero norte')
+    await usuario.selectOptions(screen.getByRole('combobox', { name: /^Tipo/i }), 'PARQUEADERO')
+    const padre = await screen.findByRole('combobox', { name: /Zona padre/i })
+    await waitFor(() => expect(within(padre).getAllByRole('option').length).toBeGreaterThan(1))
+    await usuario.selectOptions(padre, 'z-e20')
+    await usuario.click(await screen.findByRole('button', { name: /^Registrar$/i }))
+
+    expect((await screen.findAllByText(/Debe empezar con mayúscula/i)).length).toBeGreaterThan(0)
   })
 })
 

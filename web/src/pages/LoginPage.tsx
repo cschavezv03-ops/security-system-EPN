@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Eye, EyeOff } from 'lucide-react'
+import { Logo } from '../components/Logo'
 import { iniciarSesion, setRecordarSesion } from '../lib/supabase'
 import { consumirAvisoLogin } from '../auth/password'
 import { Button, ErrorBanner, Field, Input } from '../components/ui'
@@ -42,7 +43,7 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-bg p-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
         <div className="bg-navy px-6 py-7 text-center text-white">
-          <ShieldCheck className="mx-auto h-10 w-10 text-gold" />
+          <Logo className="mx-auto h-16 w-16" />
           <h1 className="mt-3 text-lg font-semibold">Sistema de Seguridad — EPN</h1>
           <p className="mt-1 text-xs text-white/60">Control de Accesos · Escuela Politécnica Nacional</p>
           <div className="mx-auto mt-3 h-0.5 w-16 rounded bg-gold" />

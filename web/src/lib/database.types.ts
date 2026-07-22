@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       alerta_seguridad: {
@@ -199,7 +224,8 @@ export type Database = {
       }
       dispositivo: {
         Row: {
-          codigo_mac: string
+          codigo_dispositivo: string
+          codigo_mac: string | null
           direccion_ip: string
           estado_dispositivo: string
           id_dispositivo: string
@@ -207,7 +233,8 @@ export type Database = {
           tipo_tecnologia: string
         }
         Insert: {
-          codigo_mac: string
+          codigo_dispositivo: string
+          codigo_mac?: string | null
           direccion_ip: string
           estado_dispositivo?: string
           id_dispositivo?: string
@@ -215,7 +242,8 @@ export type Database = {
           tipo_tecnologia: string
         }
         Update: {
-          codigo_mac?: string
+          codigo_dispositivo?: string
+          codigo_mac?: string | null
           direccion_ip?: string
           estado_dispositivo?: string
           id_dispositivo?: string
@@ -341,11 +369,13 @@ export type Database = {
           es_conductor: boolean
           fecha_hora: string
           id_autorizacion_visita: string | null
+          id_dispositivo: string | null
           id_evento: string
           id_evento_ingreso: string | null
           id_persona: string | null
           id_punto_control: string
           id_regla_acceso: string | null
+          id_usuario_registro: string | null
           id_vehiculo: string | null
           motivo_resultado: string | null
           origen_registro: string
@@ -360,11 +390,13 @@ export type Database = {
           es_conductor?: boolean
           fecha_hora?: string
           id_autorizacion_visita?: string | null
+          id_dispositivo?: string | null
           id_evento?: string
           id_evento_ingreso?: string | null
           id_persona?: string | null
           id_punto_control: string
           id_regla_acceso?: string | null
+          id_usuario_registro?: string | null
           id_vehiculo?: string | null
           motivo_resultado?: string | null
           origen_registro: string
@@ -379,11 +411,13 @@ export type Database = {
           es_conductor?: boolean
           fecha_hora?: string
           id_autorizacion_visita?: string | null
+          id_dispositivo?: string | null
           id_evento?: string
           id_evento_ingreso?: string | null
           id_persona?: string | null
           id_punto_control?: string
           id_regla_acceso?: string | null
+          id_usuario_registro?: string | null
           id_vehiculo?: string | null
           motivo_resultado?: string | null
           origen_registro?: string
@@ -399,6 +433,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "autorizacion_visita_diaria"
             referencedColumns: ["id_autorizacion"]
+          },
+          {
+            foreignKeyName: "evento_acceso_id_dispositivo_fkey"
+            columns: ["id_dispositivo"]
+            isOneToOne: false
+            referencedRelation: "dispositivo"
+            referencedColumns: ["id_dispositivo"]
           },
           {
             foreignKeyName: "evento_acceso_id_evento_ingreso_fkey"
@@ -434,6 +475,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "regla_acceso"
             referencedColumns: ["id_regla_acceso"]
+          },
+          {
+            foreignKeyName: "evento_acceso_id_usuario_registro_fkey"
+            columns: ["id_usuario_registro"]
+            isOneToOne: false
+            referencedRelation: "usuario_sistema"
+            referencedColumns: ["id_usuario"]
           },
           {
             foreignKeyName: "evento_acceso_id_vehiculo_fkey"
@@ -528,6 +576,8 @@ export type Database = {
           id_usuario_registro: string
           motivo_anulacion: string | null
           numero_memorando: string
+          permite_acompanantes: boolean
+          permite_vehiculo: boolean
         }
         Insert: {
           dependencia_autorizada?: string | null
@@ -541,6 +591,8 @@ export type Database = {
           id_usuario_registro: string
           motivo_anulacion?: string | null
           numero_memorando: string
+          permite_acompanantes?: boolean
+          permite_vehiculo?: boolean
         }
         Update: {
           dependencia_autorizada?: string | null
@@ -554,6 +606,8 @@ export type Database = {
           id_usuario_registro?: string
           motivo_anulacion?: string | null
           numero_memorando?: string
+          permite_acompanantes?: boolean
+          permite_vehiculo?: boolean
         }
         Relationships: [
           {
@@ -569,6 +623,62 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "usuario_sistema"
             referencedColumns: ["id_usuario"]
+          },
+        ]
+      }
+      memorando_vehiculo: {
+        Row: {
+          fecha_registro: string
+          id_memorando: string
+          id_memorando_vehiculo: string
+          id_usuario_registro: string | null
+          id_vehiculo: string
+          observacion: string | null
+        }
+        Insert: {
+          fecha_registro?: string
+          id_memorando: string
+          id_memorando_vehiculo?: string
+          id_usuario_registro?: string | null
+          id_vehiculo: string
+          observacion?: string | null
+        }
+        Update: {
+          fecha_registro?: string
+          id_memorando?: string
+          id_memorando_vehiculo?: string
+          id_usuario_registro?: string | null
+          id_vehiculo?: string
+          observacion?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memorando_vehiculo_id_memorando_fkey"
+            columns: ["id_memorando"]
+            isOneToOne: false
+            referencedRelation: "memorando"
+            referencedColumns: ["id_memorando"]
+          },
+          {
+            foreignKeyName: "memorando_vehiculo_id_usuario_registro_fkey"
+            columns: ["id_usuario_registro"]
+            isOneToOne: false
+            referencedRelation: "usuario_sistema"
+            referencedColumns: ["id_usuario"]
+          },
+          {
+            foreignKeyName: "memorando_vehiculo_id_vehiculo_fkey"
+            columns: ["id_vehiculo"]
+            isOneToOne: false
+            referencedRelation: "vehiculo"
+            referencedColumns: ["id_vehiculo"]
+          },
+          {
+            foreignKeyName: "memorando_vehiculo_id_vehiculo_fkey"
+            columns: ["id_vehiculo"]
+            isOneToOne: false
+            referencedRelation: "vista_vehiculo_sin_propietario"
+            referencedColumns: ["id_vehiculo"]
           },
         ]
       }
@@ -1336,6 +1446,7 @@ export type Database = {
           id_zona: string
           id_zona_padre: string | null
           nombre_zona: string
+          numero_edificio: number | null
           tipo_zona: string
         }
         Insert: {
@@ -1344,6 +1455,7 @@ export type Database = {
           id_zona?: string
           id_zona_padre?: string | null
           nombre_zona: string
+          numero_edificio?: number | null
           tipo_zona: string
         }
         Update: {
@@ -1352,6 +1464,7 @@ export type Database = {
           id_zona?: string
           id_zona_padre?: string | null
           nombre_zona?: string
+          numero_edificio?: number | null
           tipo_zona?: string
         }
         Relationships: [
@@ -1497,10 +1610,24 @@ export type Database = {
     }
     Functions: {
       acentuar_texto: { Args: { texto: string }; Returns: string }
+      ambito_persona_vehiculo: { Args: never; Returns: string }
       allowed_modules: { Args: never; Returns: string[] }
       asignar_rol_unico: {
         Args: { p_id_rol: string; p_id_usuario: string; p_observacion?: string }
         Returns: string
+      }
+      buscar_guardia_por_cedula: {
+        Args: { p_cedula: string }
+        Returns: {
+          cedula: string
+          id_usuario: string
+          nombre_completo: string
+          ya_asignado: boolean
+        }[]
+      }
+      categoria_puede_operar: {
+        Args: { p_id_persona: string }
+        Returns: boolean
       }
       cerrar_sesion: {
         Args: { p_id_sesion?: string }
@@ -1530,10 +1657,39 @@ export type Database = {
         }
       }
       cerrar_sesion_admin: { Args: { p_id_sesion: string }; Returns: Json }
+      codigo_ubicacion_epn: { Args: { p_nombre: string }; Returns: string }
+      componer_nombre_punto_epn: {
+        Args: {
+          p_descripcion?: string
+          p_edificio: number
+          p_espacio: number
+          p_piso: number
+        }
+        Returns: string
+      }
       corregir_placa_ocr: { Args: { p_placa: string }; Returns: string }
+      crear_memorando_con_vehiculo: {
+        Args: {
+          p_color?: string
+          p_dependencia_autorizada?: string
+          p_fecha_fin: string
+          p_fecha_inicio: string
+          p_id_empresa: string
+          p_id_persona_responsable?: string
+          p_marca?: string
+          p_modelo?: string
+          p_numero_memorando: string
+          p_permite_acompanantes?: boolean
+          p_permite_vehiculo?: boolean
+          p_placa?: string
+          p_tipo_vehiculo?: string
+        }
+        Returns: Json
+      }
       crear_vehiculo_con_propietario: {
         Args: {
           p_color?: string
+          p_fecha_fin: string
           p_fecha_inicio?: string
           p_id_persona: string
           p_marca?: string
@@ -1550,6 +1706,7 @@ export type Database = {
         Returns: undefined
       }
       detalle_cambio: { Args: { anterior: Json; nuevo: Json }; Returns: Json }
+      detalle_evento_acceso: { Args: { p_id_evento: string }; Returns: Json }
       duracion_turno_min: {
         Args: { p_fin: string; p_inicio: string }
         Returns: number
@@ -1575,6 +1732,7 @@ export type Database = {
       }
       es_ip: { Args: { p_ip: string }; Returns: boolean }
       es_mac: { Args: { p_mac: string }; Returns: boolean }
+      es_nombre_con_mayuscula: { Args: { p_nombre: string }; Returns: boolean }
       es_nombre_persona: { Args: { p_nombre: string }; Returns: boolean }
       es_numero_memorando: { Args: { p_numero: string }; Returns: boolean }
       es_persona_de_guardia: {
@@ -1611,6 +1769,15 @@ export type Database = {
       etiqueta_entidad: { Args: { entidad: string }; Returns: string }
       expirar_sesiones_vencidas: { Args: never; Returns: number }
       formatear_placa: { Args: { p_placa: string }; Returns: string }
+      guardia_de_turno_en: {
+        Args: { p_id_punto_control: string; p_momento: string }
+        Returns: {
+          correo_electronico: string
+          id_usuario: string
+          nombre_usuario: string
+          turno: string
+        }[]
+      }
       guardias_disponibles: {
         Args: never
         Returns: {
@@ -1648,6 +1815,28 @@ export type Database = {
         }[]
       }
       marcar_password_cambiada: { Args: never; Returns: undefined }
+      memorandos_de_persona_y_vehiculo: {
+        Args: { p_id_persona: string; p_id_vehiculo: string }
+        Returns: {
+          fecha_fin: string
+          fecha_inicio: string
+          id_memorando: string
+          numero_memorando: string
+        }[]
+      }
+      memorandos_vigentes_de_vehiculo: {
+        Args: { p_id_vehiculo: string }
+        Returns: {
+          dependencia_autorizada: string
+          empresa: string
+          fecha_fin: string
+          fecha_inicio: string
+          id_memorando: string
+          numero_memorando: string
+          permite_acompanantes: boolean
+          personas_autorizadas: number
+        }[]
+      }
       normalizar_espacios: { Args: { p_texto: string }; Returns: string }
       normalizar_placa: { Args: { p_placa: string }; Returns: string }
       normalizar_telefono_ec: { Args: { p_telefono: string }; Returns: string }
@@ -1658,6 +1847,24 @@ export type Database = {
         Returns: boolean
       }
       persona_del_usuario_actual: { Args: never; Returns: string }
+      persona_tiene_rol_privilegiado: {
+        Args: { p_id_persona: string }
+        Returns: boolean
+      }
+      personas_amparadas_por_vehiculo: {
+        Args: { p_id_vehiculo: string }
+        Returns: {
+          apellidos: string
+          cedula: string
+          id_persona: string
+          nombres: string
+          numero_memorando: string
+        }[]
+      }
+      prefijo_tecnologia_dispositivo: {
+        Args: { p_tipo: string }
+        Returns: string
+      }
       puntos_control_asignados: { Args: never; Returns: string[] }
       registrar_intento_fuera_de_turno: {
         Args: { p_detalle?: string }
@@ -1699,6 +1906,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      registrar_vehiculo_de_memorando: {
+        Args: {
+          p_color?: string
+          p_id_memorando: string
+          p_id_persona: string
+          p_marca?: string
+          p_modelo?: string
+          p_observacion?: string
+          p_placa?: string
+          p_tipo_vehiculo: string
+        }
+        Returns: Json
+      }
       regla_aplica_en_punto: {
         Args: { p_id_punto: string; p_id_regla: string }
         Returns: boolean
@@ -1716,6 +1936,10 @@ export type Database = {
       }
       ruc_pasa_algoritmo_legado: { Args: { p_ruc: string }; Returns: boolean }
       sesion_vigente: { Args: never; Returns: boolean }
+      siguiente_codigo_dispositivo: {
+        Args: { p_tipo: string }
+        Returns: string
+      }
       sincronizar_correo_auth: {
         Args: { p_correo: string; p_id_usuario: string }
         Returns: undefined
@@ -1735,6 +1959,10 @@ export type Database = {
       uuid_seguro: { Args: { texto: string }; Returns: string }
       valor_parametro_coherente: {
         Args: { p_tipo_dato: string; p_valor: string }
+        Returns: boolean
+      }
+      vehiculo_amparado_por_memorando: {
+        Args: { p_id_persona: string; p_id_vehiculo: string }
         Returns: boolean
       }
       verificar_turno_guardia_actual: { Args: never; Returns: Json }
@@ -1866,6 +2094,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

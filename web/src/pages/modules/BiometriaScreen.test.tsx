@@ -52,6 +52,13 @@ beforeEach(() => { updates.length = 0; removed.length = 0 })
 afterEach(() => vi.clearAllMocks())
 
 describe('biometría: borrar un enrolamiento', () => {
+  it('elige a la persona mediante búsqueda por cédula y no mediante un combo', async () => {
+    montar()
+
+    expect(await screen.findByRole('textbox', { name: /Cédula de la persona interna/i })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /Persona interna/i })).not.toBeInTheDocument()
+  })
+
   it('desactiva la fila (no la borra) y elimina la foto del bucket, sin el prefijo del bucket', async () => {
     const usuario = userEvent.setup()
     montar()

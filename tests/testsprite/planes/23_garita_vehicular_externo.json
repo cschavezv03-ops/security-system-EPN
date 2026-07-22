@@ -1,0 +1,35 @@
+{
+  "projectId": "95936660-3989-4f92-a0ce-d536ee25b14a",
+  "type": "frontend",
+  "name": "Garita — el ingreso vehicular de un externo muestra su memorando",
+  "planSteps": [
+    {
+      "type": "action",
+      "description": "Abrir la aplicación. En la pantalla de inicio de sesión, BORRAR cualquier valor que venga precargado en el campo de correo y escribir exactamente joel.velastegui@epn.edu.ec; en el campo de contraseña escribir admin1234. Es imprescindible usar esa cuenta y no otra: es la única con acceso al módulo Personal Externo. Después pulsar 'Ingresar al sistema'."
+    },
+    {
+      "type": "assertion",
+      "description": "La sesión iniciada corresponde a joel.velastegui@epn.edu.ec y el Panel Principal muestra el módulo 'Personal Externo'"
+    },
+    {
+      "type": "action",
+      "description": "Abrir el módulo 'Personal Externo' y luego la tarjeta 'Memorandos'"
+    },
+    {
+      "type": "action",
+      "description": "Buscar el memorando 'EPN-DL-2026-002' y abrir su ficha"
+    },
+    {
+      "type": "assertion",
+      "description": "La ficha incluye una fila 'Forma de ingreso' que dice que el ingreso es en vehículo y muestra la placa PCR-1234"
+    },
+    {
+      "type": "action",
+      "description": "Volver al panel y abrir la tarjeta 'Personas por memorando'"
+    },
+    {
+      "type": "assertion",
+      "description": "Aparecen personas vinculadas al memorando 'EPN-DL-2026-002' y la columna '¿Puede entrar?' indica hasta qué fecha"
+    }
+  ]
+}
