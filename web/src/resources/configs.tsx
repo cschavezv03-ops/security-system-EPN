@@ -29,6 +29,15 @@ import {
  *  empiecen con mayúscula en TODO el sistema"). Espejo de `es_nombre_con_mayuscula`. */
 const validarNombreLugar = (v: string) => validarNoVacio(v) || validarMayusculaInicial(v)
 
+/** Arma el nombre visible de una zona edificio sin pedir que se repitan sus piezas. */
+function componerNombreZonaEdificio(numero: unknown, descripcion: unknown): string {
+  if (numero === '' || numero == null) return ''
+  const n = Number(numero)
+  const desc = typeof descripcion === 'string' ? descripcion.replace(/\s+/g, ' ').trim() : ''
+  if (!Number.isInteger(n) || n <= 0 || !desc) return ''
+  return `Edificio ${n} – ${desc}`
+}
+
 const d = (v: any) => (v == null || v === '' ? '—' : String(v))
 
 /**
@@ -436,13 +445,18 @@ export const cfgZona: ResourceConfig = {
   campoSubtituloDetalle: (r) => <Badge value={r.tipo_zona} />,
   detalle: [
     { label: 'Zona padre', render: (r) => r.padre?.nombre_zona ?? '—' },
+    { label: 'Número de edificio', render: (r) => d(r.numero_edificio), visibleSi: (r) => r.tipo_zona === 'EDIFICIO' },
+    { label: 'Descripción', render: (r) => d(r.descripcion), visibleSi: (r) => r.tipo_zona === 'EDIFICIO' },
     { label: 'Estado', render: (r) => <Badge value={r.estado_zona} /> },
     { label: 'Registro', render: (r) => fmtFecha(r.fecha_registro) },
   ],
   filtros: [{ campo: 'tipo_zona', label: 'Filtrar por zona', opciones: opcionesCatalogo(CAT.zona_tipo) }],
   campos: [
-    { name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2, validar: validarNombreLugar },
-    { name: 'tipo_zona', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona_padre', 'numero_edificio'] },
+    { name: 'tipo_zona', label: 'Tipo', type: 'select', required: true, options: opcionesCatalogo(CAT.zona_tipo), alCambiarLimpiar: ['id_zona_padre', 'numero_edificio', 'descripcion', 'nombre_zona'] },
+    {
+      name: 'nombre_zona', label: 'Nombre', required: true, colSpan: 2, validar: validarNombreLugar,
+      visibleSi: (v) => v.tipo_zona !== 'EDIFICIO',
+    },
     // Jerarquía CAMPUS -> EDIFICIO -> PARQUEADERO (feedback PCO): el combo ofrecía todas las
     // zonas, así que un parqueadero podía colgar de otro parqueadero. Ahora solo se ofrece el
     // nivel inmediatamente superior. El trigger validar_jerarquia_zona lo vuelve a comprobar.
@@ -460,12 +474,35 @@ export const cfgZona: ResourceConfig = {
       visibleSi: (v) => v.tipo_zona === 'EDIFICIO',
       placeholder: '20', hint: 'Único por edificio. Al registrar una garita bastará con escribir este número.',
     },
+    {
+      name: 'descripcion', label: 'Descripción', required: true, colSpan: 2, validar: validarNombreLugar,
+      visibleSi: (v) => v.tipo_zona === 'EDIFICIO',
+      placeholder: 'EARME', hint: 'Escriba solo cómo se conoce al edificio; el nombre oficial se arma automáticamente.',
+    },
+    {
+      name: 'nombre_zona', label: 'Nombre oficial', required: true, colSpan: 2,
+      visibleSi: (v) => v.tipo_zona === 'EDIFICIO',
+      componerDesde: {
+        campos: ['numero_edificio', 'descripcion'],
+        componer: (v) => componerNombreZonaEdificio(v.numero_edificio, v.descripcion),
+      },
+      hint: 'Lo arma el sistema con el número y la descripción.',
+    },
     // Sin combo de Estado al registrar (feedback PCO): una zona nueva nace en servicio. Cambiarlo
     // es una decisión posterior, y para eso está la ficha —con Inactivar y Reactivar—.
-    { name: 'estado_zona', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.zona_estado), default: 'ACTIVA', hideOnInsert: true },
+    {
+      name: 'estado_zona', label: 'Estado', type: 'select', options: opcionesCatalogo(CAT.zona_estado),
+      default: 'ACTIVA', hideOnInsert: true, deshabilitadoSi: (v) => v.tipo_zona === 'CAMPUS',
+      hint: 'El campus es la zona raíz y no se puede inactivar mientras la infraestructura dependa de él.',
+    },
   ],
   campoEstado: 'estado_zona',
-  baja: { campoEstado: 'estado_zona', valorBaja: 'INACTIVA', etiqueta: 'Inactivar' },
+  baja: {
+    campoEstado: 'estado_zona', valorBaja: 'INACTIVA', etiqueta: 'Inactivar',
+    bloqueadaSi: (r) => r.tipo_zona === 'CAMPUS'
+      ? 'El campus es la zona raíz: los edificios y puntos de control dependen de él.'
+      : null,
+  },
   reactivar: { valorActivo: 'ACTIVA', etiqueta: 'Reactivar' },
 }
 
@@ -505,17 +542,14 @@ export const cfgPuntoControl: ResourceConfig = {
   titulo: 'Puntos de control',
   singular: 'Punto de control',
   idField: 'id_punto_control',
-  select: '*, zona:zona(nombre_zona)',
+  select: '*, zona:zona(nombre_zona, tipo_zona)',
   orderBy: { columna: 'nombre_punto' },
   permisos: { select: ['PCO_PUNTO_CONTROL_SELECT'], insert: ['PCO_PUNTO_CONTROL_INSERT'], update: ['PCO_PUNTO_CONTROL_UPDATE'] },
   buscarEn: ['nombre_punto'],
   filtros: [{
-    campo: 'zona.nombre_zona',
+    campo: 'zona.tipo_zona',
     label: 'Filtrar por zona',
-    opciones: async () => {
-      const { data } = await (supabase as any).from('zona').select('nombre_zona')
-      return ((data as { nombre_zona: string }[]) ?? []).map((z) => ({ value: z.nombre_zona, label: z.nombre_zona }))
-    },
+    opciones: opcionesCatalogo(CAT.zona_tipo),
   }],
   columnas: [
     { key: 'nombre_punto', label: 'Nombre' },
@@ -759,6 +793,9 @@ export const cfgAsignacionGuardia: ResourceConfig = {
   // Se busca por cédula y apellido, no por correo: el identificador de una persona es su
   // cédula (§D57). El correo identifica a la CUENTA, que es otra cosa.
   buscarEn: ['guardia.persona.cedula', 'guardia.persona.apellidos', 'punto.nombre_punto', 'turno'],
+  filtros: [
+    { campo: 'estado_asignacion', label: 'Filtrar por asignación', opciones: opcionesCatalogo(CAT.asignacion_estado) },
+  ],
   columnas: [
     { key: 'guardia', label: 'Guardia', render: (r) => nombreGuardia(r), valorExport: (r) => nombreGuardia(r) },
     // El identificador visible de una persona es siempre la cédula (RF de PCO), nunca un código

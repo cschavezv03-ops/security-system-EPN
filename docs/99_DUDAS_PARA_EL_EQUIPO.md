@@ -866,6 +866,10 @@ campus, quitar el ejemplo "Laboratorio Alan Turing" del placeholder, "ESTADO ACT
    edificio). El día que alguien quiera registrar un punto de control dentro del edificio EARME
    mismo, hace falta editar esa zona y ponerle un número real antes.
 
+   **✅ Cerrado el 22/07/2026:** la revisión funcional confirmó el número **26** y el nombre
+   derivado `Edificio 26 – EARME`. La migración `20260722121000` completa el número y separa la
+   descripción para que no vuelva a escribirse dos veces.
+
 2. **`Edificioflnd 21` no se tocó.** Es una fila que ya existía en el remoto, con un nombre que
    huele a dato de prueba mal tecleado ("Edificioflnd" no es ningún edificio real de la EPN). Se
    le asignó `numero_edificio = 21` por el mismo backfill automático (el único número que aparece

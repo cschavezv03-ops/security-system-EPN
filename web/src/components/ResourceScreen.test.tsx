@@ -164,6 +164,17 @@ afterEach(() => {
 })
 
 describe('formulario dinámico según la categoría (GPI)', () => {
+  it('encuentra nombres aunque la búsqueda omita la tilde', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInterna)
+
+    const buscar = await screen.findByPlaceholderText(/Buscar personal interno/i)
+    await usuario.type(buscar, 'lopez')
+
+    expect(await screen.findByText(/López Ana/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Paredes Cecilia/i)).not.toBeInTheDocument()
+  })
+
   it('el código único solo aparece para estudiantes', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPersonaInterna)
@@ -224,6 +235,19 @@ describe('formulario dinámico según la categoría (GPI)', () => {
 })
 
 describe('datos internos por perfil (últimos cambios GPI)', () => {
+  it('para Administrativo, Unidad ofrece únicamente EPN', async () => {
+    const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    montar(cfgPersonaInternaDetalle)
+
+    await usuario.click(await screen.findByRole('button', { name: /Registrar Detalle interno/i }))
+    await buscarPersonaInterna(usuario, '1750000257')
+
+    const unidad = await screen.findByRole('combobox', { name: /^Unidad/i })
+    await waitFor(() => expect(within(unidad).getAllByRole('option').length).toBeGreaterThan(1))
+    expect(within(unidad).getByRole('option', { name: 'EPN' })).toBeInTheDocument()
+    expect(within(unidad).queryByRole('option', { name: 'CEC' })).not.toBeInTheDocument()
+  })
+
   it('el detalle docente omite Cargo aunque exista como dato histórico', async () => {
     const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     montar(cfgPersonaInternaDetalle)

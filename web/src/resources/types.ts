@@ -165,6 +165,9 @@ export interface BajaConfig {
   /** Opciones de "tipo de baja" si aplica. */
   tipos?: Opcion[]
   etiqueta?: string
+  /** Motivo por el que una fila concreta no puede darse de baja. Si devuelve texto, la acción
+   *  permanece visible pero deshabilitada para explicar la regla antes de intentar guardar. */
+  bloqueadaSi?: (row: Record<string, any>) => string | null
 }
 
 export interface ResourceConfig<Row = any> {

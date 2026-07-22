@@ -6,7 +6,7 @@ import { opcionesCatalogo, optCategorias, optEmpresas } from './opciones'
 import { supabase } from '../lib/supabase'
 import {
   normalizarTelefono, validarCedula, validarCorreo, validarCorreoInstitucional,
-  validarFechaNacimiento, validarNoVacio, validarNombre, validarTelefono,
+  validarCodigoUnico, validarFechaNacimiento, validarNoVacio, validarNombre, validarTelefono,
 } from '../lib/validacion'
 
 // Feedback GPI: solo "Masculino"/"Femenino" (sin "Otro", ver lib/catalogos.ts persona_sexo).
@@ -120,9 +120,9 @@ export const cfgPersonaInterna: ResourceConfig = {
     // de personas este campo permanece bloqueado." El trigger validar_codigo_unico_estudiante
     // lo garantiza también en la base.
     {
-      name: 'codigo_unico', label: 'Código único', editable: false, validar: validarNoVacio,
+      name: 'codigo_unico', label: 'Código único', editable: false, validar: validarCodigoUnico,
       visibleSi: (v) => CATEGORIAS_ESTUDIANTE.includes(v._categoria),
-      hint: 'Número de matrícula del estudiante. No se puede cambiar después.', placeholder: '202320947',
+      hint: `Número de matrícula: empieza por un año entre 1970 y ${new Date().getFullYear()}. No se puede cambiar después.`, placeholder: '202320947',
     },
 
     // El personal interno usa correo institucional (@epn.edu.ec o @cec.edu.ec).
@@ -198,13 +198,17 @@ export const cfgPersonaInternaDetalle: ResourceConfig = {
     {
       name: 'id_persona', label: 'Cédula de la persona interna', type: 'cedula-busqueda',
       required: true, editable: false, buscarPersona: { soloTipo: 'INTERNA', soloActivas: true },
+      alCambiarLimpiar: ['unidad', 'cargo', 'carrera', 'curso', 'categoria_escalafon', 'contrato'],
       hint: 'Al encontrarla se muestra su categoría, que determina qué campos se habilitan.',
     },
     // Oculto: solo alimenta las reglas `visibleSi` de abajo.
     { name: '_categoria', label: '', persistir: false, visibleSi: () => false, derivarSiempreDesde: { campo: 'id_persona', calcular: categoriaDePersona } },
 
     {
-      name: 'unidad', label: 'Unidad', type: 'select', options: opcionesCatalogo(CAT.unidad),
+      name: 'unidad', label: 'Unidad', type: 'select', required: true, options: opcionesCatalogo(CAT.unidad),
+      opcionesDependientes: (v) => v._categoria === 'ADMINISTRATIVO'
+        ? opcionesCatalogo(CAT.unidad).filter((o) => o.value === 'EPN')
+        : opcionesCatalogo(CAT.unidad),
       visibleSi: (v) => CATEGORIAS_UNIDAD.includes(v._categoria),
       alCambiarLimpiar: ['carrera', 'curso'],
       hint: 'EPN o Centro de Educación Continua (CEC). Al cambiarla se limpian los datos académicos incompatibles.',

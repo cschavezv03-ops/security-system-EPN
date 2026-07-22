@@ -16,6 +16,7 @@ import {
   normalizarTelefono,
   esTelefonoEc,
   validarFechaNacimiento,
+  validarCodigoUnico,
 } from './validacion'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,15 @@ function cedulaSintetica(prefijo9: string): string {
 
 const CED_VALIDA = cedulaSintetica('150000000') // provincia 15, tercer dígito 0
 const CED_VALIDA_2 = cedulaSintetica('090000001') // provincia 09
+
+describe('búsqueda y código único', () => {
+  it('valida el año de matrícula en los cuatro primeros dígitos', () => {
+    expect(validarCodigoUnico('1970123')).toBeNull()
+    expect(validarCodigoUnico('1969123')).toMatch(/entre 1970/i)
+    expect(validarCodigoUnico(`${new Date().getFullYear() + 1}123`)).toMatch(/año de matrícula/i)
+    expect(validarCodigoUnico('2023ABC')).toMatch(/solo puede contener números/i)
+  })
+})
 
 describe('esRellenoObvio', () => {
   it('detecta dígitos repetidos', () => {

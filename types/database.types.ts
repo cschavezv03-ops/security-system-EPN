@@ -1331,27 +1331,33 @@ export type Database = {
       }
       zona: {
         Row: {
+          descripcion: string | null
           estado_zona: string
           fecha_registro: string
           id_zona: string
           id_zona_padre: string | null
           nombre_zona: string
+          numero_edificio: number | null
           tipo_zona: string
         }
         Insert: {
+          descripcion?: string | null
           estado_zona?: string
           fecha_registro?: string
           id_zona?: string
           id_zona_padre?: string | null
           nombre_zona: string
+          numero_edificio?: number | null
           tipo_zona: string
         }
         Update: {
+          descripcion?: string | null
           estado_zona?: string
           fecha_registro?: string
           id_zona?: string
           id_zona_padre?: string | null
           nombre_zona?: string
+          numero_edificio?: number | null
           tipo_zona?: string
         }
         Relationships: [

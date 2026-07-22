@@ -109,7 +109,8 @@ function GuardiaInner() {
             <Card className="px-4 py-2">
               <p className="text-xs text-ink-soft">Punto asignado</p>
               <p className="flex items-center gap-2 font-semibold text-navy">
-                {asignacion.punto?.nombre_punto ?? '—'} <Badge value={asignacion.punto?.estado_punto ?? '—'} />
+                {asignacion.punto?.nombre_punto ?? '—'}
+                {turno && <Badge value={turno.permitido ? 'EN_TURNO' : 'FUERA_DE_TURNO'} />}
               </p>
               {asignacion.turno && <p className="text-xs text-ink-soft">Turno: {asignacion.turno}</p>}
             </Card>

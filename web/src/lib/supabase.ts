@@ -156,6 +156,15 @@ export async function iniciarSesion(email: string, password: string): Promise<st
       'o solicitar el desbloqueo al administrador.'
     )
   }
+  if (datos.error_code === 'account_blocked_by_admin') {
+    return 'La cuenta fue bloqueada por el administrador. Solicite su desbloqueo.'
+  }
+  if (datos.error_code === 'account_deactivated') {
+    return 'La cuenta fue dada de baja. Solicite su reactivación al administrador.'
+  }
+  if (datos.error_code === 'account_inactive') {
+    return 'La cuenta está inactiva. Solicite su activación al administrador.'
+  }
   if (datos.error_code === 'invalid_credentials') {
     const quedan = datos.intentos_restantes
     return quedan != null && quedan > 0

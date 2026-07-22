@@ -1626,3 +1626,58 @@ De paso se corrige una regla que iba más lejos que la tabla: la RPC de alta exi
 fin fuese *estrictamente* posterior a la de inicio, y con las fechas heredadas eso dejaba fuera un
 caso normal en GPE, el memorando que autoriza una entrega para un único día. El CHECK de
 `persona_vehiculo` siempre admitió la igualdad; ahora la RPC también.
+
+---
+
+## Ronda de revisión final (2026-07-22) — documentos de errores y correcciones
+
+### D90 — La búsqueda visible ignora tildes, sin alterar los datos
+
+Los listados genéricos y el panel de Usuarios comparan una forma normalizada del texto: minúsculas
+y sin diacríticos. Buscar `Calderon` encuentra `Calderón`; el valor almacenado y mostrado conserva
+su ortografía. La misma normalización se reutiliza en listas de selección múltiples.
+
+### D91 — Cada estado de cuenta tiene su propio error de inicio de sesión
+
+Supabase Auth representa como un mismo ban técnico el bloqueo administrativo y la baja de una
+cuenta. La Edge Function resuelve primero `estado_usuario` y devuelve códigos distintos para
+**bloqueada por ADM**, **dada de baja** e **inactiva**. El bloqueo temporal por intentos y las
+credenciales incorrectas mantienen sus códigos separados. La interfaz traduce cada uno en la
+acción que corresponde; ya no acusa a la contraseña cuando el problema es el estado de la cuenta.
+
+### D92 — En el alta rápida de una cuenta, la categoría se deriva del rol
+
+`persona.id_categoria` sigue siendo obligatoria: eliminarla del modelo rompería las reglas de
+acceso físico y §D76. Lo que se elimina es el combobox duplicado del alta de Usuarios. Para una
+persona que aún no existe, **GUARDIA_SEGURIDAD → TRABAJADOR** y los demás roles operativos →
+**ADMINISTRATIVO**. Una persona ya registrada conserva su categoría real, incluida DOCENTE.
+
+### D93 — El código único y la unidad administrativa se validan también en la base
+
+El código único es numérico y sus cuatro primeros dígitos son un año de matrícula entre 1970 y el
+año actual. No se fija la longitud del resto porque el requerimiento no define una. La categoría
+ADMINISTRATIVO solo admite unidad EPN; CEC desaparece de sus opciones. Ambos criterios viven en
+triggers para que una escritura REST no pueda saltarse el formulario.
+
+### D94 — El nombre de un edificio es un dato derivado
+
+`zona.descripcion` guarda solo el texto descriptivo y `numero_edificio` conserva el número. El
+trigger compone `nombre_zona` como **Edificio &lt;número&gt; – &lt;descripción&gt;**. Así `26` y `EARME`
+producen `Edificio 26 – EARME` sin pedir el mismo dato dos veces. La revisión confirma además el
+número 26 para EARME, que estaba pendiente en §V43.1.
+
+El CAMPUS no puede pasar a INACTIVA: es la raíz de la jerarquía y edificios, parqueaderos y puntos
+dependen de él. La acción queda deshabilitada en pantalla y un trigger impide el cambio directo.
+
+### D95 — Los filtros de PCO expresan el criterio que muestran
+
+**Puntos de control → Filtrar por zona** usa `tipo_zona`, con Campus/Edificio/Parqueadero, igual
+que el panel de Zonas; antes listaba nombres concretos de zona bajo la misma etiqueta. En
+Asignaciones de guardia se añade el filtro **Asignación** con Activa/Finalizada.
+
+### D96 — El encabezado del guardia informa su turno, no el estado del punto
+
+La insignia `Activo` junto al punto correspondía a `punto_control.estado_punto`, aunque visualmente
+parecía describir al guardia. Se sustituye por **En turno/Fuera de turno**, calculado por
+`verificar_turno_guardia_actual` con la hora del servidor. Si la comprobación aún no respondió no
+se inventa ningún estado.

@@ -33,6 +33,9 @@ const SIN_PERMISO = 'No tiene permiso para realizar esta acción.'
  */
 const AUTH_POR_CODIGO: Record<string, string> = {
   invalid_credentials: 'Correo o contraseña incorrectos.',
+  account_blocked_by_admin: 'La cuenta fue bloqueada por el administrador. Solicite su desbloqueo.',
+  account_deactivated: 'La cuenta fue dada de baja. Solicite su reactivación al administrador.',
+  account_inactive: 'La cuenta está inactiva. Solicite su activación al administrador.',
   email_not_confirmed: 'Debe confirmar su correo electrónico antes de iniciar sesión.',
   user_not_found: 'No se encontró la cuenta indicada.',
   user_already_exists: 'Ya existe una cuenta con ese correo electrónico.',
