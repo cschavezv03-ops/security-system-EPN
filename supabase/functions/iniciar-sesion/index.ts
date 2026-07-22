@@ -60,6 +60,37 @@ Deno.serve(async (req) => {
     .eq('correo_electronico', email)
     .maybeSingle();
 
+  // Los estados administrativos son causas distintas de rechazo. GoTrue los representa a
+  // todos como un ban y devolvería el mismo error genérico; se resuelven antes para que la
+  // persona sepa si debe pedir desbloqueo o reactivación de la cuenta.
+  if (usuario?.estado_usuario === 'BLOQUEADO') {
+    return jsonResponse(
+      {
+        error_code: 'account_blocked_by_admin',
+        message: 'La cuenta fue bloqueada por el administrador. Solicite su desbloqueo.',
+      },
+      423,
+    );
+  }
+  if (usuario?.estado_usuario === 'DADO_DE_BAJA') {
+    return jsonResponse(
+      {
+        error_code: 'account_deactivated',
+        message: 'La cuenta fue dada de baja. Solicite su reactivación al administrador.',
+      },
+      403,
+    );
+  }
+  if (usuario?.estado_usuario === 'INACTIVO') {
+    return jsonResponse(
+      {
+        error_code: 'account_inactive',
+        message: 'La cuenta está inactiva. Solicite su activación al administrador.',
+      },
+      403,
+    );
+  }
+
   // 1) Bloqueo vigente: ni siquiera se comprueba la contraseña.
   if (usuario?.bloqueado_hasta && new Date(usuario.bloqueado_hasta) > new Date()) {
     const minutos = Math.max(
