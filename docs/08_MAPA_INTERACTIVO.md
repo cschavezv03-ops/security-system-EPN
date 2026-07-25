@@ -16,6 +16,17 @@ construyen por separado:
 
 ---
 
+## El plano es vectorial y propio, no la foto oficial
+
+El fondo **no** es la imagen oficial de la EPN, sino un SVG dibujado desde cero
+(`web/public/mapa-epn-campus.svg`) que reproduce su estilo y disposición (terreno, edificios,
+vías, áreas verdes, óvalo del estadio, encabezado) pero **omite los números, pines y la lista de
+leyenda** del original. Motivos: (1) esos rótulos los pone el sistema como marcadores
+interactivos con datos reales; (2) evita depender de una imagen con copyright; (3) permite colocar
+los edificios en posiciones conocidas y clavar los marcadores encima. Para editar el plano se toca
+el SVG (bloques `rect` = edificios; los rotulados como "ancla" en el comentario del archivo llevan
+marcador del sistema).
+
 ## Por qué overlay y no Google Maps / lat-lng
 
 Se guardan **dos fracciones relativas a la imagen** del plano, no coordenadas geográficas:
@@ -90,10 +101,12 @@ del mapa se muestra con `permisoVer: ['CAC_EVENTO_SELECT','PCO_ZONA_SELECT']`.
 
 - Componente: `web/src/pages/modules/MapaCampus.tsx` (registrado como submódulo "Mapa del campus"
   en CAC, `web/src/resources/registry.tsx`).
-- Fondo: `web/public/mapa-epn.png` — **plano oficial de la EPN** (403×760). El contenedor se adapta
-  a las dimensiones reales de la imagen (constante `MAPA_FONDO`). Se conserva `mapa-epn.svg` como
-  plano estilizado de respaldo. La ilustración del campus ocupa el ~40% superior del PNG (el resto
-  es la leyenda), por eso las coordenadas demo viven en `pos_y ≈ 0.14–0.31`. Ver §V50.
+- Fondo: `web/public/mapa-epn-campus.svg` — **plano vectorial del campus diseñado desde cero**
+  (viewBox `1000×780`), inspirado en el plano oficial de la EPN pero **sin números, pines ni
+  leyenda**: solo el mapa (terreno, edificios, vías, áreas verdes, óvalo del estadio y encabezado).
+  Los números y marcadores los aporta el sistema. Constante `MAPA_FONDO` en el componente. Las
+  zonas del sistema tienen su `pos_x/pos_y` en el **centro exacto** de su bloque de edificio en el
+  SVG, así que el marcador cae sobre el edificio. Ver §V50.
 - Datos: una sola consulta con embeds `zona → punto_control → dispositivo`. `pos_x`/`pos_y` llegan
   como texto (numeric de Postgres) y se convierten a número en el cliente.
 - Funciones ya incluidas: contadores (puntos activos / totales / dispositivos), filtros por
@@ -102,10 +115,10 @@ del mapa se muestra con `permisoVer: ['CAC_EVENTO_SELECT','PCO_ZONA_SELECT']`.
 - Datos:
   - **Remoto (producción):** las coordenadas se pusieron sobre las **zonas reales que ya existían**
     (7 edificios + 2 parqueaderos), con un `UPDATE` por `id_zona` vía el MCP de Supabase — no se
-    insertaron filas demo. Cada zona se ubicó por **el edificio que nombra**, no por su
-    `numero_edificio` (el numerado del remoto no coincide con la leyenda del plano oficial). Este
-    `UPDATE` es una acción puntual, no está en una migración; si se reconstruye el remoto desde
-    cero habría que repetirlo.
+    insertaron filas demo. Cada `pos_x/pos_y` coincide con el **centro de un bloque de edificio del
+    SVG** (viewBox 1000×780), así que el marcador cae sobre el edificio dibujado. Este `UPDATE` es
+    una acción puntual, no está en una migración; si se reconstruye el remoto desde cero habría que
+    repetirlo.
   - **Local (`supabase/seed.sql`):** siembra un campus demo con edificios numerados, puntos y
     dispositivos con estados variados para mostrar todos los colores en un `db reset`.
   - Recordatorio de negocio: `LPR_PLACAS` solo puede vivir en zonas `PARQUEADERO` (trigger

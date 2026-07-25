@@ -162,22 +162,21 @@ end $$;
 -- ============================================================================
 
 -- Zonas: 1 campus raíz + edificios + parqueaderos.
--- Coordenadas afinadas a la banda superior del plano oficial (web/public/mapa-epn.png): la
--- ilustración del campus ocupa el ~40% superior; el resto es la leyenda numerada. pos_y va por
--- eso entre ~0.14 y ~0.31. Son aproximadas (pendiente un pase fino con el selector de posición,
--- §V49/§V50); bastan para que la demo muestre marcadores sobre el campus y no sobre el texto.
+-- Coordenadas alineadas con los edificios del plano vectorial (web/public/mapa-epn-campus.svg,
+-- viewBox 1000x780): pos_x/pos_y son la fracción del centro de cada bloque, así los marcadores
+-- caen sobre los edificios dibujados. (Datos de demostración solo para el `db reset` local.)
 insert into public.zona (id_zona, id_zona_padre, nombre_zona, tipo_zona, estado_zona, numero_edificio, pos_x, pos_y) values
   ('10000000-0000-0000-0000-000000000001', null,                                    'Campus Politécnico José Rubén Orellana R.', 'CAMPUS',      'ACTIVA',    null, null,    null),
-  ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Administración Central',                     'EDIFICIO',    'ACTIVA',       3, 0.16000, 0.14000),
-  ('10000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería Civil y Ambiental',   'EDIFICIO',    'ACTIVA',       6, 0.14000, 0.24000),
-  ('10000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería en Sistemas',         'EDIFICIO',    'ACTIVA',      14, 0.12000, 0.31000),
-  ('10000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Edificio de Química',                        'EDIFICIO',    'ACTIVA',      20, 0.44000, 0.20000),
-  ('10000000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000001', 'Escuela de Formación de Tecnólogos',         'EDIFICIO',    'ACTIVA',      21, 0.70000, 0.14000),
-  ('10000000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000001', 'Departamento de Metalurgia Extractiva',      'EDIFICIO',    'ACTIVA',      22, 0.74000, 0.18000),
-  ('10000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000001', 'Sede Ladrón de Guevara',                     'EDIFICIO',    'INACTIVA',    24, 0.86000, 0.22000),
-  ('10000000-0000-0000-0000-000000000026', '10000000-0000-0000-0000-000000000001', 'Estadio Politécnico',                        'EDIFICIO',    'BLOQUEADA',   26, 0.52000, 0.30000),
-  ('10000000-0000-0000-0000-000000000100', '10000000-0000-0000-0000-000000000020', 'Parqueadero Química',                        'PARQUEADERO', 'ACTIVA',    null, 0.40000, 0.26000),
-  ('10000000-0000-0000-0000-000000000101', '10000000-0000-0000-0000-000000000003', 'Parqueadero Administración',                 'PARQUEADERO', 'ACTIVA',    null, 0.10000, 0.19000)
+  ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Administración Central',                     'EDIFICIO',    'ACTIVA',       3, 0.18000, 0.40000),
+  ('10000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería Civil y Ambiental',   'EDIFICIO',    'ACTIVA',       6, 0.28000, 0.52100),
+  ('10000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería en Sistemas',         'EDIFICIO',    'ACTIVA',      14, 0.37000, 0.60000),
+  ('10000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Edificio de Química',                        'EDIFICIO',    'ACTIVA',      20, 0.42000, 0.37900),
+  ('10000000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000001', 'Escuela de Formación de Tecnólogos',         'EDIFICIO',    'ACTIVA',      21, 0.60000, 0.32900),
+  ('10000000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000001', 'Departamento de Metalurgia Extractiva',      'EDIFICIO',    'ACTIVA',      22, 0.78000, 0.30000),
+  ('10000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000001', 'Sede Ladrón de Guevara',                     'EDIFICIO',    'INACTIVA',    24, 0.55000, 0.52100),
+  ('10000000-0000-0000-0000-000000000026', '10000000-0000-0000-0000-000000000001', 'Estadio Politécnico',                        'EDIFICIO',    'BLOQUEADA',   26, 0.43000, 0.64000),
+  ('10000000-0000-0000-0000-000000000100', '10000000-0000-0000-0000-000000000020', 'Parqueadero Química',                        'PARQUEADERO', 'ACTIVA',    null, 0.85000, 0.40000),
+  ('10000000-0000-0000-0000-000000000101', '10000000-0000-0000-0000-000000000003', 'Parqueadero Administración',                 'PARQUEADERO', 'ACTIVA',    null, 0.19000, 0.60000)
 on conflict (id_zona) do nothing;
 
 -- Puntos de control (uno por zona), con estados variados.

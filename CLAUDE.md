@@ -74,8 +74,9 @@ administración. Puntos clave para retomar:
   "zonas sin ubicar". Hacerlas obligatorias exige antes un selector de posición en el alta de PCO.
 - **Sin RLS nueva para la vista de admin:** `zona`/`punto_control`/`dispositivo` ya son legibles
   desde CAC vía `tiene_acceso_operativo_cac()`.
-- **Plano oficial** ya integrado en `web/public/mapa-epn.png` (§V50). La ilustración ocupa el ~40%
-  superior (el resto es leyenda); coordenadas demo en `pos_y≈0.14–0.31`, aún por afinar por edificio.
+- **Plano vectorial propio** en `web/public/mapa-epn-campus.svg` (§V50): SVG diseñado desde cero
+  (viewBox 1000×780), inspirado en el plano de la EPN pero sin números/pines/leyenda. Cada zona
+  tiene su `pos_x/pos_y` en el centro de su bloque de edificio en el SVG. No se usa la foto oficial.
 - **Componente**: `web/src/pages/modules/MapaCampus.tsx`, submódulo "Mapa del campus" en CAC.
 - **Roadmap** (próximas sesiones): Realtime en vivo; selector de posición + coordenadas
   obligatorias; **vista pública** (`anon`, pantallas del campus) con **vista SQL `SECURITY INVOKER`

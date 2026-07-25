@@ -3,10 +3,11 @@ import { Car, Fingerprint, MapPin, RefreshCw } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, SidePanel, cx } from '../../components/ui'
 
-// Imagen de fondo del mapa: el plano oficial de la EPN (web/public/mapa-epn.png). El contenedor se
-// adapta a las dimensiones reales de la imagen, así que sustituirla por otra versión no rompe nada.
-// (Se conserva web/public/mapa-epn.svg como plano estilizado de respaldo.)
-const MAPA_FONDO = '/mapa-epn.png'
+// Fondo del mapa: plano vectorial del campus diseñado desde cero (web/public/mapa-epn-campus.svg),
+// inspirado en el plano oficial de la EPN pero sin números, pines ni leyenda — esos los aporta el
+// sistema como marcadores. Las coordenadas pos_x/pos_y de las zonas coinciden con los edificios
+// dibujados en el SVG (viewBox 1000x780). Ver docs/08_MAPA_INTERACTIVO.md.
+const MAPA_FONDO = '/mapa-epn-campus.svg'
 
 interface Dispositivo {
   id_dispositivo: string
@@ -156,8 +157,8 @@ export function MapaCampus() {
 
       {/* Mapa */}
       <Card className="overflow-hidden">
-        <div className="relative mx-auto w-full max-w-md">
-          <img src={MAPA_FONDO} alt="Plano del campus EPN" className="block h-auto w-full" />
+        <div className="relative mx-auto w-full max-w-2xl">
+          <img src={MAPA_FONDO} alt="Plano del Campus Politécnico de la EPN" className="block h-auto w-full" />
           {ubicadas.map((z) => {
             const salud = saludDeZona(z)
             const tecs = tecnologiasDeZona(z)

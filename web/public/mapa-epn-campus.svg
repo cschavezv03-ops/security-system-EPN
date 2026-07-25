@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 780" width="1000" height="780" role="img" aria-label="Plano del Campus Politécnico de la EPN">
+  <!--
+    Plano del Campus Politécnico "José Rubén Orellana R." diseñado como vector desde cero,
+    tomando como referencia el plano oficial de la EPN pero SIN números, pines ni leyenda:
+    esos elementos los aporta el sistema como marcadores interactivos (componente MapaCampus).
+    Solo el mapa. Ver docs/08_MAPA_INTERACTIVO.md.
+    Los edificios que llevan marcador del sistema están en posiciones fijas (fracciones del
+    viewBox); las coordenadas pos_x/pos_y de esas zonas coinciden con esos centros.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c2340"/>
+      <stop offset="1" stop-color="#091a30"/>
+    </linearGradient>
+    <linearGradient id="edificio" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#274d7d"/>
+      <stop offset="1" stop-color="#1b3b63"/>
+    </linearGradient>
+    <linearGradient id="edificioAlt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f5688"/>
+      <stop offset="1" stop-color="#223f68"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="780" fill="url(#bg)"/>
+
+  <!-- Terreno del campus (landmass) -->
+  <path d="M 140 260 C 120 210, 260 182, 380 200 C 520 172, 640 162, 760 185
+           C 884 200, 946 262, 912 362 C 950 470, 900 560, 820 622
+           C 742 702, 620 722, 500 716 C 360 732, 230 700, 175 620
+           C 108 560, 92 430, 130 350 C 120 312, 130 286, 140 260 Z"
+        fill="#102a4c" stroke="#20406b" stroke-width="2"/>
+
+  <!-- Vías principales -->
+  <g fill="none" stroke="#22456e" stroke-width="12" stroke-linecap="round">
+    <path d="M 175 620 C 300 560, 345 470, 405 380 C 475 300, 565 262, 705 244"/>
+    <path d="M 130 360 C 330 384, 560 404, 905 360"/>
+    <path d="M 505 714 C 505 620, 522 560, 520 496"/>
+  </g>
+  <g fill="none" stroke="#3a5c85" stroke-width="2" stroke-dasharray="6 8" stroke-linecap="round" opacity="0.5">
+    <path d="M 175 620 C 300 560, 345 470, 405 380 C 475 300, 565 262, 705 244"/>
+  </g>
+
+  <!-- Áreas verdes -->
+  <g opacity="0.75">
+    <ellipse cx="405" cy="642" rx="66" ry="38" fill="#14502f"/>
+    <ellipse cx="660" cy="600" rx="52" ry="30" fill="#134a2c"/>
+    <ellipse cx="250" cy="470" rx="40" ry="26" fill="#134a2c"/>
+  </g>
+
+  <!-- Estadio / pista central -->
+  <g>
+    <ellipse cx="522" cy="606" rx="92" ry="58" fill="#c9d4e2"/>
+    <ellipse cx="522" cy="606" rx="70" ry="40" fill="#1c6b3f"/>
+    <rect x="500" y="588" width="44" height="36" rx="3" fill="#175c37"/>
+  </g>
+
+  <!-- Edificios (bloques sin número). Los marcados con clase "ancla" llevan marcador del sistema. -->
+  <g stroke="#3a629a" stroke-width="1.5">
+    <!-- Anclas (zonas del sistema) -->
+    <rect x="148" y="290" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="248" y="384" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="388" y="274" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="338" y="446" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="518" y="384" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="568" y="235" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+    <rect x="748" y="212" width="64" height="44" rx="5" fill="url(#edificioAlt)"/>
+
+    <!-- Decorativos -->
+    <rect x="250" y="250" width="48" height="34" rx="4" fill="url(#edificio)"/>
+    <rect x="330" y="250" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="556" y="176" width="52" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="628" y="182" width="52" height="38" rx="4" fill="url(#edificio)"/>
+    <rect x="700" y="196" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="760" y="220" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="300" y="332" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="362" y="356" width="52" height="38" rx="4" fill="url(#edificio)"/>
+    <rect x="430" y="346" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="474" y="404" width="52" height="38" rx="4" fill="url(#edificio)"/>
+    <rect x="524" y="338" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="600" y="332" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="662" y="300" width="48" height="34" rx="4" fill="url(#edificio)"/>
+    <rect x="704" y="356" width="52" height="38" rx="4" fill="url(#edificio)"/>
+    <rect x="300" y="470" width="48" height="34" rx="4" fill="url(#edificio)"/>
+    <rect x="362" y="506" width="52" height="38" rx="4" fill="url(#edificio)"/>
+    <rect x="430" y="500" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="600" y="466" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="662" y="440" width="50" height="36" rx="4" fill="url(#edificio)"/>
+    <rect x="722" y="420" width="48" height="34" rx="4" fill="url(#edificio)"/>
+    <rect x="230" y="338" width="46" height="34" rx="4" fill="url(#edificio)"/>
+    <rect x="206" y="408" width="50" height="36" rx="4" fill="url(#edificio)"/>
+  </g>
+
+  <!-- Parqueaderos (zonas del sistema): rectángulo con líneas de estacionamiento -->
+  <g stroke="#4066a0" stroke-width="1.5">
+    <rect x="150" y="446" width="84" height="44" rx="4" fill="#1d3a5f"/>
+    <rect x="808" y="290" width="84" height="44" rx="4" fill="#1d3a5f"/>
+  </g>
+  <g stroke="#365a86" stroke-width="1.5" fill="none">
+    <path d="M172 446 V490 M194 446 V490 M216 446 V490"/>
+    <path d="M830 290 V334 M852 290 V334 M874 290 V334"/>
+  </g>
+
+  <!-- Encabezado -->
+  <g font-family="system-ui, -apple-system, Segoe UI, sans-serif" fill="#eaf0f8">
+    <text x="46" y="66" font-size="40" font-weight="700">Campus Politécnico</text>
+    <text x="46" y="108" font-size="26" font-weight="600" fill="#c6d3e6">José Rubén Orellana R.</text>
+  </g>
+
+  <!-- Etiquetas de vías (sutiles) -->
+  <g font-family="system-ui, sans-serif" fill="#6a84ab" opacity="0.55">
+    <text x="250" y="742" font-size="15">Av. Ladrón de Guevara</text>
+    <text x="726" y="700" font-size="15" transform="rotate(-24 726 700)">Av. Isabel La Católica</text>
+  </g>
+</svg>

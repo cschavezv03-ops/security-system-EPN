@@ -1034,19 +1034,21 @@ trigger `validar_coordenadas_zona` sí exige coherencia (van las dos juntas o ni
 (clic sobre el plano) y, cuando todas las zonas estén ubicadas, una migración que haga
 obligatorias las coordenadas para EDIFICIO/PARQUEADERO.
 
-## V50 — Plano oficial ya integrado; falta un pase fino de coordenadas ✅ PARCIAL
+## V50 — Plano vectorial propio (no la foto oficial) ✅ RESUELTA
 
-El usuario dejó el **plano oficial de la EPN** en `web/public/mapa-epn.png` (403×760). El
-componente ya lo usa como fondo (constante `MAPA_FONDO`) y el contenedor se adapta a sus
-dimensiones reales. Se conserva `web/public/mapa-epn.svg` como plano estilizado de respaldo.
+El usuario pidió **no usar la foto** directamente, sino un plano **diseñado desde cero** que
+reproduzca el de la EPN pero **sin números, pines ni leyenda** (esos elementos los pone el sistema
+como marcadores). Hecho: `web/public/mapa-epn-campus.svg` es un SVG propio (terreno, edificios,
+vías, áreas verdes, óvalo del estadio, encabezado), viewBox `1000×780`. Se eliminaron del repo la
+foto `mapa-epn.png` y el placeholder `mapa-epn.svg`.
 
-**Detalle importante del plano real:** la ilustración del campus ocupa solo el **~40% superior**
-de la imagen; el resto es la **leyenda numerada**. Por eso las coordenadas demo se reubicaron a la
-banda `pos_y ≈ 0.14–0.31`, para que los marcadores caigan sobre el campus y no sobre el texto.
+**Alineación exacta:** cada zona del sistema tiene su `pos_x/pos_y` en el centro de un bloque de
+edificio del SVG, así que el marcador cae sobre el edificio. Verificado renderizando el SVG con los
+9 marcadores superpuestos.
 
-**Pendiente (menor):** las coordenadas por edificio son **aproximadas**. Conviene un pase fino
-—idealmente con el selector de posición del roadmap (§V49)— para clavar cada marcador sobre su
-edificio exacto. No bloquea la demo.
+**Para retocar el plano:** editar el SVG (los `rect` son edificios; los rotulados como "ancla"
+llevan marcador del sistema). Si se mueve un edificio ancla, actualizar el `pos_x/pos_y` de su zona
+(remoto vía MCP; local en `seed.sql`).
 
 ## V51 — Vista pública, nombres de guardias y buzón de denuncias: diseño acordado, aún sin construir
 
