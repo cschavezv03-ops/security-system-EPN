@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   Building2, Car, Cctv, ClipboardList, Contact, Cpu, FileText, Fingerprint, KeyRound,
-  LayoutGrid, ListChecks, Lock, MapPin, Monitor, ScrollText, Settings, Shield, ShieldAlert,
+  LayoutGrid, ListChecks, Lock, Map, MapPin, Monitor, ScrollText, Settings, Shield, ShieldAlert,
   Users, UserCheck, UserCog, UserPlus, Link2, ClipboardCheck, History,
 } from 'lucide-react'
 import { ResourceScreen } from '../components/ResourceScreen'
@@ -9,6 +9,7 @@ import type { ResourceConfig } from './types'
 import { BiometriaScreen } from '../pages/modules/BiometriaScreen'
 import { AlertasScreen } from '../pages/modules/AlertasScreen'
 import { MonitoreoView } from '../pages/modules/MonitoreoView'
+import { MapaCampus } from '../pages/modules/MapaCampus'
 import {
   cfgEmpresa, cfgCategoria, cfgParametro, cfgRol, cfgPermiso,
   cfgVehiculo, cfgZona, cfgPuntoControl, cfgDispositivo, cfgAsignacionGuardia,
@@ -94,6 +95,10 @@ export const MODULOS: ModuloDef[] = [
     descripcion: 'Reglas de acceso, eventos y alertas de seguridad.',
     icono: <Lock className="h-7 w-7" />,
     submodulos: [
+      // Mapa interactivo del campus: puntos de control y dispositivos ubicados sobre el plano
+      // de la EPN, coloreados por estado. Lee zona/punto_control/dispositivo (RLS ya permite a
+      // CAC vía tiene_acceso_operativo_cac). Roadmap: Realtime + vista pública. Ver doc 08.
+      { key: 'mapa', titulo: 'Mapa del campus', descripcion: 'Puntos de control y dispositivos sobre el plano de la EPN.', icono: <Map className="h-6 w-6" />, permisoVer: ['CAC_EVENTO_SELECT', 'PCO_ZONA_SELECT'], render: () => <MapaCampus /> },
       sub('reglas', 'Reglas de acceso', 'Quién puede entrar, por dónde y en qué horario.', <ListChecks className="h-6 w-6" />, cfgReglaAcceso),
       sub('eventos', 'Historial de accesos', 'Ingresos, salidas y rechazos, con su motivo.', <History className="h-6 w-6" />, cfgEventoAcceso()),
       { key: 'alertas', titulo: 'Alertas de seguridad', descripcion: 'Atención de alertas automáticas.', icono: <ShieldAlert className="h-6 w-6" />, permisoVer: ['CAC_ALERTA_SELECT'], render: () => <AlertasScreen /> },

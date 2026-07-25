@@ -1448,6 +1448,8 @@ export type Database = {
           id_zona_padre: string | null
           nombre_zona: string
           numero_edificio: number | null
+          pos_x: number | null
+          pos_y: number | null
           tipo_zona: string
         }
         Insert: {
@@ -1458,6 +1460,8 @@ export type Database = {
           id_zona_padre?: string | null
           nombre_zona: string
           numero_edificio?: number | null
+          pos_x?: number | null
+          pos_y?: number | null
           tipo_zona: string
         }
         Update: {
@@ -1468,6 +1472,8 @@ export type Database = {
           id_zona_padre?: string | null
           nombre_zona?: string
           numero_edificio?: number | null
+          pos_x?: number | null
+          pos_y?: number | null
           tipo_zona?: string
         }
         Relationships: [

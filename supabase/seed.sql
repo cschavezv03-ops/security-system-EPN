@@ -150,3 +150,61 @@ begin
        and estado_asignacion = 'ACTIVA'
   );
 end $$;
+
+-- ============================================================================
+-- DEMO MAPA INTERACTIVO (CAC): campus georreferenciado con edificios numerados,
+-- puntos de control y dispositivos. Los números de edificio coinciden con el plano
+-- oficial de la EPN; pos_x/pos_y son fracciones 0..1 relativas a la imagen del mapa
+-- (web/public/mapa-epn.svg placeholder — se reajustan al poner la imagen real).
+-- Estados variados a propósito para que el mapa muestre todos los colores:
+--   verde=operativo · ámbar=mantenimiento/falla de red · rojo=falla/daño físico ·
+--   gris=zona inactiva/bloqueada. Idempotente (on conflict do nothing).
+-- ============================================================================
+
+-- Zonas: 1 campus raíz + edificios + parqueaderos.
+-- Coordenadas afinadas a la banda superior del plano oficial (web/public/mapa-epn.png): la
+-- ilustración del campus ocupa el ~40% superior; el resto es la leyenda numerada. pos_y va por
+-- eso entre ~0.14 y ~0.31. Son aproximadas (pendiente un pase fino con el selector de posición,
+-- §V49/§V50); bastan para que la demo muestre marcadores sobre el campus y no sobre el texto.
+insert into public.zona (id_zona, id_zona_padre, nombre_zona, tipo_zona, estado_zona, numero_edificio, pos_x, pos_y) values
+  ('10000000-0000-0000-0000-000000000001', null,                                    'Campus Politécnico José Rubén Orellana R.', 'CAMPUS',      'ACTIVA',    null, null,    null),
+  ('10000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Administración Central',                     'EDIFICIO',    'ACTIVA',       3, 0.16000, 0.14000),
+  ('10000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería Civil y Ambiental',   'EDIFICIO',    'ACTIVA',       6, 0.14000, 0.24000),
+  ('10000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Facultad de Ingeniería en Sistemas',         'EDIFICIO',    'ACTIVA',      14, 0.12000, 0.31000),
+  ('10000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Edificio de Química',                        'EDIFICIO',    'ACTIVA',      20, 0.44000, 0.20000),
+  ('10000000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000001', 'Escuela de Formación de Tecnólogos',         'EDIFICIO',    'ACTIVA',      21, 0.70000, 0.14000),
+  ('10000000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000001', 'Departamento de Metalurgia Extractiva',      'EDIFICIO',    'ACTIVA',      22, 0.74000, 0.18000),
+  ('10000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000001', 'Sede Ladrón de Guevara',                     'EDIFICIO',    'INACTIVA',    24, 0.86000, 0.22000),
+  ('10000000-0000-0000-0000-000000000026', '10000000-0000-0000-0000-000000000001', 'Estadio Politécnico',                        'EDIFICIO',    'BLOQUEADA',   26, 0.52000, 0.30000),
+  ('10000000-0000-0000-0000-000000000100', '10000000-0000-0000-0000-000000000020', 'Parqueadero Química',                        'PARQUEADERO', 'ACTIVA',    null, 0.40000, 0.26000),
+  ('10000000-0000-0000-0000-000000000101', '10000000-0000-0000-0000-000000000003', 'Parqueadero Administración',                 'PARQUEADERO', 'ACTIVA',    null, 0.10000, 0.19000)
+on conflict (id_zona) do nothing;
+
+-- Puntos de control (uno por zona), con estados variados.
+insert into public.punto_control (id_punto_control, id_zona, nombre_punto, estado_punto) values
+  ('20000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000003', 'Garita Administración',              'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000006', 'Acceso Edificio 6',                  'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000014', 'Garita Sistemas',                    'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000020', 'Torniquete Química',                 'FALLA'),
+  ('20000000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000021', 'Acceso Tecnólogos',                  'MANTENIMIENTO'),
+  ('20000000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000022', 'Acceso Metalurgia',                  'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000024', 'Acceso Ladrón de Guevara',           'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000026', '10000000-0000-0000-0000-000000000026', 'Acceso Estadio',                     'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000100', '10000000-0000-0000-0000-000000000100', 'Barrera Parqueadero Química',        'ACTIVO'),
+  ('20000000-0000-0000-0000-000000000101', '10000000-0000-0000-0000-000000000101', 'Barrera Parqueadero Administración', 'ACTIVO')
+on conflict (id_punto_control) do nothing;
+
+-- Dispositivos. Regla de negocio (trigger validar_asignacion_dispositivo): LPR_PLACAS solo en
+-- PARQUEADERO; los edificios llevan biometría facial. Estados variados para el mapa.
+insert into public.dispositivo (id_dispositivo, id_punto_control, direccion_ip, codigo_mac, tipo_tecnologia, estado_dispositivo) values
+  ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000003', '10.10.0.3',  'AA:BB:CC:00:00:03', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000006', '10.10.0.6',  'AA:BB:CC:00:00:06', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000014', '20000000-0000-0000-0000-000000000014', '10.10.0.14', 'AA:BB:CC:00:00:14', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000020', '20000000-0000-0000-0000-000000000020', '10.10.0.20', 'AA:BB:CC:00:00:20', 'BIOMETRIA_FACIAL', 'DANO_FISICO'),
+  ('30000000-0000-0000-0000-000000000021', '20000000-0000-0000-0000-000000000021', '10.10.0.21', 'AA:BB:CC:00:00:21', 'BIOMETRIA_FACIAL', 'FALLA_DE_RED'),
+  ('30000000-0000-0000-0000-000000000022', '20000000-0000-0000-0000-000000000022', '10.10.0.22', 'AA:BB:CC:00:00:22', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000024', '20000000-0000-0000-0000-000000000024', '10.10.0.24', 'AA:BB:CC:00:00:24', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000026', '20000000-0000-0000-0000-000000000026', '10.10.0.26', 'AA:BB:CC:00:00:26', 'BIOMETRIA_FACIAL', 'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000100', '20000000-0000-0000-0000-000000000100', '10.10.1.100','AA:BB:CC:00:01:00', 'LPR_PLACAS',       'OPERATIVO'),
+  ('30000000-0000-0000-0000-000000000101', '20000000-0000-0000-0000-000000000101', '10.10.1.101','AA:BB:CC:00:01:01', 'LPR_PLACAS',       'FALLA_DE_RED')
+on conflict (id_dispositivo) do nothing;

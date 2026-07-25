@@ -1007,3 +1007,69 @@ un registro que ya no está con el nombre que recordaba:
   algoritmo del Registro Civil. La de Carlos Chávez es la real facilitada por él; **las demás son
   inventadas** y habría que sustituirlas si alguna de estas personas es real y va a usar el
   sistema.
+
+---
+
+# Ronda del mapa interactivo — §V49 a §V51 (2026-07-25)
+
+> Primera sesión del mapa interactivo del campus (módulo CAC). Se implementó la **vista de
+> administración** (POC): georreferencia de zonas + componente que pinta los puntos de control
+> reales sobre el plano. Las siguientes sesiones son Realtime y la vista pública. Diseño completo
+> en `docs/08_MAPA_INTERACTIVO.md`. Mismo criterio de siempre: opción conservadora + anotada aquí.
+
+## V49 — Coordenadas de zona: opcionales por ahora, no obligatorias
+
+El requerimiento del usuario es que **al crear una zona tenga que ubicarse físicamente** ("que
+tenga sentido con la ubicación real"). Lo correcto sería hacer `pos_x`/`pos_y` obligatorias para
+EDIFICIO y PARQUEADERO. **No se hizo todavía**, y a propósito: el formulario de alta de zonas
+(PCO, `cfgZona`) aún no tiene un selector de posición sobre el mapa, así que forzar las
+coordenadas **rompería el alta de zonas actual** desde la interfaz.
+
+**Decisión conservadora:** las coordenadas son opcionales. Una zona sin coordenadas no se dibuja;
+aparece en la bandeja **"Zonas sin ubicar"** del mapa para que sea evidente que falta ubicarla. El
+trigger `validar_coordenadas_zona` sí exige coherencia (van las dos juntas o ninguna, y en rango
+0..1).
+
+**Pendiente del equipo / próxima sesión:** añadir al formulario de PCO un selector de posición
+(clic sobre el plano) y, cuando todas las zonas estén ubicadas, una migración que haga
+obligatorias las coordenadas para EDIFICIO/PARQUEADERO.
+
+## V50 — Plano oficial ya integrado; falta un pase fino de coordenadas ✅ PARCIAL
+
+El usuario dejó el **plano oficial de la EPN** en `web/public/mapa-epn.png` (403×760). El
+componente ya lo usa como fondo (constante `MAPA_FONDO`) y el contenedor se adapta a sus
+dimensiones reales. Se conserva `web/public/mapa-epn.svg` como plano estilizado de respaldo.
+
+**Detalle importante del plano real:** la ilustración del campus ocupa solo el **~40% superior**
+de la imagen; el resto es la **leyenda numerada**. Por eso las coordenadas demo se reubicaron a la
+banda `pos_y ≈ 0.14–0.31`, para que los marcadores caigan sobre el campus y no sobre el texto.
+
+**Pendiente (menor):** las coordenadas por edificio son **aproximadas**. Conviene un pase fino
+—idealmente con el selector de posición del roadmap (§V49)— para clavar cada marcador sobre su
+edificio exacto. No bloquea la demo.
+
+## V51 — Vista pública, nombres de guardias y buzón de denuncias: diseño acordado, aún sin construir
+
+Requerimiento del usuario para una **segunda pantalla, pública** (pensada para pantallas del
+campus y estudiantes): ver qué sitios están activos, por dónde salir, **los nombres de los
+guardias de turno** (para poder denunciar acoso/mal trato) y un **buzón de denuncias**.
+
+Se difiere a la sesión de la vista pública, pero se dejan fijadas las decisiones de diseño para
+que se construya con cuidado (toca datos personales de individuos reales):
+
+1. **Nunca leer `zona`/`punto_control`/`dispositivo` directamente desde el rol `anon`.** La vista
+   pública irá contra una **vista SQL `SECURITY INVOKER`** con solo columnas seguras (nombre de la
+   zona, tipo, número de edificio, y a lo sumo un "abierto/cerrado" genérico). **No** se exponen
+   IPs, MAC, tecnología del dispositivo ni estados de falla/mantenimiento: eso revela dónde hay
+   puntos ciegos de vigilancia y comprometería la seguridad del campus.
+2. **Nombres de guardias:** se puede mostrar el **nombre** del guardia de turno (de
+   `guardia_punto_control` + `persona`), pero **solo el nombre**, y sin cruzarlo con el estado del
+   punto (para no revelar qué accesos están o no dotados de personal).
+3. **Buzón de denuncias — diseño recomendado, pendiente de ratificar por el equipo:** que las
+   quejas sean un **envío privado a la administración/CAC, NO un muro público de acusaciones con
+   nombres**. Un tablón público de denuncias contra personas nombradas se convierte fácilmente en
+   un canal de difamación/acoso y expone legalmente a la institución. El objetivo (que un
+   estudiante pueda quejarse de un guardia) se cumple igual: ve el nombre, envía la queja, y esta
+   llega a quien puede actuar, sin quedar publicada. **Decisión del equipo pendiente:** confirmar
+   este modelo o proponer otro; y revisar implicaciones de protección de datos / normativa laboral
+   antes de publicar nombres del personal de seguridad.

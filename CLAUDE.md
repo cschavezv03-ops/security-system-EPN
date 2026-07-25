@@ -12,6 +12,7 @@ Escuela Politécnica Nacional. Proyecto académico — Ingeniería de Software I
 | `docs/02_MATRIZ_PERMISOS_RLS.md` | Matriz permiso × rol por tabla y acción | **Fuente de verdad de RLS** |
 | `docs/03_DECISIONES_Y_CORRECCIONES.md` | Conflictos ya resueltos entre documentos previos | **No re-litigar estas decisiones** |
 | `docs/04_REGLAS_NEGOCIO.md` | Flujo completo de acceso y reglas de negocio (todas resueltas) | **Fuente de verdad del comportamiento** |
+| `docs/08_MAPA_INTERACTIVO.md` | Diseño del mapa interactivo del campus (CAC): georreferencia de zonas, modelo de seguridad y roadmap | **Fuente de verdad del mapa** |
 
 Si un documento contradice a otro, gana el que aparece como autoridad en esta tabla.
 Si encuentras una contradicción no cubierta aquí, **detente y pregunta** — no la resuelvas en silencio.
@@ -56,6 +57,28 @@ Si encuentras una contradicción no cubierta aquí, **detente y pregunta** — n
 
 - Proyecto de Supabase: ya existe (usar el MCP configurado con `project_ref`).
 - Repositorio de GitHub: ya existe.
-- Frontend: **no existe todavía.** El objetivo es un backend probable de forma independiente
-  (SQL / API REST de Supabase), que después se conectará a prototipos hechos en Figma.
-- Reconocimiento facial: **mockeado** en este prototipo (ver `docs/01_AUTENTICACION_Y_ROLES.md`).
+- Frontend: **existe** en `web/` (React 18 + Vite + TypeScript + Tailwind + `@supabase/supabase-js`).
+  Se despliega en Vercel. Validación local: `cd web && npm run verificar` (typecheck + tests + build).
+- Reconocimiento facial: **real** (face-api.js + pgvector, búsqueda 1:N con umbral L2), ya no
+  mockeado. Lectura de placas: Tesseract local + Plate Recognizer opcional.
+
+## Mapa interactivo del campus (CAC)
+
+Ver `docs/08_MAPA_INTERACTIVO.md` (autoridad). Estado: **sesión 1 hecha (2026-07-25)** — vista de
+administración. Puntos clave para retomar:
+
+- **Georreferencia por overlay, no lat/lng ni Google Maps.** `zona.pos_x` / `zona.pos_y` son
+  fracciones `0..1` relativas a la imagen del plano; el marcador va en `left/top` porcentuales.
+  Trigger `validar_coordenadas_zona` (van juntas o ninguna, rango 0..1).
+- **Coordenadas opcionales por ahora** (§V49): una zona sin ubicar no se dibuja, cae en la bandeja
+  "zonas sin ubicar". Hacerlas obligatorias exige antes un selector de posición en el alta de PCO.
+- **Sin RLS nueva para la vista de admin:** `zona`/`punto_control`/`dispositivo` ya son legibles
+  desde CAC vía `tiene_acceso_operativo_cac()`.
+- **Plano oficial** ya integrado en `web/public/mapa-epn.png` (§V50). La ilustración ocupa el ~40%
+  superior (el resto es leyenda); coordenadas demo en `pos_y≈0.14–0.31`, aún por afinar por edificio.
+- **Componente**: `web/src/pages/modules/MapaCampus.tsx`, submódulo "Mapa del campus" en CAC.
+- **Roadmap** (próximas sesiones): Realtime en vivo; selector de posición + coordenadas
+  obligatorias; **vista pública** (`anon`, pantallas del campus) con **vista SQL `SECURITY INVOKER`
+  de columnas seguras** — nunca exponer IP/MAC/tecnología/estados de falla a `anon` (§V51). La
+  vista pública mostrará nombres de guardias de turno (solo el nombre) y un buzón de denuncias
+  diseñado como **envío privado a administración, no muro público** (pendiente de ratificar, §V51).
