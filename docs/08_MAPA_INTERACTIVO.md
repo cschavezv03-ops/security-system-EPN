@@ -16,33 +16,34 @@ construyen por separado:
 
 ---
 
-## El plano es vectorial y propio, no la foto oficial
+## Tecnología del mapa: Leaflet + imagen del campus (CRS.Simple)
 
-El fondo **no** es la imagen oficial de la EPN, sino un SVG dibujado desde cero
-(`web/public/mapa-epn-campus.svg`) que reproduce su estilo y disposición (terreno, edificios,
-vías, áreas verdes, óvalo del estadio, encabezado) pero **omite los números, pines y la lista de
-leyenda** del original. Motivos: (1) esos rótulos los pone el sistema como marcadores
-interactivos con datos reales; (2) evita depender de una imagen con copyright; (3) permite colocar
-los edificios en posiciones conocidas y clavar los marcadores encima. Para editar el plano se toca
-el SVG (bloques `rect` = edificios; los rotulados como "ancla" en el comentario del archivo llevan
-marcador del sistema).
+El mapa se dibuja con **Leaflet** (la librería estándar de mapas interactivos web) en modo
+`CRS.Simple`: en vez de una proyección geográfica, usa las **coordenadas de una imagen**. La capa
+base es el **plano oficial del campus de la EPN** (`web/public/mapa-epn-2.jpg`, 686×446), añadido
+con `L.imageOverlay` sobre `bounds = [[0,0],[H,W]]`. Encima van los **marcadores del sistema** con
+datos reales (zonas/puntos/dispositivos), como `divIcon` de color según estado. Da zoom y paneo
+reales, tooltips y clic → panel de detalle.
 
-## Por qué overlay y no Google Maps / lat-lng
+Por qué Leaflet + imagen y no Google Maps / lat-lng:
 
-Se guardan **dos fracciones relativas a la imagen** del plano, no coordenadas geográficas:
+- **Se ve exactamente igual al plano oficial de la EPN**: la capa base *es* esa imagen.
+- **Sin dependencia de API externa** (ni clave, ni costo, ni cuota, ni enviar nada a un tercero) —
+  Leaflet es libre y la imagen se sirve desde el propio proyecto.
+- Migrable: si algún día se quiere navegación geográfica real (calles/satélite), Leaflet ya soporta
+  tiles reales cambiando el CRS, sin rehacer el modelo de coordenadas.
+
+## Coordenadas: fracciones relativas a la imagen
+
+Se guardan **dos fracciones relativas a la imagen**, no coordenadas geográficas:
 
 - `zona.pos_x` — horizontal, `0` (izquierda) .. `1` (derecha).
 - `zona.pos_y` — vertical, `0` (arriba) .. `1` (abajo).
 
-El marcador se posiciona con `left: pos_x*100%`, `top: pos_y*100%` sobre la imagen, sea cual sea
-su tamaño en pantalla. Ventajas frente a un mapa geográfico (Leaflet/OpenStreetMap o Google Maps):
-
-- **Se ve idéntico al plano oficial de la EPN**, que es justo lo pedido (los números de edificio
-  coinciden con `zona.numero_edificio`).
-- **Sin dependencia de API externa** (ni clave, ni costo, ni cuota, ni enviar la topología del
-  campus a un tercero).
-- Migrable: si algún día se quiere navegación real (calles, satélite), se **añaden** columnas
-  `lat`/`lng` sin tocar `pos_x`/`pos_y` ni el modelo existente.
+El componente las convierte a coordenada Leaflet con `aLatLng(fx,fy) = [H*(1-fy), W*fx]` (en
+`CRS.Simple`, el origen `[0,0]` es la esquina **inferior** izquierda, así que la fila se invierte).
+Cada zona real se ubicó sobre **el edificio con su mismo número** en el plano (p. ej. "Edificio 20"
+→ el edificio rotulado `20` en la imagen).
 
 ---
 
@@ -101,12 +102,11 @@ del mapa se muestra con `permisoVer: ['CAC_EVENTO_SELECT','PCO_ZONA_SELECT']`.
 
 - Componente: `web/src/pages/modules/MapaCampus.tsx` (registrado como submódulo "Mapa del campus"
   en CAC, `web/src/resources/registry.tsx`).
-- Fondo: `web/public/mapa-epn-campus.svg` — **plano vectorial del campus diseñado desde cero**
-  (viewBox `1000×780`), inspirado en el plano oficial de la EPN pero **sin números, pines ni
-  leyenda**: solo el mapa (terreno, edificios, vías, áreas verdes, óvalo del estadio y encabezado).
-  Los números y marcadores los aporta el sistema. Constante `MAPA_FONDO` en el componente. Las
-  zonas del sistema tienen su `pos_x/pos_y` en el **centro exacto** de su bloque de edificio en el
-  SVG, así que el marcador cae sobre el edificio. Ver §V50.
+- Mapa: **Leaflet** (`leaflet` + `leaflet/dist/leaflet.css`) en `CRS.Simple` con la imagen
+  `web/public/mapa-epn-2.jpg` como capa base (constante `MAPA_FONDO`, dimensiones `IMG_W`/`IMG_H`).
+  El contenedor usa `aspect-ratio` de la imagen; se llama `invalidateSize()` tras montar por si la
+  Card arranca con tamaño 0. Marcadores = `L.divIcon` con color por estado y número de edificio (o
+  `P` para parqueaderos); clic → panel de detalle; tooltip con el nombre de la zona.
 - Datos: una sola consulta con embeds `zona → punto_control → dispositivo`. `pos_x`/`pos_y` llegan
   como texto (numeric de Postgres) y se convierten a número en el cliente.
 - Funciones ya incluidas: contadores (puntos activos / totales / dispositivos), filtros por
@@ -115,10 +115,9 @@ del mapa se muestra con `permisoVer: ['CAC_EVENTO_SELECT','PCO_ZONA_SELECT']`.
 - Datos:
   - **Remoto (producción):** las coordenadas se pusieron sobre las **zonas reales que ya existían**
     (7 edificios + 2 parqueaderos), con un `UPDATE` por `id_zona` vía el MCP de Supabase — no se
-    insertaron filas demo. Cada `pos_x/pos_y` coincide con el **centro de un bloque de edificio del
-    SVG** (viewBox 1000×780), así que el marcador cae sobre el edificio dibujado. Este `UPDATE` es
-    una acción puntual, no está en una migración; si se reconstruye el remoto desde cero habría que
-    repetirlo.
+    insertaron filas demo. Cada `pos_x/pos_y` se leyó del **edificio con el mismo número en el plano
+    `mapa-epn-2.jpg`** (686×446). Este `UPDATE` es una acción puntual, no está en una migración; si
+    se reconstruye el remoto desde cero habría que repetirlo.
   - **Local (`supabase/seed.sql`):** siembra un campus demo con edificios numerados, puntos y
     dispositivos con estados variados para mostrar todos los colores en un `db reset`.
   - Recordatorio de negocio: `LPR_PLACAS` solo puede vivir en zonas `PARQUEADERO` (trigger

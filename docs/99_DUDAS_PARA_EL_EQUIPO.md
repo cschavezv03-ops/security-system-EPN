@@ -1034,21 +1034,29 @@ trigger `validar_coordenadas_zona` sí exige coherencia (van las dos juntas o ni
 (clic sobre el plano) y, cuando todas las zonas estén ubicadas, una migración que haga
 obligatorias las coordenadas para EDIFICIO/PARQUEADERO.
 
-## V50 — Plano vectorial propio (no la foto oficial) ✅ RESUELTA
+## V50 — El plano: del SVG propio al plano oficial con Leaflet ✅ RESUELTA
 
-El usuario pidió **no usar la foto** directamente, sino un plano **diseñado desde cero** que
-reproduzca el de la EPN pero **sin números, pines ni leyenda** (esos elementos los pone el sistema
-como marcadores). Hecho: `web/public/mapa-epn-campus.svg` es un SVG propio (terreno, edificios,
-vías, áreas verdes, óvalo del estadio, encabezado), viewBox `1000×780`. Se eliminaron del repo la
-foto `mapa-epn.png` y el placeholder `mapa-epn.svg`.
+Recorrido de la decisión (quedó registrado porque cambió dos veces):
+1. Primero se usó la **foto oficial** como fondo estático.
+2. El usuario pidió **no usar la foto** sino un SVG **diseñado desde cero**; se hizo
+   (`mapa-epn-campus.svg`). No quedó lo bastante fiel al plano real.
+3. El usuario pidió que fuera **exactamente igual al plano** y **con la herramienta más potente**
+   para mapas, y entregó una imagen más limpia (`mapa-epn-2.jpg`, el plano **sin la leyenda de
+   abajo**).
 
-**Alineación exacta:** cada zona del sistema tiene su `pos_x/pos_y` en el centro de un bloque de
-edificio del SVG, así que el marcador cae sobre el edificio. Verificado renderizando el SVG con los
-9 marcadores superpuestos.
+**Solución final (la vigente):** **Leaflet** en `CRS.Simple` con `mapa-epn-2.jpg` (686×446) como
+capa base y los marcadores del sistema encima. Así el mapa es idéntico al plano oficial y además es
+interactivo de verdad (zoom, paneo, tooltips, clic → detalle). Se eliminaron del repo `mapa-epn.png`,
+`mapa-epn.svg` y `mapa-epn-campus.svg`.
 
-**Para retocar el plano:** editar el SVG (los `rect` son edificios; los rotulados como "ancla"
-llevan marcador del sistema). Si se mueve un edificio ancla, actualizar el `pos_x/pos_y` de su zona
-(remoto vía MCP; local en `seed.sql`).
+**Ubicación de marcadores:** cada zona se colocó sobre el **edificio con su mismo número** en la
+imagen (Ed. 3→#3, 6→#6, 12→#12, 15→#15, 20→#20, 21→#21, 26→#26; parqueaderos junto a su edificio).
+Verificado componiendo la imagen con los 9 marcadores. Son buenas pero **aproximadas** (leídas a
+ojo de la imagen); un pase fino es fácil ahora que el mapa es interactivo.
+
+**Para mover un marcador:** cambiar el `pos_x/pos_y` de la zona (remoto vía MCP; local en
+`seed.sql`). Para cambiar el plano: reemplazar `web/public/mapa-epn-2.jpg` y ajustar `IMG_W/IMG_H`
+en el componente.
 
 ## V51 — Vista pública, nombres de guardias y buzón de denuncias: diseño acordado, aún sin construir
 

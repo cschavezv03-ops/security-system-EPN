@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import { Car, Fingerprint, MapPin, RefreshCw } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
-import { Badge, Button, Card, CenterSpinner, EmptyState, ErrorBanner, SidePanel, cx } from '../../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorBanner, SidePanel, cx } from '../../components/ui'
 
-// Fondo del mapa: plano vectorial del campus diseñado desde cero (web/public/mapa-epn-campus.svg),
-// inspirado en el plano oficial de la EPN pero sin números, pines ni leyenda — esos los aporta el
-// sistema como marcadores. Las coordenadas pos_x/pos_y de las zonas coinciden con los edificios
-// dibujados en el SVG (viewBox 1000x780). Ver docs/08_MAPA_INTERACTIVO.md.
-const MAPA_FONDO = '/mapa-epn-campus.svg'
+// Capa base del mapa: el plano oficial del campus de la EPN (web/public/mapa-epn-2.jpg). Se dibuja
+// con Leaflet en modo CRS.Simple (coordenadas de imagen, sin proyección geográfica), que es la
+// herramienta estándar para mapas interactivos con zoom/paneo sobre una imagen propia. Las zonas
+// del sistema se ubican con pos_x/pos_y (fracción 0..1 desde la esquina superior izquierda de la
+// imagen) y se pintan como marcadores encima. Ver docs/08_MAPA_INTERACTIVO.md.
+const MAPA_FONDO = '/mapa-epn-2.jpg'
+const IMG_W = 686
+const IMG_H = 446
 
 interface Dispositivo {
   id_dispositivo: string
@@ -48,11 +53,17 @@ function saludDeZona(z: Zona): Salud {
   return 'OK'
 }
 
-const COLOR_MARCADOR: Record<Salud, string> = {
-  OK: 'bg-emerald-500 ring-emerald-200',
-  ADVERTENCIA: 'bg-amber-500 ring-amber-200',
-  CRITICO: 'bg-red ring-red/30',
-  INACTIVO: 'bg-slate-400 ring-slate-200',
+const COLOR_HEX: Record<Salud, string> = {
+  OK: '#10b981',
+  ADVERTENCIA: '#f59e0b',
+  CRITICO: '#dc2626',
+  INACTIVO: '#94a3b8',
+}
+const COLOR_PUNTO: Record<Salud, string> = {
+  OK: 'bg-emerald-500',
+  ADVERTENCIA: 'bg-amber-500',
+  CRITICO: 'bg-red',
+  INACTIVO: 'bg-slate-400',
 }
 const ETIQUETA_SALUD: Record<Salud, string> = {
   OK: 'Operativo',
@@ -73,6 +84,21 @@ const SELECT_MAPA = `
   )
 `
 
+// Fracción (fx, fy) desde la esquina superior izquierda de la imagen -> coordenada de Leaflet
+// CRS.Simple. Con bounds [[0,0],[H,W]] el origen [0,0] es la esquina inferior izquierda, así que
+// la fila (y) se invierte.
+function aLatLng(fx: number, fy: number): L.LatLngExpression {
+  return [IMG_H * (1 - fy), IMG_W * fx]
+}
+
+function iconoMarcador(z: Zona, salud: Salud): L.DivIcon {
+  const etiqueta = z.numero_edificio != null ? String(z.numero_edificio) : 'P'
+  const html = `<div style="width:26px;height:26px;border-radius:9999px;background:${COLOR_HEX[salud]};
+    color:#fff;display:flex;align-items:center;justify-content:center;font:700 12px system-ui,sans-serif;
+    box-shadow:0 1px 5px rgba(0,0,0,.45);border:2px solid #fff;cursor:pointer">${etiqueta}</div>`
+  return L.divIcon({ html, className: '', iconSize: [26, 26], iconAnchor: [13, 13] })
+}
+
 export function MapaCampus() {
   const [zonas, setZonas] = useState<Zona[]>([])
   const [cargando, setCargando] = useState(true)
@@ -81,12 +107,15 @@ export function MapaCampus() {
   const [filtroTec, setFiltroTec] = useState<'TODAS' | 'BIOMETRIA_FACIAL' | 'LPR_PLACAS'>('TODAS')
   const [filtroSalud, setFiltroSalud] = useState<'TODOS' | Salud>('TODOS')
 
+  const contenedorRef = useRef<HTMLDivElement | null>(null)
+  const mapaRef = useRef<L.Map | null>(null)
+  const capaMarcadoresRef = useRef<L.LayerGroup | null>(null)
+
   const cargar = async () => {
     setCargando(true)
     const { data, error: err } = await supabase.from('zona').select(SELECT_MAPA).order('numero_edificio', { ascending: true })
     if (err) setError(mensajeError(err))
     else setError(null)
-    // pos_x/pos_y llegan como texto (numeric de Postgres); se normalizan a número.
     const filas = ((data ?? []) as any[]).map((z) => ({
       ...z,
       pos_x: z.pos_x == null ? null : Number(z.pos_x),
@@ -107,7 +136,10 @@ export function MapaCampus() {
     return true
   }
 
-  const ubicadas = useMemo(() => zonas.filter((z) => z.pos_x != null && z.pos_y != null && pasaFiltros(z)), [zonas, filtroTec, filtroSalud])
+  const ubicadas = useMemo(
+    () => zonas.filter((z) => z.pos_x != null && z.pos_y != null && pasaFiltros(z)),
+    [zonas, filtroTec, filtroSalud],
+  )
   const sinUbicar = useMemo(
     () => zonas.filter((z) => (z.pos_x == null || z.pos_y == null) && z.tipo_zona !== 'CAMPUS'),
     [zonas],
@@ -117,7 +149,50 @@ export function MapaCampus() {
   const puntosActivos = zonas.flatMap((z) => z.puntos).filter((p) => p.estado_punto === 'ACTIVO').length
   const totalDispositivos = zonas.flatMap((z) => z.puntos).flatMap((p) => p.dispositivos ?? []).length
 
-  if (cargando) return <CenterSpinner label="Cargando el mapa del campus…" />
+  // Inicializa el mapa Leaflet una sola vez (la imagen del campus como capa base).
+  useEffect(() => {
+    if (!contenedorRef.current || mapaRef.current) return
+    const bounds: L.LatLngBoundsExpression = [[0, 0], [IMG_H, IMG_W]]
+    const mapa = L.map(contenedorRef.current, {
+      crs: L.CRS.Simple,
+      minZoom: -2,
+      maxZoom: 3,
+      zoomSnap: 0.25,
+      attributionControl: false,
+      maxBounds: bounds,
+      maxBoundsViscosity: 1,
+    })
+    L.imageOverlay(MAPA_FONDO, bounds).addTo(mapa)
+    mapa.fitBounds(bounds)
+    mapa.setMinZoom(mapa.getZoom() - 0.5)
+    capaMarcadoresRef.current = L.layerGroup().addTo(mapa)
+    mapaRef.current = mapa
+    // El contenedor puede montarse con tamaño 0 (dentro de una Card recién renderizada).
+    const t = setTimeout(() => {
+      mapa.invalidateSize()
+      mapa.fitBounds(bounds)
+    }, 0)
+    return () => {
+      clearTimeout(t)
+      mapa.remove()
+      mapaRef.current = null
+      capaMarcadoresRef.current = null
+    }
+  }, [])
+
+  // Repinta los marcadores cuando cambian los datos o los filtros.
+  useEffect(() => {
+    const capa = capaMarcadoresRef.current
+    if (!capa) return
+    capa.clearLayers()
+    for (const z of ubicadas) {
+      const salud = saludDeZona(z)
+      L.marker(aLatLng(z.pos_x as number, z.pos_y as number), { icon: iconoMarcador(z, salud) })
+        .bindTooltip(`${z.nombre_zona} — ${ETIQUETA_SALUD[salud]}`, { direction: 'top', offset: [0, -12] })
+        .on('click', () => setSeleccion(z))
+        .addTo(capa)
+    }
+  }, [ubicadas])
 
   return (
     <div className="space-y-4">
@@ -129,6 +204,7 @@ export function MapaCampus() {
           <Contador valor={puntosActivos} etiqueta="puntos activos" tono="bg-emerald-50 text-emerald-700" />
           <Contador valor={totalPuntos} etiqueta="puntos de control" tono="bg-slate-100 text-slate-700" />
           <Contador valor={totalDispositivos} etiqueta="dispositivos" tono="bg-slate-100 text-slate-700" />
+          {cargando && <span className="self-center text-sm text-slate-400">Cargando…</span>}
         </div>
         <Button variant="ghost" onClick={cargar}>
           <RefreshCw className="h-4 w-4" /> Actualizar
@@ -155,41 +231,19 @@ export function MapaCampus() {
         </div>
       </div>
 
-      {/* Mapa */}
+      {/* Mapa (Leaflet sobre la imagen del campus) */}
       <Card className="overflow-hidden">
-        <div className="relative mx-auto w-full max-w-2xl">
-          <img src={MAPA_FONDO} alt="Plano del Campus Politécnico de la EPN" className="block h-auto w-full" />
-          {ubicadas.map((z) => {
-            const salud = saludDeZona(z)
-            const tecs = tecnologiasDeZona(z)
-            const Icono = tecs.has('LPR_PLACAS') && !tecs.has('BIOMETRIA_FACIAL') ? Car : Fingerprint
-            return (
-              <button
-                key={z.id_zona}
-                type="button"
-                onClick={() => setSeleccion(z)}
-                title={`${z.nombre_zona} — ${ETIQUETA_SALUD[salud]}`}
-                aria-label={`${z.nombre_zona}, ${ETIQUETA_SALUD[salud]}`}
-                className={cx(
-                  'absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-white shadow-md ring-2 transition hover:scale-110 focus:outline-none focus:ring-4',
-                  COLOR_MARCADOR[salud],
-                )}
-                style={{ left: `${(z.pos_x as number) * 100}%`, top: `${(z.pos_y as number) * 100}%` }}
-              >
-                {z.numero_edificio != null ? (
-                  <span className="text-[11px] font-bold leading-none">{z.numero_edificio}</span>
-                ) : (
-                  <Icono className="h-4 w-4" />
-                )}
-              </button>
-            )
-          })}
-        </div>
+        <div
+          ref={contenedorRef}
+          className="w-full"
+          style={{ aspectRatio: `${IMG_W} / ${IMG_H}`, background: '#0c2340' }}
+          aria-label="Mapa interactivo del campus"
+        />
         {/* Leyenda */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
           {(['OK', 'ADVERTENCIA', 'CRITICO', 'INACTIVO'] as const).map((s) => (
             <span key={s} className="inline-flex items-center gap-1.5">
-              <span className={cx('h-2.5 w-2.5 rounded-full', COLOR_MARCADOR[s].split(' ')[0])} />
+              <span className={cx('h-2.5 w-2.5 rounded-full', COLOR_PUNTO[s])} />
               {ETIQUETA_SALUD[s]}
             </span>
           ))}
@@ -223,7 +277,7 @@ export function MapaCampus() {
         </Card>
       )}
 
-      {ubicadas.length === 0 && sinUbicar.length === 0 && (
+      {!cargando && ubicadas.length === 0 && sinUbicar.length === 0 && (
         <EmptyState title="Sin zonas para mostrar" hint="Registra zonas y puntos de control en el módulo PCO." />
       )}
 
