@@ -32,9 +32,21 @@ vi.mock('leaflet', () => {
     mp.getZoom = () => 0
     return mp
   }
-  const L = { map, imageOverlay: () => ({ addTo: () => {} }), layerGroup, marker, divIcon: () => ({}), CRS: { Simple: {} } }
+  const overlay = { addTo: () => {} }
+  const L = {
+    map,
+    imageOverlay: () => overlay,
+    svgOverlay: () => overlay,
+    layerGroup,
+    marker,
+    divIcon: () => ({}),
+    CRS: { Simple: {} },
+  }
   return { default: L, ...L }
 })
+
+// El componente hace fetch del SVG del plano; en jsdom no hay red, así que se mockea.
+vi.stubGlobal('fetch', () => Promise.resolve({ text: () => Promise.resolve('<svg viewBox="0 0 686 446"></svg>') }))
 
 const { filas } = vi.hoisted(() => ({ filas: { zona: [] as any[] } }))
 

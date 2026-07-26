@@ -74,10 +74,11 @@ administración. Puntos clave para retomar:
   "zonas sin ubicar". Hacerlas obligatorias exige antes un selector de posición en el alta de PCO.
 - **Sin RLS nueva para la vista de admin:** `zona`/`punto_control`/`dispositivo` ya son legibles
   desde CAC vía `tiene_acceso_operativo_cac()`.
-- **Mapa con Leaflet + plano oficial** `web/public/mapa-epn-2.jpg` (§V50): Leaflet en `CRS.Simple`
-  con la imagen del campus como capa base y los marcadores del sistema encima (zoom/paneo reales).
-  Cada zona se ubica sobre el edificio con su mismo número en la imagen. `pos_x/pos_y` = fracción
-  0..1 de la imagen; el componente las pasa a coordenada Leaflet con `[H*(1-fy), W*fx]`.
+- **Mapa con Leaflet + plano VECTORIAL** `web/public/mapa-epn-2.svg` (§V50): recreación vectorial
+  del plano oficial (vectorizada con VTracer + SVGO), dibujada con Leaflet `CRS.Simple` vía
+  `L.svgOverlay` → nítida a cualquier zoom (no ráster). Marcadores del sistema encima (zoom/paneo).
+  Cada zona se ubica sobre el edificio con su mismo número; `pos_x/pos_y` = fracción 0..1, a Leaflet
+  con `[H*(1-fy), W*fx]`. No usar imagen ráster de fondo (se pixela).
 - **Componente**: `web/src/pages/modules/MapaCampus.tsx`, submódulo "Mapa del campus" en CAC.
 - **Roadmap** (próximas sesiones): Realtime en vivo; selector de posición + coordenadas
   obligatorias; **vista pública** (`anon`, pantallas del campus) con **vista SQL `SECURITY INVOKER`

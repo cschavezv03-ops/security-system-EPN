@@ -5,12 +5,12 @@ import { Car, Fingerprint, MapPin, RefreshCw } from 'lucide-react'
 import { supabase, mensajeError } from '../../lib/supabase'
 import { Badge, Button, Card, EmptyState, ErrorBanner, SidePanel, cx } from '../../components/ui'
 
-// Capa base del mapa: el plano oficial del campus de la EPN (web/public/mapa-epn-2.jpg). Se dibuja
-// con Leaflet en modo CRS.Simple (coordenadas de imagen, sin proyección geográfica), que es la
-// herramienta estándar para mapas interactivos con zoom/paneo sobre una imagen propia. Las zonas
-// del sistema se ubican con pos_x/pos_y (fracción 0..1 desde la esquina superior izquierda de la
-// imagen) y se pintan como marcadores encima. Ver docs/08_MAPA_INTERACTIVO.md.
-const MAPA_FONDO = '/mapa-epn-2.jpg'
+// Capa base del mapa: recreación VECTORIAL del plano del campus (web/public/mapa-epn-2.svg), para
+// que se vea nítida a cualquier zoom (no pixelada como una imagen ráster). Se dibuja con Leaflet en
+// modo CRS.Simple (coordenadas de imagen, sin proyección geográfica) mediante `L.svgOverlay`, que
+// escala el SVG como vector puro. Las zonas del sistema se ubican con pos_x/pos_y (fracción 0..1
+// desde la esquina superior izquierda) y se pintan como marcadores encima. Ver docs/08_MAPA_INTERACTIVO.md.
+const MAPA_FONDO = '/mapa-epn-2.svg'
 const IMG_W = 686
 const IMG_H = 446
 
@@ -162,7 +162,16 @@ export function MapaCampus() {
       maxBounds: bounds,
       maxBoundsViscosity: 1,
     })
-    L.imageOverlay(MAPA_FONDO, bounds).addTo(mapa)
+    // El plano es un SVG: se añade como svgOverlay (vector real -> nítido a cualquier zoom).
+    let cancelado = false
+    fetch(MAPA_FONDO)
+      .then((r) => r.text())
+      .then((txt) => {
+        if (cancelado) return
+        const svg = new DOMParser().parseFromString(txt, 'image/svg+xml').documentElement as unknown as SVGElement
+        L.svgOverlay(svg, bounds, { interactive: false }).addTo(mapa)
+      })
+      .catch(() => {})
     mapa.fitBounds(bounds)
     mapa.setMinZoom(mapa.getZoom() - 0.5)
     capaMarcadoresRef.current = L.layerGroup().addTo(mapa)
@@ -173,6 +182,7 @@ export function MapaCampus() {
       mapa.fitBounds(bounds)
     }, 0)
     return () => {
+      cancelado = true
       clearTimeout(t)
       mapa.remove()
       mapaRef.current = null

@@ -1044,10 +1044,15 @@ Recorrido de la decisión (quedó registrado porque cambió dos veces):
    para mapas, y entregó una imagen más limpia (`mapa-epn-2.jpg`, el plano **sin la leyenda de
    abajo**).
 
-**Solución final (la vigente):** **Leaflet** en `CRS.Simple` con `mapa-epn-2.jpg` (686×446) como
-capa base y los marcadores del sistema encima. Así el mapa es idéntico al plano oficial y además es
-interactivo de verdad (zoom, paneo, tooltips, clic → detalle). Se eliminaron del repo `mapa-epn.png`,
-`mapa-epn.svg` y `mapa-epn-campus.svg`.
+4. El usuario aclaró: **no** quiere la imagen ráster de fondo (se pixela al ampliar), quiere que se
+   **recree el plano exactamente como vector**.
+
+**Solución final (la vigente):** se **vectorizó** `mapa-epn-2.jpg` con **VTracer** (raster→SVG) y se
+optimizó con **SVGO** → `web/public/mapa-epn-2.svg` (~424 KB, 157 KB gzip), fiel al original pero
+nítido. Se dibuja con **Leaflet** en `CRS.Simple` mediante **`L.svgOverlay`** (escala como vector,
+nunca se pixela), con los marcadores del sistema encima. Interactivo de verdad (zoom, paneo,
+tooltips, clic → detalle). Se eliminaron del repo `mapa-epn.png`, `mapa-epn.svg`,
+`mapa-epn-campus.svg` y `mapa-epn-2.jpg` (el `.svg` es la fuente).
 
 **Ubicación de marcadores:** cada zona se colocó sobre el **edificio con su mismo número** en la
 imagen (Ed. 3→#3, 6→#6, 12→#12, 15→#15, 20→#20, 21→#21, 26→#26; parqueaderos junto a su edificio).
@@ -1055,8 +1060,9 @@ Verificado componiendo la imagen con los 9 marcadores. Son buenas pero **aproxim
 ojo de la imagen); un pase fino es fácil ahora que el mapa es interactivo.
 
 **Para mover un marcador:** cambiar el `pos_x/pos_y` de la zona (remoto vía MCP; local en
-`seed.sql`). Para cambiar el plano: reemplazar `web/public/mapa-epn-2.jpg` y ajustar `IMG_W/IMG_H`
-en el componente.
+`seed.sql`). Para cambiar el plano: regenerar `web/public/mapa-epn-2.svg` (vectorizar la imagen
+nueva con VTracer + SVGO, añadir `viewBox`) y, si cambia la relación de aspecto, ajustar
+`IMG_W/IMG_H` en el componente.
 
 ## V51 — Vista pública, nombres de guardias y buzón de denuncias: diseño acordado, aún sin construir
 
